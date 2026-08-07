@@ -9821,14 +9821,10 @@ window.onload=async()=>{
         try{ ({pdf,filename}=await buildVendorStockPdfDoc()); }
         catch(e){ alert('❌ فشل بناء PDF: '+e.message); return; }
         const blob=pdf.output('blob');
-        const file=new File([blob],filename,{type:'application/pdf'});
-        if(navigator.canShare&&navigator.canShare({files:[file]})){
-            window.open(waLink,'_blank');
-            try{ await navigator.share({files:[file]}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
-        }
+        // نفس الأسلوب دائماً (لابتوب وموبايل) — بلا محاولة navigator.share:
+        // على iOS كانت تفشل بصمت أحياناً (قيد توقيت user-activation) وترجع تجربة غير مضمونة.
+        // فتح وا.مي + زر تنزيل واضح تضغطه بنفسك أبسط وأكيد يشتغل بكل الأحوال.
         window.open(waLink,'_blank');
-        // على الديسكتوب: تنزيل تلقائي بعد await ممكن يُحجب صامتاً من كروم (انتهاء صلاحية user-activation) —
-        // نعرض زر تنزيل يدوي واضح بدل الاعتماد على تنزيل صامت قد ما يصير
         const url=URL.createObjectURL(blob);
         const overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px';
