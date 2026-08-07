@@ -5878,20 +5878,24 @@ window.onload=async()=>{
                 let totalSize=0;
                 try{ totalSize=(await ghFetchMeta(c)).size||0; }catch(e){ throw e; }
 
-                // شبكات الموبايل (LTE/5G) تنقطع لحظياً بشكل طبيعي — نعيد المحاولة تلقائياً
-                // من الصفر لين 3 مرات قبل ما نفشل نهائياً (بدل ما نرجّع المستخدم صفر بأول انقطاع)
-                const MAX_ATTEMPTS=3;
-                let gzBytes=null, lastErr=null;
+                // شبكات الموبايل (LTE/5G) تنقطع لحظياً بشكل طبيعي. نطلب Range اختيارياً (استئناف من نفس
+                // البايت بدل الصفر) على *نفس endpoint المجرَّب فعلياً* — لو GitHub تجاهل الـRange ورجّع
+                // 200 كامل بدل 206 جزئي، الكود يكتشفها ويرجع تلقائياً لسلوك "من الصفر" المضمون (بلا كسر شي).
+                const MAX_ATTEMPTS=5;
+                const dlUrl=`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(c.path)}`;
+                let parts=[], received=0, lastErr=null;
                 for(let attempt=1; attempt<=MAX_ATTEMPTS; attempt++){
                     try{
-                        const url=`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(c.path)}`;
-                        const res=await fetch(url,{headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github.raw'},cache:'no-store'});
-                        if(!res.ok) throw new Error('فشل التحميل من GitHub ('+res.status+')');
+                        const headers={Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github.raw'};
+                        if(received>0) headers['Range']=`bytes=${received}-`;
+                        const res=await fetch(dlUrl,{headers, cache:'no-store'});
+                        if(!res.ok && res.status!==206) throw new Error('فشل التحميل من GitHub ('+res.status+')');
+                        // السيرفر ما دعم الاستئناف (رجع 200 كامل بدل 206 جزئي) — نبدأ تجميع البيانات من جديد
+                        if(received>0 && res.status!==206){ parts=[]; received=0; }
 
+                        const attemptLabel=attempt>1?` (محاولة ${attempt}/${MAX_ATTEMPTS})`:'';
                         if(res.body&&res.body.getReader){
                             const reader=res.body.getReader();
-                            const parts=[]; let received=0;
-                            const attemptLabel=attempt>1?` (محاولة ${attempt}/${MAX_ATTEMPTS})`:'';
                             while(true){
                                 const {done,value}=await reader.read();
                                 if(done) break;
@@ -5901,21 +5905,22 @@ window.onload=async()=>{
                                     ? `${pct}% (${(received/1024/1024).toFixed(1)}MB / ${(totalSize/1024/1024).toFixed(1)}MB)`
                                     : `${(received/1024/1024).toFixed(1)}MB...`)+attemptLabel);
                             }
-                            gzBytes=new Blob(parts);
                         }else{
-                            gzBytes=await res.blob();
+                            const b=await res.blob(); parts=[b]; received=b.size;
                         }
                         lastErr=null;
                         break; // نجح — نطلع من حلقة إعادة المحاولة
                     }catch(e){
                         lastErr=e;
                         if(attempt<MAX_ATTEMPTS){
-                            setProgress(0, `⚠️ انقطع الاتصال — إعادة المحاولة (${attempt+1}/${MAX_ATTEMPTS})...`);
+                            setProgress(totalSize>0?Math.round(received/totalSize*100):0,
+                                `⚠️ انقطع عند ${(received/1024/1024).toFixed(1)}MB — يكمل من نفس النقطة (محاولة ${attempt+1}/${MAX_ATTEMPTS})...`);
                             await new Promise(r=>setTimeout(r,1500));
                         }
                     }
                 }
-                if(lastErr) throw new Error(`فشل التحميل بعد ${MAX_ATTEMPTS} محاولات — تأكد من قوة الشبكة.\n${lastErr.message}`);
+                if(lastErr) throw new Error(`فشل التحميل بعد ${MAX_ATTEMPTS} محاولات (توقف عند ${(received/1024/1024).toFixed(1)}MB) — تأكد من قوة الشبكة.\n${lastErr.message}`);
+                const gzBytes=new Blob(parts);
 
                 setProgress(100,'جاري فك الضغط...');
                 const ds=new DecompressionStream('gzip');
