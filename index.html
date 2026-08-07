@@ -258,6 +258,7 @@
         <button id="restoreBtn" class="ios-btn bg-[#5856D6] text-white px-4 py-2 text-sm" title="استعادة موحّدة من ملف JSON (طلبيات + تدقيق)"><i class="fas fa-upload ml-1"></i> استعادة شاملة</button>
         <button id="serverSyncBtn" class="ios-btn bg-[#00A3A3] text-white px-4 py-2 text-sm" title="يجيب آخر نسخة احتياطية مرفوعة من اللابتوب مباشرة — بلا اختيار ملف يدوي"><i class="fas fa-rotate ml-1"></i> 🔄 تحديث البيانات من اللابتوب</button>
         <button id="githubSyncBtn" class="ios-btn bg-[#24292f] text-white px-4 py-2 text-sm" title="يسحب آخر نسخة من GitHub — يشتغل واللابتوب مطفي"><i class="fab fa-github ml-1"></i> ⬇️ تحديث من GitHub</button>
+        <button id="githubPushBtn" class="ios-btn bg-[#1f6feb] text-white px-4 py-2 text-sm" title="يبني النسخة ويرفعها لـGitHub مباشرة — بلا ملف بـDownloads، ويستبدل النسخة السابقة"><i class="fas fa-cloud-arrow-up ml-1"></i> ⬆️ رفع البيانات لـGitHub</button>
         <button id="githubSettingsBtn" class="ios-btn bg-gray-300 text-gray-800 px-3 py-2 text-sm" title="إعداد الاتصال بـ GitHub (مرة وحدة لكل جهاز)"><i class="fas fa-gear"></i></button>
         <div id="serverSyncProgressWrap" class="hidden" style="display:flex;align-items:center;gap:8px;width:100%;max-width:280px">
             <div style="flex:1;height:8px;background:#e5e5ea;border-radius:4px;overflow:hidden"><div id="serverSyncProgressBar" style="height:100%;width:0%;background:#00A3A3;transition:width .2s"></div></div>
@@ -5450,9 +5451,8 @@ window.onload=async()=>{
     updateQueueCounter();
 
     // ======================== BACKUP / RESTORE ========================
-    document.getElementById('backupBtn').onclick=async function(){
-        try{
-            showToast('⏳ تجهيز النسخة الاحتياطية الشاملة...',true);
+    // يبني حمولة النسخة الاحتياطية من كل المصادر — مشتركة بين زر التنزيل وزر الرفع لـGitHub
+    async function buildBackupPayload(){
             const dump={};
             for(let i=0;i<localStorage.length;i++){
                 const k=localStorage.key(i);
@@ -5493,6 +5493,14 @@ window.onload=async()=>{
                 ordersRaw: ordersRawArr,             // IDB: ph_orders
                 excelSheets: excelSheets             // IDB: كل الـ sheets الخام
             };
+            return payload;
+    }
+    window.buildBackupPayload=buildBackupPayload;
+
+    document.getElementById('backupBtn').onclick=async function(){
+        try{
+            showToast('⏳ تجهيز النسخة الاحتياطية الشاملة...',true);
+            const payload=await buildBackupPayload();
             const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
             const url=URL.createObjectURL(blob);
             const a=document.createElement('a');
@@ -5767,6 +5775,79 @@ window.onload=async()=>{
 
         setBtn.onclick=openSettings;
 
+        // ===== رفع النسخة لـGitHub مباشرة من التطبيق =====
+        // يستعمل Git Data API (blob → tree → commit يتيم → force ref) بدل Contents API:
+        // 1) الـblobs تدعم لغاية 100MB (Contents API أضيق بكثير للرفع)
+        // 2) الكوميت اليتيم (بلا parent) + force يعني المستودع يبقى **كوميت واحد للأبد**
+        //    فما ينتفخ مهما رفعت — نفس منطق amend بسكربت البايثون.
+        async function ghApi(c, path, opts){
+            const res=await fetch(`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}${path}`,{
+                ...opts,
+                headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json','Content-Type':'application/json',...(opts&&opts.headers)}
+            });
+            if(!res.ok){
+                let detail='';
+                try{ const j=await res.json(); detail=j.message||''; }catch(_){}
+                if(res.status===401) throw new Error('التوكن غير صالح أو منتهي');
+                if(res.status===403) throw new Error('التوكن ما عنده صلاحية الكتابة (لازم Contents: Read and write)');
+                if(res.status===404) throw new Error('المستودع غير موجود أو التوكن ما يشوفه');
+                throw new Error(`GitHub ${res.status}${detail?' — '+detail:''}`);
+            }
+            return await res.json();
+        }
+        // يحوّل Blob لـbase64 بلا ما يكسر الذاكرة (FileReader يتعامل مع الحجوم الكبيرة داخلياً)
+        function blobToBase64(blob){
+            return new Promise((resolve,reject)=>{
+                const fr=new FileReader();
+                fr.onload=()=>{ const s=String(fr.result); resolve(s.slice(s.indexOf(',')+1)); };
+                fr.onerror=()=>reject(new Error('فشل تحويل الملف'));
+                fr.readAsDataURL(blob);
+            });
+        }
+
+        const pushBtn=document.getElementById('githubPushBtn');
+        if(pushBtn) pushBtn.onclick=async function(){
+            const c=getCfg();
+            if(!c||!c.owner||!c.repo||!c.token){ alert('⚙️ سوِّ الإعداد أولاً — اضغط زر الترس'); openSettings(); return; }
+            if(typeof CompressionStream==='undefined'){ alert('❌ متصفحك ما يدعم الضغط (يحتاج متصفح أحدث)'); return; }
+            if(!confirm('⚠️ سيتم استبدال النسخة الموجودة على GitHub بالبيانات الحالية — متأكد؟')) return;
+
+            const orig=pushBtn.innerHTML;
+            try{
+                pushBtn.disabled=true;
+                pushBtn.textContent='⏳ جاري تجهيز البيانات...';
+                const payload=await buildBackupPayload();
+                const jsonBlob=new Blob([JSON.stringify(payload)],{type:'application/json'});
+                const rawMB=(jsonBlob.size/1024/1024).toFixed(0);
+
+                pushBtn.textContent=`⏳ جاري الضغط (${rawMB}MB)...`;
+                const gzBlob=await new Response(jsonBlob.stream().pipeThrough(new CompressionStream('gzip'))).blob();
+                const gzMB=(gzBlob.size/1024/1024).toFixed(1);
+                if(gzBlob.size>95*1024*1024) throw new Error(`الملف المضغوط ${gzMB}MB — أكبر من حد GitHub (100MB)`);
+
+                pushBtn.textContent=`⏳ جاري الترميز (${gzMB}MB)...`;
+                const b64=await blobToBase64(gzBlob);
+
+                pushBtn.textContent=`⏳ جاري الرفع (${gzMB}MB)...`;
+                const blobRes=await ghApi(c,'/git/blobs',{method:'POST',body:JSON.stringify({content:b64,encoding:'base64'})});
+                const treeRes=await ghApi(c,'/git/trees',{method:'POST',body:JSON.stringify({
+                    tree:[{path:c.path||'latest_backup.json.gz', mode:'100644', type:'blob', sha:blobRes.sha}]
+                })});
+                const stamp=new Date().toLocaleString('en-GB',{hour12:false}).replace(',','');
+                // parents: [] = كوميت يتيم — يمسح التاريخ القديم فيبقى المستودع بنسخة واحدة
+                const commitRes=await ghApi(c,'/git/commits',{method:'POST',body:JSON.stringify({
+                    message:`backup: ${stamp}`, tree:treeRes.sha, parents:[]
+                })});
+                await ghApi(c,'/git/refs/heads/main',{method:'PATCH',body:JSON.stringify({sha:commitRes.sha, force:true})});
+
+                pushBtn.innerHTML=orig; pushBtn.disabled=false;
+                alert(`✅ تم الرفع لـGitHub\n• ${payload.orders} طلبية\n• ${payload.auditRows} صف تدقيق\n• ${payload.excelSheetCount} sheet\n• الحجم: ${rawMB}MB → ${gzMB}MB\n\nتقدر تطفي اللابتوب — الموبايل يسحبها أي وقت.`);
+            }catch(err){
+                pushBtn.innerHTML=orig; pushBtn.disabled=false;
+                alert('❌ فشل الرفع لـGitHub:\n'+err.message);
+            }
+        };
+
         btn.onclick=async function(){
             const c=getCfg();
             if(!c||!c.owner||!c.repo||!c.token){ alert('⚙️ سوِّ الإعداد أولاً — اضغط زر الترس جنب الزر'); openSettings(); return; }
@@ -5788,29 +5869,44 @@ window.onload=async()=>{
                 let totalSize=0;
                 try{ totalSize=(await ghFetchMeta(c)).size||0; }catch(e){ throw e; }
 
-                // media type = raw يرجّع البايتات مباشرة (يدعم لغاية 100MB) بدل base64
-                const url=`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(c.path)}`;
-                const res=await fetch(url,{headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github.raw'},cache:'no-store'});
-                if(!res.ok) throw new Error('فشل التحميل من GitHub ('+res.status+')');
+                // شبكات الموبايل (LTE/5G) تنقطع لحظياً بشكل طبيعي — نعيد المحاولة تلقائياً
+                // من الصفر لين 3 مرات قبل ما نفشل نهائياً (بدل ما نرجّع المستخدم صفر بأول انقطاع)
+                const MAX_ATTEMPTS=3;
+                let gzBytes=null, lastErr=null;
+                for(let attempt=1; attempt<=MAX_ATTEMPTS; attempt++){
+                    try{
+                        const url=`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(c.path)}`;
+                        const res=await fetch(url,{headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github.raw'},cache:'no-store'});
+                        if(!res.ok) throw new Error('فشل التحميل من GitHub ('+res.status+')');
 
-                // تحميل مع تتبّع التقدم، ثم فك ضغط gzip
-                let gzBytes;
-                if(res.body&&res.body.getReader){
-                    const reader=res.body.getReader();
-                    const parts=[]; let received=0;
-                    while(true){
-                        const {done,value}=await reader.read();
-                        if(done) break;
-                        parts.push(value); received+=value.length;
-                        const pct=totalSize>0?Math.min(99,Math.round(received/totalSize*100)):0;
-                        setProgress(pct, totalSize>0
-                            ? `${pct}% (${(received/1024/1024).toFixed(1)}MB / ${(totalSize/1024/1024).toFixed(1)}MB)`
-                            : `${(received/1024/1024).toFixed(1)}MB...`);
+                        if(res.body&&res.body.getReader){
+                            const reader=res.body.getReader();
+                            const parts=[]; let received=0;
+                            const attemptLabel=attempt>1?` (محاولة ${attempt}/${MAX_ATTEMPTS})`:'';
+                            while(true){
+                                const {done,value}=await reader.read();
+                                if(done) break;
+                                parts.push(value); received+=value.length;
+                                const pct=totalSize>0?Math.min(99,Math.round(received/totalSize*100)):0;
+                                setProgress(pct, (totalSize>0
+                                    ? `${pct}% (${(received/1024/1024).toFixed(1)}MB / ${(totalSize/1024/1024).toFixed(1)}MB)`
+                                    : `${(received/1024/1024).toFixed(1)}MB...`)+attemptLabel);
+                            }
+                            gzBytes=new Blob(parts);
+                        }else{
+                            gzBytes=await res.blob();
+                        }
+                        lastErr=null;
+                        break; // نجح — نطلع من حلقة إعادة المحاولة
+                    }catch(e){
+                        lastErr=e;
+                        if(attempt<MAX_ATTEMPTS){
+                            setProgress(0, `⚠️ انقطع الاتصال — إعادة المحاولة (${attempt+1}/${MAX_ATTEMPTS})...`);
+                            await new Promise(r=>setTimeout(r,1500));
+                        }
                     }
-                    gzBytes=new Blob(parts);
-                }else{
-                    gzBytes=await res.blob();
                 }
+                if(lastErr) throw new Error(`فشل التحميل بعد ${MAX_ATTEMPTS} محاولات — تأكد من قوة الشبكة.\n${lastErr.message}`);
 
                 setProgress(100,'جاري فك الضغط...');
                 const ds=new DecompressionStream('gzip');
