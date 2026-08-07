@@ -5817,6 +5817,15 @@ window.onload=async()=>{
                 pushBtn.disabled=true;
                 pushBtn.textContent='⏳ جاري تجهيز البيانات...';
                 const payload=await buildBackupPayload();
+
+                // حاجز أمان: لو الجهاز فاضي (متصفح جديد، iOS home-screen ما زامن بعد)
+                // ورفعنا فوق نسخة GitHub الممتلئة، نضيع كل البيانات. نمنع هذا صراحة.
+                if((payload.orders||0)<10 && (payload.excelSheetCount||0)===0){
+                    alert('❌ تم إيقاف الرفع — بيانات هذا الجهاز شبه فارغة (طلبيات: '+(payload.orders||0)+'، شيتات: 0).\n\nهذا الجهاز غالباً لسه ما سحب بيانات من GitHub (نسخة جديدة/فارغة). لو رفعت الحين، تمسح كل البيانات الحقيقية الموجودة!\n\nاضغط "⬇️ تحديث من GitHub" أولاً، مو "⬆️ رفع".');
+                    pushBtn.disabled=false;
+                    return;
+                }
+
                 const jsonBlob=new Blob([JSON.stringify(payload)],{type:'application/json'});
                 const rawMB=(jsonBlob.size/1024/1024).toFixed(0);
 
