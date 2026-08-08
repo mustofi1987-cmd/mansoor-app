@@ -273,6 +273,8 @@
         <button id="githubSyncBtn" class="ios-btn bg-[#24292f] text-white px-4 py-2 text-sm" title="يسحب آخر نسخة من GitHub — يشتغل واللابتوب مطفي"><i class="fab fa-github ml-1"></i> ⬇️ تحديث من GitHub</button>
         <button id="githubPushBtn" class="ios-btn bg-[#1f6feb] text-white px-4 py-2 text-sm" title="يبني النسخة ويرفعها لـGitHub مباشرة — بلا ملف بـDownloads، ويستبدل النسخة السابقة"><i class="fas fa-cloud-arrow-up ml-1"></i> ⬆️ رفع البيانات لـGitHub</button>
         <button id="githubSettingsBtn" class="ios-btn bg-gray-300 text-gray-800 px-3 py-2 text-sm" title="إعداد الاتصال بـ GitHub (مرة وحدة لكل جهاز)"><i class="fas fa-gear"></i></button>
+        <button id="localCodeLinkBtn" class="hidden ios-btn bg-gray-300 text-gray-800 px-3 py-2 text-sm" title="اربط ملف التطبيق المحلي (مرة وحدة) — لازم قبل زر التحديث"><i class="fas fa-link ml-1"></i> ربط الملف</button>
+        <button id="localCodeUpdateBtn" class="hidden ios-btn bg-[#0f172a] text-white px-4 py-2 text-sm" title="يحدّث نسخة التطبيق المحلية (الكود نفسه) من آخر نسخة على GitHub — تضل تشتغل بلا نت بعدها"><i class="fas fa-arrows-rotate ml-1"></i> تحديث نسخة التطبيق</button>
         <div id="serverSyncProgressWrap" class="hidden" style="display:flex;align-items:center;gap:8px;width:100%;max-width:280px">
             <div style="flex:1;height:8px;background:#e5e5ea;border-radius:4px;overflow:hidden"><div id="serverSyncProgressBar" style="height:100%;width:0%;background:#00A3A3;transition:width .2s"></div></div>
             <span id="serverSyncProgressText" style="font-size:12px;white-space:nowrap;color:#636366">0%</span>
@@ -937,7 +939,8 @@
         <div id="vendorStockResultsPanel" class="hidden">
             <div class="flex flex-wrap gap-2 mb-2 items-center">
                 <button id="vendorStockExportBtn" class="ios-btn bg-[#AF52DE] text-white px-4 py-2 text-sm font-bold"><i class="fas fa-file-pdf ml-1"></i> تصدير PDF</button>
-                <button id="vendorStockWhatsappBtn" class="ios-btn bg-[#25D366] text-white px-4 py-2 text-sm font-bold" title="يرسل تنبيه مختصر لأول مندوب مرتبط بالمكاتب المختارة"><i class="fab fa-whatsapp ml-1"></i> واتساب</button>
+                <button id="vendorStockWhatsappBtn" class="ios-btn bg-[#25D366] text-white px-4 py-2 text-sm font-bold" title="يرسل رسالة + ملف PDF لأول مندوب مرتبط بالمكاتب المختارة"><i class="fab fa-whatsapp ml-1"></i> واتساب</button>
+                <button id="vendorStockWhatsappImageBtn" class="ios-btn bg-[#007AFF] text-white px-4 py-2 text-sm font-bold" title="يرسل صور (نفس أسلوب الطلبيات) بدل ملف PDF"><i class="fas fa-camera ml-1"></i> صورة</button>
                 <button id="vendorStockBackBtn" class="ios-btn bg-gray-200 px-4 py-2 text-sm"><i class="fas fa-arrow-right ml-1"></i> رجوع للاختيار</button>
                 <span class="text-xs text-gray-500 mr-auto">📋 المنتجات مُرتّبة أبجدياً</span>
             </div>
@@ -5959,6 +5962,79 @@ window.onload=async()=>{
         };
     })();
 
+    // ======================== LOCAL APP CODE UPDATE (Chrome/Edge فقط — File System Access API) ========================
+    // يحدّث ملف التطبيق المحلي نفسه (كود v8.html) من مستودع GitHub mansoor-app — بديل النسخ اليدوي بعد كل تعديل.
+    // ما يشتغل على Safari/iOS (الـAPI غير مدعوم هناك) — الزرين يضلون مخفيين بهذي الحالة تلقائياً.
+    (function setupLocalCodeUpdate(){
+        if(!window.showOpenFilePicker) return; // متصفح ما يدعم الميزة — لا تظهر الأزرار
+        const linkBtn=document.getElementById('localCodeLinkBtn');
+        const updateBtn=document.getElementById('localCodeUpdateBtn');
+        if(!linkBtn||!updateBtn) return;
+        linkBtn.classList.remove('hidden');
+        updateBtn.classList.remove('hidden');
+
+        const APP_DB_NAME='mansoor_app_meta_db', APP_STORE='meta', HANDLE_KEY='localFileHandle';
+        const GH_RAW_URL='https://raw.githubusercontent.com/mustofi1987-cmd/mansoor-app/main/index.html';
+
+        function metaIdbOpen(){
+            return new Promise((resolve,reject)=>{
+                const req=indexedDB.open(APP_DB_NAME,1);
+                req.onupgradeneeded=e=>{ const db=e.target.result; if(!db.objectStoreNames.contains(APP_STORE)) db.createObjectStore(APP_STORE); };
+                req.onsuccess=e=>resolve(e.target.result);
+                req.onerror=e=>reject(e.target.error);
+            });
+        }
+        function metaGet(key){
+            return metaIdbOpen().then(db=>new Promise((resolve,reject)=>{
+                const tx=db.transaction(APP_STORE,'readonly');
+                const req=tx.objectStore(APP_STORE).get(key);
+                req.onsuccess=()=>{ resolve(req.result); db.close(); };
+                req.onerror=e=>{ reject(e.target.error); db.close(); };
+            }));
+        }
+        function metaPut(key,val){
+            return metaIdbOpen().then(db=>new Promise((resolve,reject)=>{
+                const tx=db.transaction(APP_STORE,'readwrite');
+                tx.objectStore(APP_STORE).put(val,key);
+                tx.oncomplete=()=>{ resolve(); db.close(); };
+                tx.onerror=e=>{ reject(e.target.error); db.close(); };
+            }));
+        }
+
+        linkBtn.onclick=async function(){
+            try{
+                const [handle]=await window.showOpenFilePicker({
+                    types:[{description:'ملف التطبيق HTML', accept:{'text/html':['.html']}}]
+                });
+                await metaPut(HANDLE_KEY, handle);
+                showToast('✅ تم ربط الملف — دوس "تحديث نسخة التطبيق" أي وقت تريد');
+            }catch(e){ if(e.name!=='AbortError') alert('❌ فشل الربط: '+e.message); }
+        };
+
+        updateBtn.onclick=async function(){
+            try{
+                const handle=await metaGet(HANDLE_KEY);
+                if(!handle){ alert('⚠️ لازم تربط الملف المحلي أول مرة — دوس زر "ربط الملف" واختر مذخر_ادوية_المنصور_v8.html'); return; }
+                const perm=await handle.requestPermission({mode:'readwrite'});
+                if(perm!=='granted'){ alert('❌ ما انعطت صلاحية الكتابة على الملف'); return; }
+                if(!confirm('هذا راح يستبدل نسخة التطبيق المحلية بالكامل بآخر نسخة من GitHub.\nمتأكد تريد تكمل؟')) return;
+                showToast('⏳ جاري تحميل آخر نسخة من GitHub...',true);
+                const res=await fetch(GH_RAW_URL,{cache:'no-store'});
+                if(!res.ok) throw new Error('فشل التحميل ('+res.status+')');
+                const text=await res.text();
+                // حاجز أمان: لو المحتوى فاضي أو غريب — لا تكتب فوق الملف المحلي
+                if(!text || text.length<100000 || !text.includes('مذخر أدوية المنصور')){
+                    throw new Error('المحتوى المسحوب من GitHub ما يبدو صحيح (حجم/محتوى غير متوقع) — أُلغيت الكتابة حفاظاً على نسختك المحلية');
+                }
+                const writable=await handle.createWritable();
+                await writable.write(text);
+                await writable.close();
+                alert('✅ تم تحديث نسخة التطبيق المحلية من GitHub\nراح تنعاد تحميل الصفحة الآن');
+                location.reload();
+            }catch(e){ alert('❌ فشل التحديث: '+e.message); }
+        };
+    })();
+
     // ======================== EXPORT ALL ORDERS AS PDF ========================
     document.getElementById('exportPdfBtn').onclick=async function(){
         if(!appState.orders.length){ alert('لا توجد طلبيات'); return; }
@@ -9681,13 +9757,9 @@ window.onload=async()=>{
         document.getElementById('vendorStockResultsPanel').classList.remove('hidden');
     }
 
-    // يبني مستند jsPDF لكشف الرصيد (بلا حفظ) — مستخدم من التصدير العادي ومن الإرسال عبر واتساب
-    async function buildVendorStockPdfDoc(){
+    // يبني صور Canvas لكشف الرصيد (صفحة لكل عنصر) — مصدر مشترك للـPDF ولصور واتساب
+    async function buildVendorStockCanvases(){
         if(!_vendorStockData || !_vendorStockData.rows.length) throw new Error('لا توجد بيانات');
-        if(typeof window.jspdf==='undefined') throw new Error('jsPDF غير محمّل');
-        const { jsPDF } = window.jspdf;
-        // Portrait — 3 أعمدة بسيطة، أوضح بصرياً
-        const pdf=new jsPDF({orientation:'p', unit:'mm', format:'a4'});
         const PAGE_W=210, PAGE_H=297;
         const data=_vendorStockData;
         const vendorTitle=(data.vendors||[]).join(' • ') || '-';
@@ -9700,8 +9772,8 @@ window.onload=async()=>{
         const chunks=[];
         for(let i=0;i<data.rows.length;i+=ROWS_PER_PAGE) chunks.push(data.rows.slice(i,i+ROWS_PER_PAGE));
 
+        const canvases=[];
         for(let ci=0;ci<chunks.length;ci++){
-            if(ci>0) pdf.addPage('a4','p');
             const canvas=document.createElement('canvas');
             canvas.width=W; canvas.height=H;
             const ctx=canvas.getContext('2d');
@@ -9780,13 +9852,37 @@ window.onload=async()=>{
             ctx.strokeStyle='#FF9500'; ctx.lineWidth=1.5;
             ctx.strokeRect(TABLE_X, TABLE_Y, TABLE_W_MM*S, TH_H+chunks[ci].length*ROW_H);
 
-            const imgData=canvas.toDataURL('image/jpeg', 0.92);
-            pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W, PAGE_H, undefined, 'FAST');
+            canvases.push(canvas);
         }
 
         const safeVendor=String(vendorTitle).replace(/[\\/:*?"<>|]/g,'_').slice(0,40);
         const today=new Date().toISOString().slice(0,10);
+        return {canvases, PAGE_W, PAGE_H, safeVendor, today};
+    }
+
+    // يبني مستند jsPDF لكشف الرصيد من نفس صور Canvas — مستخدم من التصدير العادي
+    async function buildVendorStockPdfDoc(){
+        if(typeof window.jspdf==='undefined') throw new Error('jsPDF غير محمّل');
+        const { jsPDF } = window.jspdf;
+        const {canvases, PAGE_W, PAGE_H, safeVendor, today}=await buildVendorStockCanvases();
+        const pdf=new jsPDF({orientation:'p', unit:'mm', format:'a4'});
+        canvases.forEach((canvas,ci)=>{
+            if(ci>0) pdf.addPage('a4','p');
+            const imgData=canvas.toDataURL('image/jpeg', 0.92);
+            pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W, PAGE_H, undefined, 'FAST');
+        });
         return {pdf, filename:`كشف_رصيد_${safeVendor}_${today}.pdf`};
+    }
+
+    // يبني صور JPEG من نفس Canvas — للإرسال عبر واتساب بنفس أسلوب الطلبيات
+    async function buildVendorStockImages(){
+        const {canvases, safeVendor}=await buildVendorStockCanvases();
+        const blobs=[];
+        for(const canvas of canvases){
+            const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.92));
+            blobs.push(blob);
+        }
+        return {blobs, safeVendor};
     }
 
     async function exportVendorStockPDF(){
@@ -9833,16 +9929,19 @@ window.onload=async()=>{
     };
     document.getElementById('vendorStockExportBtn').onclick=exportVendorStockPDF;
     // يبني الرسالة + ملف PDF بالكشف الفعلي، يفتح واتساب لمندوب محدَّد، ويرفق/يحمّل الـPDF
-    async function sendVendorStockToRep(rep){
+    function _vendorStockMsg(){
         const date=document.getElementById('orderDateInput').value||new Date().toISOString().slice(0,10);
-        const msg=[
+        return [
             `‎*كشف رصيد مذخر أدوية المنصور*`,
             `‎${date}`,
             `‎عدد المواد: ${_vendorStockData.rows.length}`,
             `‎عدد المكاتب: ${_vendorStockData.vendors.length}`
         ].join('\n');
+    }
+    // يرسل رسالة + ملف PDF واحد بالكشف (الأسلوب الأصلي، لسه موجود)
+    async function sendVendorStockToRep(rep){
         const phone=rep.phone.replace(/\+/g,'');
-        const waLink=`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+        const waLink=`https://wa.me/${phone}?text=${encodeURIComponent(_vendorStockMsg())}`;
         showToast('⏳ جاري تجهيز PDF...',true);
         let pdf,filename;
         try{ ({pdf,filename}=await buildVendorStockPdfDoc()); }
@@ -9850,14 +9949,13 @@ window.onload=async()=>{
         const blob=pdf.output('blob');
         // نفس الأسلوب دائماً (لابتوب وموبايل) — بلا محاولة navigator.share:
         // على iOS كانت تفشل بصمت أحياناً (قيد توقيت user-activation) وترجع تجربة غير مضمونة.
-        // فتح وا.مي + زر تنزيل واضح تضغطه بنفسك أبسط وأكيد يشتغل بكل الأحوال.
         window.open(waLink,'_blank');
         const url=URL.createObjectURL(blob);
         const overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px';
         const box=document.createElement('div');
         box.style.cssText='background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center';
-        box.innerHTML=`<div style="font-weight:900;margin-bottom:14px">📎 الآن نزّل الـPDF وأرفقه يدوياً بمحادثة واتساب اللي فتحت</div>`;
+        box.innerHTML=`<div style="font-weight:900;margin-bottom:14px">📎 الآن نزّل الـPDF، ثم اسحبه (Drag) داخل صندوق الكتابة بمحادثة واتساب اللي فتحت أو اضغط 📎 داخل واتساب نفسه واختره من التنزيلات.<br><span style="color:#dc2626;font-weight:700">⚠️ لا تستخدم زر "مشاركة" ويندوز على الملف — يضيف رابط تقني غريب تحت الملف.</span></div>`;
         const dl=document.createElement('a');
         dl.href=url; dl.download=filename; dl.className='ios-btn bg-[#25D366] text-white w-full text-sm font-bold';
         dl.style.cssText='display:block;padding:12px;margin-bottom:10px';
@@ -9869,8 +9967,31 @@ window.onload=async()=>{
         box.appendChild(dl); box.appendChild(closeBtn); overlay.appendChild(box);
         document.body.appendChild(overlay);
     }
+    // يرسل صور JPEG (نفس أسلوب صور الطلبيات sendWhatsAppImage) بدل PDF
+    async function sendVendorStockImageToRep(rep){
+        const phone=rep.phone.replace(/\+/g,'');
+        const waLink=`https://wa.me/${phone}?text=${encodeURIComponent(_vendorStockMsg())}`;
+        showToast('⏳ جاري بناء الصور...',true);
+        let blobs,safeVendor;
+        try{ ({blobs,safeVendor}=await buildVendorStockImages()); }
+        catch(e){ alert('❌ فشل بناء الصور: '+e.message); return; }
+        const files=blobs.map((b,j)=>new File([b],safeVendor+'_'+(j+1)+'.jpg',{type:'image/jpeg'}));
+        if(navigator.canShare&&navigator.canShare({files})){
+            window.open(waLink,'_blank');
+            try{ await navigator.share({files}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
+        }
+        window.open(waLink,'_blank');
+        for(let j=0;j<blobs.length;j++){
+            const url=URL.createObjectURL(blobs[j]); const a=document.createElement('a');
+            a.href=url; a.download=safeVendor+'_'+(j+1)+'.jpg'; a.click(); URL.revokeObjectURL(url);
+            await new Promise(r=>setTimeout(r,400));
+        }
+        showToast('✅ الصور جاهزة — أرسلها في واتساب');
+    }
     // يعرض قائمة اختيار المندوب (كل المناديب المرتبطين بأي مكتب من المختارة — مطابقة مرنة نفس اللي تستخدمها الطلبيات)
-    function showRepPickerForVendorStock(){
+    // mode: 'pdf' (افتراضي) أو 'image'
+    function showRepPickerForVendorStock(mode){
+        mode=mode||'pdf';
         const candidates=[]; // {rep, vendor}
         const seenPhones=new Set();
         for(const v of _vendorStockData.vendors){
@@ -9887,8 +10008,8 @@ window.onload=async()=>{
             const btn=document.createElement('button');
             btn.className='ios-btn bg-[#25D366] text-white w-full text-sm font-bold mb-2';
             btn.style.cssText='display:block;text-align:right;padding:10px 14px';
-            btn.innerHTML=`${escapeHtml(rep.name)} — ${escapeHtml(rep.phone)}<br><span style="font-weight:400;font-size:11px;opacity:.85">عبر: ${escapeHtml(vendor)}</span>`;
-            btn.onclick=()=>{ document.body.removeChild(overlay); sendVendorStockToRep(rep); };
+            btn.innerHTML=`${escapeHtml(rep.name)} — ${escapeHtml(rep.phone)}`;
+            btn.onclick=()=>{ document.body.removeChild(overlay); mode==='image'?sendVendorStockImageToRep(rep):sendVendorStockToRep(rep); };
             box.appendChild(btn);
         });
         const cancelBtn=document.createElement('button');
@@ -9902,7 +10023,11 @@ window.onload=async()=>{
     }
     document.getElementById('vendorStockWhatsappBtn').onclick=function(){
         if(!_vendorStockData || !_vendorStockData.rows.length){ alert('لا توجد بيانات للإرسال'); return; }
-        showRepPickerForVendorStock();
+        showRepPickerForVendorStock('pdf');
+    };
+    document.getElementById('vendorStockWhatsappImageBtn').onclick=function(){
+        if(!_vendorStockData || !_vendorStockData.rows.length){ alert('لا توجد بيانات للإرسال'); return; }
+        showRepPickerForVendorStock('image');
     };
 
     // ============================================================
