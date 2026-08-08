@@ -939,8 +939,8 @@
         <div id="vendorStockResultsPanel" class="hidden">
             <div class="flex flex-wrap gap-2 mb-2 items-center">
                 <button id="vendorStockExportBtn" class="ios-btn bg-[#AF52DE] text-white px-4 py-2 text-sm font-bold"><i class="fas fa-file-pdf ml-1"></i> تصدير PDF</button>
-                <button id="vendorStockWhatsappBtn" class="ios-btn bg-[#25D366] text-white px-4 py-2 text-sm font-bold" title="يرسل رسالة + ملف PDF لأول مندوب مرتبط بالمكاتب المختارة"><i class="fab fa-whatsapp ml-1"></i> واتساب</button>
-                <button id="vendorStockWhatsappImageBtn" class="ios-btn bg-[#007AFF] text-white px-4 py-2 text-sm font-bold" title="يرسل صور (نفس أسلوب الطلبيات) بدل ملف PDF"><i class="fas fa-camera ml-1"></i> صورة</button>
+                <button id="vendorStockWhatsappBtn" class="ios-btn bg-[#25D366] text-white px-4 py-2 text-sm font-bold" title="يفتح شير مباشر بملف PDF — تختار المستلم بنفسك من واتساب"><i class="fab fa-whatsapp ml-1"></i> واتساب</button>
+                <button id="vendorStockWhatsappImageBtn" class="ios-btn bg-[#007AFF] text-white px-4 py-2 text-sm font-bold" title="يفتح شير مباشر بصور — تختار المستلم بنفسك من واتساب"><i class="fas fa-camera ml-1"></i> صورة</button>
                 <button id="vendorStockBackBtn" class="ios-btn bg-gray-200 px-4 py-2 text-sm"><i class="fas fa-arrow-right ml-1"></i> رجوع للاختيار</button>
                 <span class="text-xs text-gray-500 mr-auto">📋 المنتجات مُرتّبة أبجدياً</span>
             </div>
@@ -9969,24 +9969,23 @@ window.onload=async()=>{
             `‎عدد المكاتب: ${_vendorStockData.vendors.length}`
         ].join('\n');
     }
-    // يرسل رسالة + ملف PDF واحد بالكشف (الأسلوب الأصلي، لسه موجود)
-    async function sendVendorStockToRep(rep){
-        const phone=rep.phone.replace(/\+/g,'');
-        const waLink=`https://wa.me/${phone}?text=${encodeURIComponent(_vendorStockMsg())}`;
+    // يرسل ملف PDF واحد بالكشف — شير مباشر بلا اختيار مندوب ولا رابط wa.me (متل الطلبيات: أنت تختار المستلم من قائمة واتساب نفسها)
+    async function sendVendorStockPdf(){
         showToast('⏳ جاري تجهيز PDF...',true);
         let pdf,filename;
         try{ ({pdf,filename}=await buildVendorStockPdfDoc()); }
         catch(e){ alert('❌ فشل بناء PDF: '+e.message); return; }
         const blob=pdf.output('blob');
-        // نفس الأسلوب دائماً (لابتوب وموبايل) — بلا محاولة navigator.share:
-        // على iOS كانت تفشل بصمت أحياناً (قيد توقيت user-activation) وترجع تجربة غير مضمونة.
-        window.open(waLink,'_blank');
+        const file=new File([blob], filename, {type:'application/pdf'});
+        if(navigator.canShare && navigator.canShare({files:[file]})){
+            try{ await navigator.share({files:[file], text:_vendorStockMsg()}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
+        }
         const url=URL.createObjectURL(blob);
         const overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px';
         const box=document.createElement('div');
         box.style.cssText='background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center';
-        box.innerHTML=`<div style="font-weight:900;margin-bottom:14px">📎 الآن نزّل الـPDF، ثم اسحبه (Drag) داخل صندوق الكتابة بمحادثة واتساب اللي فتحت أو اضغط 📎 داخل واتساب نفسه واختره من التنزيلات.<br><span style="color:#dc2626;font-weight:700">⚠️ لا تستخدم زر "مشاركة" ويندوز على الملف — يضيف رابط تقني غريب تحت الملف.</span></div>`;
+        box.innerHTML=`<div style="font-weight:900;margin-bottom:14px">📎 المشاركة المباشرة غير مدعومة بهذا المتصفح — نزّل الـPDF واسحبه داخل صندوق كتابة واتساب.<br><span style="color:#dc2626;font-weight:700">⚠️ لا تستخدم زر "مشاركة" النظام على الملف — يضيف رابط تقني غريب تحت الملف.</span></div>`;
         const dl=document.createElement('a');
         dl.href=url; dl.download=filename; dl.className='ios-btn bg-[#25D366] text-white w-full text-sm font-bold';
         dl.style.cssText='display:block;padding:12px;margin-bottom:10px';
@@ -9998,20 +9997,16 @@ window.onload=async()=>{
         box.appendChild(dl); box.appendChild(closeBtn); overlay.appendChild(box);
         document.body.appendChild(overlay);
     }
-    // يرسل صور JPEG (نفس أسلوب صور الطلبيات sendWhatsAppImage) بدل PDF
-    async function sendVendorStockImageToRep(rep){
-        const phone=rep.phone.replace(/\+/g,'');
-        const waLink=`https://wa.me/${phone}?text=${encodeURIComponent(_vendorStockMsg())}`;
+    // يرسل صور JPEG — شير مباشر بلا اختيار مندوب ولا رابط wa.me (نفس أسلوب صور الطلبيات sendWhatsAppImage)
+    async function sendVendorStockImages(){
         showToast('⏳ جاري بناء الصور...',true);
         let blobs,safeVendor;
         try{ ({blobs,safeVendor}=await buildVendorStockImages()); }
         catch(e){ alert('❌ فشل بناء الصور: '+e.message); return; }
         const files=blobs.map((b,j)=>new File([b],safeVendor+'_'+(j+1)+'.jpg',{type:'image/jpeg'}));
         if(navigator.canShare&&navigator.canShare({files})){
-            window.open(waLink,'_blank');
-            try{ await navigator.share({files}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
+            try{ await navigator.share({files, text:_vendorStockMsg()}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
         }
-        window.open(waLink,'_blank');
         for(let j=0;j<blobs.length;j++){
             const url=URL.createObjectURL(blobs[j]); const a=document.createElement('a');
             a.href=url; a.download=safeVendor+'_'+(j+1)+'.jpg'; a.click(); URL.revokeObjectURL(url);
@@ -10019,46 +10014,13 @@ window.onload=async()=>{
         }
         showToast('✅ الصور جاهزة — أرسلها في واتساب');
     }
-    // يعرض قائمة اختيار المندوب (كل المناديب المرتبطين بأي مكتب من المختارة — مطابقة مرنة نفس اللي تستخدمها الطلبيات)
-    // mode: 'pdf' (افتراضي) أو 'image'
-    function showRepPickerForVendorStock(mode){
-        mode=mode||'pdf';
-        const candidates=[]; // {rep, vendor}
-        const seenPhones=new Set();
-        for(const v of _vendorStockData.vendors){
-            const r=(typeof getRepForVendorFuzzy==='function') ? getRepForVendorFuzzy(v) : null;
-            if(r && r.phone && !seenPhones.has(r.phone)){ seenPhones.add(r.phone); candidates.push({rep:r,vendor:v}); }
-        }
-        if(!candidates.length){ alert('❌ ما لكيت مندوب مرتبط بأي من المكاتب المختارة — تأكد من ربط المكتب بمندوب من تبويب "المندوبين"'); return; }
-        const overlay=document.createElement('div');
-        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px';
-        const box=document.createElement('div');
-        box.style.cssText='background:#fff;border-radius:16px;padding:20px;max-width:360px;width:100%;max-height:80vh;overflow:auto';
-        box.innerHTML=`<div style="font-weight:900;margin-bottom:12px;text-align:right">📤 اختر المندوب اللي تريد ترسله الكشف</div>`;
-        candidates.forEach(({rep,vendor})=>{
-            const btn=document.createElement('button');
-            btn.className='ios-btn bg-[#25D366] text-white w-full text-sm font-bold mb-2';
-            btn.style.cssText='display:block;text-align:right;padding:10px 14px';
-            btn.innerHTML=`${escapeHtml(rep.name)} — ${escapeHtml(rep.phone)}`;
-            btn.onclick=()=>{ document.body.removeChild(overlay); mode==='image'?sendVendorStockImageToRep(rep):sendVendorStockToRep(rep); };
-            box.appendChild(btn);
-        });
-        const cancelBtn=document.createElement('button');
-        cancelBtn.className='ios-btn bg-gray-200 w-full text-sm mt-1';
-        cancelBtn.textContent='إلغاء';
-        cancelBtn.onclick=()=>document.body.removeChild(overlay);
-        box.appendChild(cancelBtn);
-        overlay.appendChild(box);
-        overlay.onclick=(e)=>{ if(e.target===overlay) document.body.removeChild(overlay); };
-        document.body.appendChild(overlay);
-    }
     document.getElementById('vendorStockWhatsappBtn').onclick=function(){
         if(!_vendorStockData || !_vendorStockData.rows.length){ alert('لا توجد بيانات للإرسال'); return; }
-        showRepPickerForVendorStock('pdf');
+        sendVendorStockPdf();
     };
     document.getElementById('vendorStockWhatsappImageBtn').onclick=function(){
         if(!_vendorStockData || !_vendorStockData.rows.length){ alert('لا توجد بيانات للإرسال'); return; }
-        showRepPickerForVendorStock('image');
+        sendVendorStockImages();
     };
 
     // ============================================================
