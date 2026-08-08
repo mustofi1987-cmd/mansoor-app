@@ -9978,7 +9978,7 @@ window.onload=async()=>{
         const blob=pdf.output('blob');
         const file=new File([blob], filename, {type:'application/pdf'});
         if(navigator.canShare && navigator.canShare({files:[file]})){
-            try{ await navigator.share({files:[file], text:_vendorStockMsg()}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
+            try{ await navigator.share({files:[file]}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
         }
         const url=URL.createObjectURL(blob);
         const overlay=document.createElement('div');
@@ -10005,7 +10005,7 @@ window.onload=async()=>{
         catch(e){ alert('❌ فشل بناء الصور: '+e.message); return; }
         const files=blobs.map((b,j)=>new File([b],safeVendor+'_'+(j+1)+'.jpg',{type:'image/jpeg'}));
         if(navigator.canShare&&navigator.canShare({files})){
-            try{ await navigator.share({files, text:_vendorStockMsg()}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
+            try{ await navigator.share({files}); showToast('✅ اختر واتساب من القائمة'); return; }catch(e){}
         }
         for(let j=0;j<blobs.length;j++){
             const url=URL.createObjectURL(blobs[j]); const a=document.createElement('a');
