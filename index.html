@@ -6035,6 +6035,37 @@ window.onload=async()=>{
         };
     })();
 
+    // ======================== بانر "أكو تحديث" — يفحص آخر كوميت بمستودع GitHub مقارنة بآخر واحد شافه هذا الجهاز ========================
+    // ما يحتاج أي شي يُخزَّن بالملف نفسه (يتجنّب مشكلة الدجاجة والبيضة) — الذاكرة كلها بـlocalStorage لكل جهاز.
+    (function setupUpdateBanner(){
+        const LS_KEY='ph_last_seen_app_sha';
+        const API_URL='https://api.github.com/repos/mustofi1987-cmd/mansoor-app/commits/main';
+        fetch(API_URL,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{
+            if(!data||!data.sha) return;
+            const sha=data.sha;
+            const lastSeen=localStorage.getItem(LS_KEY);
+            if(lastSeen && lastSeen!==sha) showBanner();
+            localStorage.setItem(LS_KEY, sha);
+        }).catch(()=>{});
+
+        function showBanner(){
+            if(document.getElementById('appUpdateBanner')) return;
+            const b=document.createElement('div');
+            b.id='appUpdateBanner';
+            b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#0f172a;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap;text-align:center';
+            b.innerHTML=`<span>🆕 أكو تحديث جديد للتطبيق على GitHub</span>
+                <button id="appUpdateBannerBtn" style="background:#34C759;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer">تحديث الآن</button>
+                <button id="appUpdateBannerClose" style="background:transparent;color:#fff;border:none;font-size:16px;cursor:pointer;opacity:.7">✕</button>`;
+            document.body.appendChild(b);
+            document.getElementById('appUpdateBannerBtn').onclick=()=>{
+                const localBtn=document.getElementById('localCodeUpdateBtn');
+                if(localBtn && !localBtn.classList.contains('hidden')) localBtn.click();
+                else location.reload();
+            };
+            document.getElementById('appUpdateBannerClose').onclick=()=>b.remove();
+        }
+    })();
+
     // ======================== EXPORT ALL ORDERS AS PDF ========================
     document.getElementById('exportPdfBtn').onclick=async function(){
         if(!appState.orders.length){ alert('لا توجد طلبيات'); return; }
