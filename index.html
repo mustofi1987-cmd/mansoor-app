@@ -8172,6 +8172,26 @@ window.onload=async()=>{
     // يضيف اسم موجود أصلاً بنفس المادة. الاسم المعروض ما يتغير — هذا للمقارنة فقط.
     function bonusPhKey(s){ return String(s==null?'':s).replace(/\s+/g,' ').trim().toLowerCase(); }
 
+    // ===== صفوف "مقطوعة على اسم المكتب" — بونص مسحوب مسبقاً =====
+    // الشباب ينزّلون بونص ويبيعونه لصيدلية، ويقطعون الفاتورة على اسم المكتب نفسه علمود ينحسب يدوياً لاحقاً.
+    // الصف يوصل هنا كأنه صيدلية اسمها اسم المكتب: qty يدخل بالمبيعات فيرفع المستحق غلط،
+    // والقطع المسحوبة فعلياً ما تنحسب بالبونص أبداً لأن Bonus Qty = 0.
+    // القاعدة المعتمدة (المستخدم — 10 آب 2026): تُطرح من المبيعات، وتُضاف للمستحق وللبونص معاً،
+    // فالمتبقي للتوزيع (المستحق − البونص) يرجع بالضبط floor(المبيعات_النظيفة × النسبة).
+    function bonusNormName(s){
+        return String(s==null?'':s)
+            .replace(/[ً-ْـ]/g,'')                 // تشكيل + تطويل
+            .replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه')
+            .replace(/^\s*(?:مكتب|شركة|معمل|م\.)\s+/,'')
+            .replace(/\s+/g,' ').trim().toLowerCase();
+    }
+    // الزبون = نفس المكتب المجهّز بنفس الصف. عمود Vendors ممكن يحوي أكثر من مكتب بفارزة.
+    function bonusIsOfficeRow(pharmacy, officeField){
+        const p=bonusNormName(pharmacy);
+        if(!p) return false;
+        return String(officeField||'').split(',').some(o=>{ const t=bonusNormName(o); return t && t===p; });
+    }
+
     // يرجّع صيدليات ما موجودة بالـpool، بلا تكرار داخلي — مصدر وحيد لكل قوائم الإضافة
     function bonusFreePharmacies(pool){
         const already=new Set((pool.rows||[]).map(r=>bonusPhKey(r.pharmacy)));
@@ -8195,6 +8215,8 @@ window.onload=async()=>{
     function bonusComputeGlobalPct(rows, keys){
         const m={};
         rows.forEach(r=>{
+            // صف مقطوع على اسم المكتب مو بيعة حقيقية — نسبته تشوّه "أعلى نسبة" للمادة
+            if(bonusIsOfficeRow(r[keys.pharmacy], r[keys.office])) return;
             const qty=parseFloat(r[keys.qty])||0;
             const bonus=parseFloat(r[keys.bonus])||0;
             if(qty>0 && bonus>0){
@@ -8257,25 +8279,29 @@ window.onload=async()=>{
             if(!p) return;
             if(!poolsMap[p]) poolsMap[p]={product:p, rows:[]};
             const bonusVal=parseFloat(r[keys.bonus])||0;
+            const isOffice=bonusIsOfficeRow(r[keys.pharmacy], r[keys.office]);
             poolsMap[p].rows.push({
                 pharmacy: r[keys.pharmacy]||'',
                 date: r[keys.date]||'',
                 qty: parseFloat(r[keys.qty])||0,
                 bonus: bonusVal,
                 office: r[keys.office]||'',
-                included: bonusVal>=1,   // نفس شرط الطباعة بالإكسل — قابل للتعديل يدوياً
+                included: !isOffice && bonusVal>=1,   // نفس شرط الطباعة بالإكسل — قابل للتعديل يدوياً
+                isOffice,                // مقطوع على اسم المكتب — ينحسب بـpreTaken، ما ينوزّع كصف صيدلية
                 added: false             // true لصفوف مضافة يدوياً/راندوم — بلا فاتورة حقيقية وراها
             });
         });
 
         const globalPct=window.__bonusGlobalPct||{};
         const poolList=Object.values(poolsMap).map(p=>{
-            const sales=p.rows.reduce((s,r)=>s+r.qty,0);
-            const bonus=p.rows.filter(r=>r.included).reduce((s,r)=>s+r.bonus,0);
-            const pct=globalPct[p.product]||0;
-            const maxAllowed=Math.floor(sales*pct);
+            // مصدر وحيد للحساب = bonusRecalcPool، بدل تكرار الصيغة هنا (التكرار كان يخلي الصيغتين تنحرفان)
+            const pool={product:p.product, rows:p.rows, sales:0, bonus:0, preTaken:0, preTakenBy:[],
+                        pct:globalPct[p.product]||0, maxAllowed:0, maxOverride:null, salesOverride:null,
+                        over:false, expanded:false, enabled:true};
+            bonusRecalcPool(pool);
             // المادة اللي مستحقها صفر تنولد غير مؤشَّرة تلقائياً — الباقي كله مؤشَّر
-            return {product:p.product, rows:p.rows, sales, bonus, pct, maxAllowed, maxOverride:null, salesOverride:null, over: bonus>maxAllowed, expanded:false, enabled: maxAllowed>0};
+            pool.enabled = pool.maxAllowed>0;
+            return pool;
         });
         bonusSortPools(poolList);
 
@@ -8439,13 +8465,18 @@ window.onload=async()=>{
         showToast('🔄 رجعت البيانات للأصل');
     };
 
-    // المبيعات = كل الصفوف دائماً (يطابق I=SUMIFS بالإكسل، بلا تأثر بالتأشير)
-    // البونص = المؤشَّر صح فقط (هذا اللي بيطبع فعلياً)
-    // salesOverride: مبيعات المدى يدوياً بدل مجموع الصفوف. maxOverride: المستحق يدوياً بدل sales×pct
+    // المبيعات = كل الصفوف دائماً (يطابق I=SUMIFS بالإكسل، بلا تأثر بالتأشير) — عدا الصفوف المقطوعة
+    // على اسم المكتب: هذي بونص مسحوب مسبقاً، تُطرح من المبيعات وتُضاف للمستحق وللبونص معاً،
+    // فالمتبقي (المستحق − البونص) يرجع بالضبط floor(المبيعات_النظيفة × النسبة). راجع bonusIsOfficeRow.
+    // البونص = المؤشَّر صح فقط (هذا اللي بيطبع فعلياً) + المسحوب مسبقاً
+    // salesOverride: مبيعات المدى يدوياً. maxOverride: المستحق النهائي يدوياً (يشمل المسحوب — اليدوي يفوز مطلقاً)
     function bonusRecalcPool(pool){
-        pool.sales=(pool.salesOverride!=null) ? pool.salesOverride : pool.rows.reduce((s,r)=>s+r.qty,0);
-        pool.bonus=pool.rows.filter(r=>r.included).reduce((s,r)=>s+r.bonus,0);
-        pool.maxAllowed=(pool.maxOverride!=null) ? pool.maxOverride : Math.floor(pool.sales*pool.pct);
+        const offRows=pool.rows.filter(r=>r.isOffice);
+        pool.preTaken=offRows.reduce((s,r)=>s+r.qty+r.bonus,0);
+        pool.preTakenBy=offRows.map(r=>({name:r.pharmacy, total:r.qty+r.bonus, sold:r.qty, bns:r.bonus}));
+        pool.sales=(pool.salesOverride!=null) ? pool.salesOverride : pool.rows.filter(r=>!r.isOffice).reduce((s,r)=>s+r.qty,0);
+        pool.bonus=pool.rows.filter(r=>r.included).reduce((s,r)=>s+r.bonus,0) + pool.preTaken;
+        pool.maxAllowed=(pool.maxOverride!=null) ? pool.maxOverride : (Math.floor(pool.sales*pool.pct) + pool.preTaken);
         pool.over=pool.bonus>pool.maxAllowed;
     }
 
@@ -8469,6 +8500,23 @@ window.onload=async()=>{
             <div class="rounded-lg p-2" style="background:${p.over?'#fee2e2':'#f0fdf4'}">
                 <div style="color:${p.over?'#b91c1c':'#166534'}">البونص الفعلي</div>
                 <div class="text-lg font-black" style="color:${p.over?'#b91c1c':'#166534'}">${p.bonus.toLocaleString()}${p.over?' ⚠️':''}</div>
+            </div>
+            ${bonusPreTakenHtml(p)}
+        `;
+    }
+
+    // سطر التنبيه — يظهر بالكارت المطوي، قبل ما تفتح المنسدلة (طلب المستخدم 10 آب 2026)
+    function bonusPreTakenHtml(p){
+        if(!(p.preTaken>0)) return '';
+        const chips=(p.preTakenBy||[]).map(o=>{
+            const split=(o.sold>0 && o.bns>0) ? ` <span style="opacity:.7">(${o.sold} مبيع + ${o.bns} بونص)</span>` : '';
+            return `<span style="background:#fff;border:1px solid #f59e0b;border-radius:6px;padding:1px 7px;margin:2px 3px;display:inline-block">${bonusEsc(o.name)}: <b>${o.total.toLocaleString()}</b> ق${split}</span>`;
+        }).join('');
+        return `
+            <div class="rounded-lg p-2 text-right" style="grid-column:1/-1;background:#fffbeb;border:2px solid #f59e0b">
+                <div class="font-black text-xs" style="color:#b45309">⚠️ مسحوب مسبقاً على اسم المكتب — إجمالي ${p.preTaken.toLocaleString()} ق</div>
+                <div class="text-xs mt-1" style="color:#78350f">${chips}</div>
+                <div class="text-[10px] mt-1" style="color:#92400e">مطروح من المبيعات · مضاف للمستحق وللبونص — المتبقي للتوزيع ${Math.max(0, p.maxAllowed-p.bonus).toLocaleString()}</div>
             </div>
         `;
     }
@@ -8599,9 +8647,11 @@ window.onload=async()=>{
                     </tr></thead>
                     <tbody>
                     ${p.rows.map((r,ridx)=>`
-                        <tr class="border-t" style="${r.included?'':'opacity:0.45'}">
-                            <td class="p-1 text-center"><input type="checkbox" ${r.included?'checked':''} data-bonus-check="1" data-pidx="${pidx}" data-ridx="${ridx}"></td>
-                            <td class="p-1">${bonusEsc(r.pharmacy)}${r.added?' <span class="text-[10px]" style="color:#7c3aed">●مضافة</span>':''}</td>
+                        <tr class="border-t" style="${r.isOffice?'background:#fffbeb':(r.included?'':'opacity:0.45')}">
+                            <td class="p-1 text-center">${r.isOffice
+                                ? '<span title="مسحوب مسبقاً — محسوب بالمستحق والبونص، ما ينوزّع على صيدلية" style="color:#b45309">⚠️</span>'
+                                : `<input type="checkbox" ${r.included?'checked':''} data-bonus-check="1" data-pidx="${pidx}" data-ridx="${ridx}">`}</td>
+                            <td class="p-1">${bonusEsc(r.pharmacy)}${r.isOffice?' <span class="text-[10px] font-black" style="color:#b45309">●مسحوب مسبقاً</span>':''}${r.added?' <span class="text-[10px]" style="color:#7c3aed">●مضافة</span>':''}</td>
                             <td class="p-1 text-center">${bonusEsc(r.date)}</td>
                             <td class="p-1 text-center"><input type="number" value="${r.qty}" class="ios-input text-xs" style="width:64px" data-bonus-field="qty" data-pidx="${pidx}" data-ridx="${ridx}"></td>
                             <td class="p-1 text-center"><input type="number" value="${r.bonus}" class="ios-input text-xs" style="width:64px" data-bonus-field="bonus" data-pidx="${pidx}" data-ridx="${ridx}"></td>
@@ -8829,7 +8879,14 @@ window.onload=async()=>{
             cont.innerHTML='<div class="text-center text-gray-400 py-10 text-sm">لا نتائج بهذا الفلتر</div>';
             return;
         }
-        cont.innerHTML=poolList.map((p,pidx)=>`
+        // تنبيه عام فوق كل الكاردات — علمود ما تضطر تدوّر كارت كارت
+        const preList=poolList.filter(p=>p.preTaken>0);
+        const banner = preList.length ? `
+            <div class="rounded-xl p-3 mb-3" style="background:#fffbeb;border:2px solid #f59e0b">
+                <div class="font-black text-sm" style="color:#b45309">⚠️ ${preList.length.toLocaleString()} مادة بيها بونص مسحوب مسبقاً على اسم المكتب — إجمالي ${preList.reduce((s,p)=>s+p.preTaken,0).toLocaleString()} ق</div>
+                <div class="text-xs mt-1" style="color:#78350f">${preList.map(p=>`${bonusEsc(p.product)} <b>${p.preTaken.toLocaleString()}</b> ق`).join(' &nbsp;·&nbsp; ')}</div>
+            </div>` : '';
+        cont.innerHTML=banner+poolList.map((p,pidx)=>`
             <div class="border rounded-xl p-3 mb-2 bg-white" style="${p.enabled?'':'opacity:0.4'}">
                 <div class="flex items-center justify-between gap-2 mb-2">
                     <div class="flex items-center gap-2">
