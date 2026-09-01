@@ -199,6 +199,8 @@
         .vendor-rep-line .rep-name { color:#1e3a8a; font-weight:700; }
         .vendor-rep-line .rep-phone { color:#15803d; font-weight:700; direction:ltr; }
         .vendor-rep-line .no-phone { color:#dc2626; font-weight:700; }
+        .vendor-rep-line .rep-conflict { margin-right:4px; background:#fef3c7; color:#92400e; border:1px solid #f59e0b; border-radius:6px; padding:0 4px; font-weight:800; font-size:9px; cursor:pointer; }
+        .vendor-rep-line .rep-conflict:hover { background:#fde68a; }
 
         /* ===== ARCHIVE + DELIVERY REPORT ===== */
         .archive-chip { display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; background:#f3f4f6; color:#374151; border:1.5px solid transparent; cursor:pointer; transition:all .15s; user-select:none; }
@@ -1067,6 +1069,12 @@
                 </div>
             </div>
 
+            <div id="qConflictSection" class="hidden mb-3">
+                <div class="text-sm font-bold text-[#92400e] mb-2">⚠️ مكاتب فيها تعارض مندوبين — الرقم المعروض <u>ترجيح</u>:</div>
+                <div id="qConflictList" class="max-h-40 overflow-auto"></div>
+                <div class="text-xs text-gray-500 mt-2">💡 هذي المكاتب <b>راح تُرسَل</b> برقم مُرجَّح. اضغط على المكتب لحسم المندوب الصحيح قبل الإرسال.</div>
+            </div>
+
             <div id="qNoPhoneSection" class="hidden mb-3">
                 <div class="flex justify-between items-center mb-2">
                     <div class="text-sm font-bold text-[#FF3B30]">⚠️ مكاتب بدون رقم مندوب:</div>
@@ -1224,6 +1232,7 @@ function ordIdbPut(key,val){
 window.__ordersIDB={ get:ordIdbGet, put:ordIdbPut, KEY:ORD_KEY };
 
 function saveToStorage(){
+    if(typeof bumpRepIndex==='function') bumpRepIndex(); // أي حفظ = احتمال تغيّر المندوبين/الروابط
     // الطلبيات → IndexedDB (بلا سقف localStorage، فما عاد يحتاج حذف الأرشيف عند الامتلاء)
     ordIdbPut(ORD_KEY, JSON.stringify(appState.ordersRaw)).catch(e=>{
         console.error('فشل حفظ الطلبيات بـIndexedDB:',e);
@@ -1260,6 +1269,7 @@ async function loadFromStorage(){
             name:r.name, phone:r.phone,
             vendorNames: r.vendorNames ? r.vendorNames : (r.vendorName ? [r.vendorName] : [])
         }));
+        if(typeof bumpRepIndex==='function') bumpRepIndex(); // بعد تحميل المندوبين والروابط من التخزين
         appState.sentVendors=new Set(JSON.parse(localStorage.getItem('ph_sent')||'[]'));
         computeOtherVendors(appState.orders);
     }catch(e){}
@@ -1358,6 +1368,138 @@ function getRepForVendorSafe(vendorName){
 }
 window.getRepForVendorSafe=getRepForVendorSafe;
 
+// ======== مُطابق موحّد: مندوب ← مكتب (مقاوم لتغيّر اسم المكتب بين المزامنات) ========
+// العطل اللي يحلّه (بلاغ 2026-09-01، مقيس على نسخة الحالة 2026-08-06: 286 مكتب / 2320 مندوب):
+//   كل مزامنة Excel تجيب اسم المكتب بنص مختلف شوي (لاحقة "&&"، "/ بدون خصم"، تغيّر نسبة الخصم).
+//   المطابقة الحرفية تفشل → الرقم المحفوظ فعلاً يطلع "بدون رقم" → المستخدم يحفظ يدوي →
+//   يصير مرشّحان لنفس المكتب → getRepForVendorSafe القديمة كانت ترجّع null عند التعدد →
+//   المكتب يضلّ بلا رقم للأبد، وكل حفظ يدوي يزيد المرض بدل ما يحسمه. (حلقة ذاتية التعزيز.)
+//   القياس: 46 مكتب كانوا "بدون رقم"، 11 منهم رقمهم مخزون فعلاً وضاع بسبب هذا الـnull.
+//
+// ثلاث مراحل بخروج مبكر — الأضيق أولاً، فما نوسّع المطابقة إلا لمّا الأدقّ تفشل:
+//   1) الاسم الحرفي كما جاء من الطلبية
+//   2) الاسم الأساسي بعد روابط المكاتب (resolveOffice) — رابط أعلنه المستخدم صراحةً
+//   3) مفتاح _smNorm للمجموعة — الأوسع، وما نوصله إلا نادراً (4 مكاتب من 286 بالقياس)
+// ⚠️ ليش الترتيب مهم: _smNorm يقطع كل شي بعد "/"، فـ"م انانا/مصطفى" و"م انانا/محمد نجدت"
+//    (مكتبان مختلفان بمندوبين مختلفين) ينهارون لنفس المفتاح. الخروج المبكر يمنع هذا الخلط:
+//    بلا مراحل، التعارضات الكاذبة كانت 20؛ بالمراحل صارت 7 حقيقية بس.
+//
+// وعند تعدد المرشحين لا نرجّع null أبداً (هذا كان أصل العطل):
+//   • كلهم بنفس الرقم (سجلّان لنفس الشخص) → أي واحد صحيح
+//   • واحد بس عنده الاسم الحرفي → هو الفائز
+//   • وإلا → نرجّع الأول ونعلّم conflict حتى تعرضه الواجهة بشارة ⚠️، مو تخفيه
+//
+// فهرس مبني مرة وحدة لكل "عهد" (epoch) بدل filter على 2320 مندوب لكل مكتب بكل تمريرة رندر.
+let _repIdxEpoch=0, _repIdx=null, _repIdxSig='';
+function bumpRepIndex(){ _repIdxEpoch++; _repIdx=null; }
+window.bumpRepIndex=bumpRepIndex;
+function _repIndex(){
+    const reps=appState.representatives||[], links=appState.officeLinks||[];
+    const sig=_repIdxEpoch+'|'+reps.length+'|'+links.length;
+    if(_repIdx && _repIdxSig===sig) return _repIdx;
+    const lit=new Map(), nrm=new Map();
+    const push=(m,k,r)=>{ if(!k) return; let a=m.get(k); if(!a){ a=[]; m.set(k,a); } if(a.indexOf(r)<0) a.push(r); };
+    reps.forEach(r=>{
+        (r.vendorNames||[]).forEach(v=>{
+            if(!v) return;
+            push(lit, v, r);
+            push(nrm, _smNorm(resolveOffice(v)), r);
+        });
+    });
+    _repIdx={lit,nrm}; _repIdxSig=sig;
+    return _repIdx;
+}
+// يرجّع {rep, candidates, stage} — rep=null فقط لمّا ما أكو ولا مرشّح أصلاً
+function matchRepForOffice(vendorName){
+    const empty={rep:null, candidates:[], stage:'none'};
+    if(!vendorName) return empty;
+    const idx=_repIndex();
+    let c=idx.lit.get(vendorName), stage='exact';
+    if(!c||!c.length){
+        const canon=resolveOffice(vendorName);
+        if(canon!==vendorName){ c=idx.lit.get(canon); stage='canon'; }
+        if(!c||!c.length){
+            const key=_smNorm(canon);
+            c=key?idx.nrm.get(key):null; stage='norm';
+        }
+    }
+    if(!c||!c.length) return empty;
+    if(c.length===1) return {rep:c[0], candidates:c, stage};
+    // كلهم نفس الرقم → سجلّات مكرّرة لنفس الشخص، أي واحد صحيح
+    let same=true; for(let i=1;i<c.length;i++){ if(c[i].phone!==c[0].phone){ same=false; break; } }
+    if(same) return {rep:c[0], candidates:c, stage:stage+'/same-phone'};
+    // اللي عنده الاسم الحرفي بالضبط يفوز على اللي انطابق بالتطبيع
+    const litOnly=c.filter(r=>(r.vendorNames||[]).indexOf(vendorName)>=0);
+    if(litOnly.length===1) return {rep:litOnly[0], candidates:c, stage:stage+'/literal'};
+    return {rep:(litOnly.length?litOnly:c)[0], candidates:c, stage:stage+'/conflict'};
+}
+window.matchRepForOffice=matchRepForOffice;
+// الواجهة الموحّدة — تستبدل getRepForVendor / getRepForVendorSafe / getRepForVendorFuzzy بكل نقاط العرض
+function repForOffice(vendorName){ return matchRepForOffice(vendorName).rep; }
+window.repForOffice=repForOffice;
+// قائمة المرشحين لمّا يكون التعارض حقيقياً (أرقام مختلفة) — null غير هيج
+function repConflictFor(vendorName){
+    const m=matchRepForOffice(vendorName);
+    return (m.stage.indexOf('/conflict')>=0) ? m.candidates.map(r=>({name:r.name, phone:r.phone})) : null;
+}
+window.repConflictFor=repConflictFor;
+
+// نافذة حسم التعارض: مندوبان أو أكثر بأرقام مختلفة يدّعون نفس المكتب.
+// الاختيار يستدعي assignRepToVendor — تشيل الاسم الحرفي من بقية المندوبين، فالتعارض ينحسم نهائياً
+// ولا يرجع بعد المزامنة الجاية (المطابقة تخرج بالمرحلة الأولى «حرفي» ولا توصل للتوسيع).
+function showRepConflict(officeName){
+    const cands=(matchRepForOffice(officeName).candidates)||[];
+    if(cands.length<2){ if(typeof showToast==='function') showToast('لا يوجد تعارض'); return; }
+    const old=document.getElementById('repConflictModal'); if(old) old.remove();
+    const wrap=document.createElement('div');
+    wrap.id='repConflictModal';
+    wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    wrap.innerHTML='<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:18px;font-family:inherit;max-height:80vh;overflow:auto">'
+        +'<div style="font-weight:900;font-size:15px;margin-bottom:4px">⚠️ تعارض مندوبين</div>'
+        +'<div style="font-size:12px;color:#475569;margin-bottom:10px">المكتب: <b>'+esc(officeName)+'</b><br>'
+        +cands.length+' مندوبين مسجّلين لنفس المكتب بأرقام مختلفة. اختر الصحيح — يُشال الاسم من البقية نهائياً.</div>'
+        +'<div id="repConflictList"></div>'
+        +'<button id="repConflictCancel" style="margin-top:10px;width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc;font-weight:700;cursor:pointer">إلغاء</button>'
+        +'</div>';
+    document.body.appendChild(wrap);
+    const list=wrap.querySelector('#repConflictList');
+    cands.forEach((r,i)=>{
+        const b=document.createElement('button');
+        b.style.cssText='display:block;width:100%;text-align:right;margin-bottom:6px;padding:9px 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;cursor:pointer;font-weight:700;font-size:13px';
+        b.innerHTML=esc(r.name||'—')+'<br><span style="direction:ltr;display:inline-block;color:#15803d;font-size:12px">'+esc(r.phone)+'</span>'
+            +'<br><span style="font-size:10px;color:#94a3b8;font-weight:600">'+esc((r.vendorNames||[]).length)+' مكتب مرتبط</span>';
+        b.onmouseenter=()=>{ b.style.background='#eff6ff'; b.style.borderColor='#007AFF'; };
+        b.onmouseleave=()=>{ b.style.background='#fff'; b.style.borderColor='#cbd5e1'; };
+        b.onclick=()=>{
+            assignRepToVendor(r, officeName);
+            // حسم دائم: نشيل من المندوبين الآخرين الأسماء "الميتة" لنفس المكتب — أي اسم بنفس مفتاح
+            // المجموعة وما عاد موجوداً بأسماء مكاتب الطلبية الحالية (بقايا مزامنات قديمة مثل "…&&").
+            // ⚠️ الاسم اللي لسه موجود بالطلبية الحالية ما يُلمس أبداً: قد يكون مكتباً مختلفاً فعلاً
+            // شارك نفس المفتاح لأن _smNorm يقطع كل شي بعد "/" (مثل «بلادي/مصطفى» و«بلادي/سيد حيدر»).
+            try{
+                const key=_smNorm(resolveOffice(officeName));
+                const live=new Set((appState.orders||[]).map(o=>o.vendor));
+                let cleaned=0;
+                (appState.representatives||[]).forEach(other=>{
+                    if(other===r || !other.vendorNames) return;
+                    const keep=other.vendorNames.filter(v=>!(_smNorm(resolveOffice(v))===key && !live.has(v)));
+                    if(keep.length!==other.vendorNames.length){ cleaned+=other.vendorNames.length-keep.length; other.vendorNames=keep; }
+                });
+                if(cleaned) bumpRepIndex();
+            }catch(e){ console.error('تنظيف أسماء ميتة فشل:',e); }
+            saveToStorage();
+            wrap.remove();
+            if(typeof renderVendorsList==='function') renderVendorsList();
+            if(typeof showToast==='function') showToast('✅ انحسم: '+(r.name||r.phone));
+        };
+        list.appendChild(b);
+    });
+    wrap.querySelector('#repConflictCancel').onclick=()=>wrap.remove();
+    wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
+}
+window.showRepConflict=showRepConflict;
+
 // ======== استثناء (مادة × مكتب) — مطابقة صارمة بعد تطبيع النص، بدون Contains ========
 // مادة انربطت غلط بمكتب معيّن (بيانات مذخرية خاطئة) تُستثنى هنا فتختفي من كشف الرصيد والطلبية/الإرسال لهذا المكتب بس.
 // ملاحظة: _smNorm مبني لأسماء المكاتب العربية ويحذف أي حرف غير عربي (يمسح "Normal Saline 100" بالكامل) —
@@ -1407,6 +1549,7 @@ window.applyExcludeFilter=applyExcludeFilter;
 
 // Assign a rep to a vendor — removes vendor from old rep first
 function assignRepToVendor(rep, vendorName){
+    if(typeof bumpRepIndex==='function') bumpRepIndex(); // الفهرس صار قديم
     // Remove vendor from any existing rep
     appState.representatives.forEach(r=>{
         if(r!==rep && r.vendorNames) r.vendorNames=r.vendorNames.filter(v=>v!==vendorName);
@@ -1418,6 +1561,7 @@ function assignRepToVendor(rep, vendorName){
 
 // Remove a vendor from a rep's list
 function unassignRepFromVendor(vendorName){
+    if(typeof bumpRepIndex==='function') bumpRepIndex();
     appState.representatives.forEach(r=>{ if(r.vendorNames) r.vendorNames=r.vendorNames.filter(v=>v!==vendorName); });
 }
 
@@ -1648,7 +1792,7 @@ function renderVendorsList(){
     // ======== حساب أعداد فلتر الرقم (قبل أي فلتر) ========
     let cntWith=0, cntWithout=0;
     vendorsMap.forEach((_,name)=>{
-        const rep=getRepForVendor(name);
+        const rep=repForOffice(name);
         if(rep && rep.phone) cntWith++; else cntWithout++;
     });
     const pfA=document.getElementById('pfAllCnt'); if(pfA) pfA.textContent=vendorsMap.size;
@@ -1712,8 +1856,11 @@ function renderVendorsList(){
     const afNone=document.getElementById('afNoneAtCnt'); if(afNone) afNone.textContent=cntNoneAt;
 
     let vendors=Array.from(vendorsMap.entries()).map(([n,d])=>{
-        const rep=getRepForVendor(n);
-        return {name:n,status:d.status,count:d.items.size, rep:rep, shareLvl:vendorShareLevel.get(n), atLvl:vendorAtLevel.get(n)};
+        const _rm=matchRepForOffice(n);
+        const rep=_rm.rep;
+        // تعارض حقيقي (مندوبان بأرقام مختلفة لنفس المكتب) — يُعرض بشارة ⚠️ بدل ما يُخفى الرقم
+        const repConflict=(_rm.stage.indexOf('/conflict')>=0)?_rm.candidates.map(r=>({name:r.name,phone:r.phone})):null;
+        return {name:n,status:d.status,count:d.items.size, rep:rep, repConflict:repConflict, shareLvl:vendorShareLevel.get(n), atLvl:vendorAtLevel.get(n)};
     });
 
     const s=document.getElementById('vendorSearch').value.toLowerCase();
@@ -1767,7 +1914,8 @@ function renderVendorsList(){
         let repLine='';
         if(v.rep){
             const phoneTxt=v.rep.phone?`<i class="fas fa-phone" style="font-size:8px"></i> <span class="rep-phone">${escapeHtml(v.rep.phone)}</span>`:'<span class="no-phone"><i class="fas fa-phone-slash" style="font-size:9px"></i> بدون رقم</span>';
-            repLine=`<div class="vendor-rep-line"><i class="fas fa-user" style="font-size:8px"></i><span class="rep-name">${escapeHtml(v.rep.name||'—')}</span> • ${phoneTxt}</div>`;
+            const cfBadge=v.repConflict?`<span class="rep-conflict" title="${escapeHtml(v.repConflict.length+' مندوبين يدّعون هذا المكتب — اضغط للحسم')}" onclick="event.stopPropagation();showRepConflict(${JSON.stringify(v.name).replace(/"/g,'&quot;')})">⚠️ ${v.repConflict.length}</span>`:'';
+            repLine=`<div class="vendor-rep-line"><i class="fas fa-user" style="font-size:8px"></i><span class="rep-name">${escapeHtml(v.rep.name||'—')}</span> • ${phoneTxt}${cfBadge}</div>`;
         } else {
             repLine='<div class="vendor-rep-line"><span class="no-phone"><i class="fas fa-user-slash" style="font-size:9px"></i> بدون مندوب</span></div>';
         }
@@ -1840,7 +1988,7 @@ function selectVendorByName(name){
     document.getElementById('cnaWarningBanner').classList.toggle('hidden',!isCNA);
 
     // Find rep for this vendor
-    const rep=getRepForVendor(name);
+    const rep=repForOffice(name);
     if(rep){ appState.currentRep=rep; document.getElementById('repNameDisplay').value=rep.name; document.getElementById('repPhoneDisplay').value=rep.phone; }
     else { appState.currentRep=null; document.getElementById('repNameDisplay').value=''; document.getElementById('repPhoneDisplay').value=''; }
 
@@ -2418,10 +2566,19 @@ function openQueueReport(){
     // تصنيف المحدد: جاهز (عنده رقم) / بدون رقم
     const ready=[]; const noPhone=[];
     appState.queuedVendors.forEach(name=>{
-        const rep=getRepForVendor(name);
-        if(rep&&rep.phone) ready.push({name,rep});
+        // ⚠️ المكتب المتعارض (مندوبان بأرقام مختلفة) يدخل الطابور برقم مُرجَّح — يُعلَّم بصراحة،
+        // لأنه قبل الإصلاح كان يطلع "بدون رقم" ويُتخطّى (بلاغ 2026-09-01).
+        const _m=matchRepForOffice(name);
+        const rep=_m.rep;
+        if(rep&&rep.phone) ready.push({name, rep, conflict:(_m.stage.indexOf('/conflict')>=0)?_m.candidates.length:0});
         else noPhone.push(name);
     });
+    const _conf=ready.filter(r=>r.conflict);
+    const _cSec=document.getElementById('qConflictSection'), _cList=document.getElementById('qConflictList');
+    if(_cSec&&_cList){
+        _cSec.classList.toggle('hidden', !_conf.length);
+        _cList.innerHTML=_conf.map((r,i)=>`<div class="no-phone-row" style="background:rgba(245,158,11,0.10);cursor:pointer" onclick="showRepConflict(${JSON.stringify(r.name).replace(/"/g,'&quot;')})"><span>${i+1}. ${escapeHtml(r.name)}</span><span style="color:#92400e;font-weight:800">⚠️ ${r.conflict} مندوبين — احسم</span></div>`).join('');
+    }
     // ملء الإحصائيات
     document.getElementById('qStatTotal').textContent=appState.queuedVendors.size;
     document.getElementById('qStatReady').textContent=ready.length;
@@ -3699,7 +3856,7 @@ function dtBuildRepPhoneLookup(){
     const cache=new Map();
     return (office)=>{
         if(!cache.has(office)){
-            const rep = (typeof getRepForVendorSafe==='function') ? getRepForVendorSafe(office) : null;
+            const rep = (typeof repForOffice==='function') ? repForOffice(office) : null;
             cache.set(office, !!(rep && rep.phone));
         }
         return cache.get(office);
@@ -3892,7 +4049,7 @@ function dtRenderSidebar(){
         const pct = o.total ? Math.round(o.arrived/o.total*100) : 0;
         const isSel = dtState.selectedOffice===o.office;
         const checked = dtState.checkedOffices.has(o.office) ? 'checked' : '';
-        const rep = (typeof getRepForVendorSafe==='function') ? getRepForVendorSafe(o.office) : null;
+        const rep = (typeof repForOffice==='function') ? repForOffice(o.office) : null;
         let repLine='';
         if(rep){
             const phoneTxt=rep.phone?`<i class="fas fa-phone" style="font-size:8px"></i> <span class="rep-phone">${escapeHtml(rep.phone)}</span>`:'<span class="no-phone"><i class="fas fa-phone-slash" style="font-size:9px"></i> بدون رقم</span>';
