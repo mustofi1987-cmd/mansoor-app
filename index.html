@@ -1318,6 +1318,7 @@ async function loadFromStorage(){
         let ordersJson='[]';
         try{ ordersJson=(await ordIdbGet(ORD_KEY)) || '[]'; }catch(_){}
         appState.ordersRaw=JSON.parse(ordersJson);
+        await archiveLoadFallback(); // أرشيف ما وسع بـlocalStorage (آيفون) → من IndexedDB
         appState.excludeList=JSON.parse(localStorage.getItem('ph_exclude')||'[]');
         appState.officeLinks=JSON.parse(localStorage.getItem('ph_officelinks')||'[]');
         applyExcludeFilter();
@@ -3342,14 +3343,46 @@ function setupRepSearch(){
 const ARCHIVE_KEY = 'ph_archive';
 const ACTIVE_SNAP_KEY = 'ph_active_snapshot';
 
+// الأرشيف بـlocalStorage لو وسع؛ وإلا (سفاري iOS سقفه ~5MB للأصل كله، والأرشيف وحده 2.4MB) → IndexedDB
+// بنفس قاعدة الطلبيات + نسخة بالذاكرة حتى archiveGetAll يبقى متزامن وما يتغيّر أي مستدعي (2026-10-02).
+const ARCHIVE_IDB_KEY = 'archive';
+let __archiveMem = null;
 function archiveGetAll(){
-    try{ return JSON.parse(localStorage.getItem(ARCHIVE_KEY)||'[]'); }
-    catch(e){ return []; }
+    try{
+        const s=localStorage.getItem(ARCHIVE_KEY);
+        if(s!==null) return JSON.parse(s);
+    }catch(e){ return []; }
+    return Array.isArray(__archiveMem)?__archiveMem:[];
 }
 window.archiveGetAll=archiveGetAll;
 function archiveSaveAll(arr){
-    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(arr));
+    const s=JSON.stringify(arr);
+    try{
+        localStorage.setItem(ARCHIVE_KEY, s);
+        if(__archiveMem!==null){ __archiveMem=null; ordIdbPut(ARCHIVE_IDB_KEY,'').catch(()=>{}); }
+        return;
+    }catch(e){ try{ localStorage.removeItem(ARCHIVE_KEY); }catch(_){} }
+    __archiveMem=arr;
+    ordIdbPut(ARCHIVE_IDB_KEY, s).catch(err=>{ console.error('archive IDB save failed',err); showToast('⚠️ فشل حفظ الأرشيف'); });
 }
+// يُستدعى بالتحميل وبعد الاستعادة: لو الأرشيف مو بـlocalStorage، نقراه من IndexedDB للذاكرة
+async function archiveLoadFallback(){
+    try{
+        if(localStorage.getItem(ARCHIVE_KEY)!==null){ __archiveMem=null; return; }
+        const s=await ordIdbGet(ARCHIVE_IDB_KEY);
+        __archiveMem = s ? JSON.parse(s) : null;
+    }catch(e){ console.warn('archive fallback load failed',e); }
+}
+// للنسخة الاحتياطية/الاستعادة/الحذف (من مقاطع ثانية بالكود)
+window.__archiveStore={
+    asString: ()=>{ const s=localStorage.getItem(ARCHIVE_KEY); return s!==null ? s : (Array.isArray(__archiveMem)?JSON.stringify(__archiveMem):null); },
+    putString: async s=>{
+        try{ localStorage.setItem(ARCHIVE_KEY, s); __archiveMem=null; await ordIdbPut(ARCHIVE_IDB_KEY,''); return 'ls'; }
+        catch(e){ try{ localStorage.removeItem(ARCHIVE_KEY); }catch(_){} }
+        await ordIdbPut(ARCHIVE_IDB_KEY, s); __archiveMem=JSON.parse(s); return 'idb';
+    },
+    clear: async ()=>{ try{ localStorage.removeItem(ARCHIVE_KEY); }catch(_){} __archiveMem=null; try{ await ordIdbPut(ARCHIVE_IDB_KEY,''); }catch(_){} }
+};
 
 function archiveSaveSnapshot(orders, orderDateOverride, skipJsonExport){
     if(!orders || !orders.length) return;
@@ -8102,6 +8135,8 @@ window.onload=async()=>{
                 if(k==='ph_orders') continue; // orders موجود الآن في IndexedDB
                 dump[k]=localStorage.getItem(k);
             }
+            // أرشيف محفوظ بـIndexedDB (ما وسع بـlocalStorage) — يدخل النسخة بنفس المفتاح
+            if(!('ph_archive' in dump) && window.__archiveStore){ const a=window.__archiveStore.asString(); if(a) dump.ph_archive=a; }
             // اقرأ بيانات التدقيق من IndexedDB
             let auditRows=[];
             try{
@@ -8163,9 +8198,11 @@ window.onload=async()=>{
         if(!payload.localStorage) throw new Error('الملف فارغ');
         // مسح localStorage الحالي وكتابة الجديد — كل مفتاح لحاله (بلا ما فشل مفتاح وحد يوقف البقية)
         localStorage.clear();
+        if(window.__archiveStore) await window.__archiveStore.clear(); // أرشيف قديم بـIndexedDB ما يبقى
         const lsFailed=[];
         for(const k in payload.localStorage){
             if(k==='ph_orders') continue; // يُستعاد بـIndexedDB تحت — ما نكتبه بـlocalStorage نهائياً (سبب مشكلة الـquota أصلاً)
+            if(k==='ph_archive') continue; // ينكتب آخر شي تحت — لو ما وسع يروح لـIndexedDB بدل ما يضيع
             const v=payload.localStorage[k];
             try{
                 localStorage.setItem(k, v);
@@ -8173,15 +8210,26 @@ window.onload=async()=>{
                 lsFailed.push({key:k, size:(v?v.length:0), error:err.message||String(err)});
             }
         }
+        let archiveWhere='';
+        if(payload.localStorage.ph_archive && window.__archiveStore){
+            try{ archiveWhere=await window.__archiveStore.putString(payload.localStorage.ph_archive); }
+            catch(err){ lsFailed.push({key:'ph_archive', size:payload.localStorage.ph_archive.length, error:err.message||String(err)}); }
+        }
         if(lsFailed.length){
             console.warn('restore: localStorage keys failed:', lsFailed);
         }
         // استعادة الطلبيات (IndexedDB) — نسخة جديدة (ordersRaw) أو نسخة قديمة (localStorage.ph_orders) قبل الترحيل
-        let ordersRestored=0;
+        // تحقق بالقراءة الراجعة (2026-10-02): فشل الكتابة كان ينبلع بـconsole.warn، فالرسالة تگول ✅ بأرقام
+        // الملف بينما الجهاز (آيفون) يبقى على طلبياته القديمة. هسه الفشل يطلع للمستخدم بدل نجاح كاذب.
+        let ordersRestored=0, ordersWriteErr='', vendorsRestored=0;
         try{
             if(Array.isArray(payload.ordersRaw)){
-                await ordIdbPut(ORD_KEY, JSON.stringify(payload.ordersRaw));
+                const ordStr=JSON.stringify(payload.ordersRaw);
+                await ordIdbPut(ORD_KEY, ordStr);
+                const back=await ordIdbGet(ORD_KEY);
+                if(!back || back.length!==ordStr.length) ordersWriteErr=`الطلبيات ما انحفظت كاملة (انحفظ ${back?back.length:0} من ${ordStr.length} حرف)`;
                 ordersRestored=payload.ordersRaw.length;
+                vendorsRestored=new Set(payload.ordersRaw.map(o=>o&&o.vendor)).size;
             } else if(payload.localStorage && payload.localStorage.ph_orders){
                 try{
                     const arr=JSON.parse(payload.localStorage.ph_orders);
@@ -8191,7 +8239,7 @@ window.onload=async()=>{
                     }
                 }catch(_){}
             }
-        }catch(err){ console.warn('restore: orders IDB write failed',err); }
+        }catch(err){ console.warn('restore: orders IDB write failed',err); ordersWriteErr='فشل حفظ الطلبيات بالجهاز: '+(err&&err.message||err); }
 
         // استعادة بيانات التدقيق
         let auditRestored=0;
@@ -8235,7 +8283,7 @@ window.onload=async()=>{
             }
         }catch(err){ console.warn('restore: excel IDB write failed',err); }
 
-        return {totalKeys:payload.totalKeys, orders:payload.orders, vendors:payload.vendors, auditRestored, sheetsRestored, lsFailed};
+        return {totalKeys:payload.totalKeys, orders:payload.orders, vendors:payload.vendors, auditRestored, sheetsRestored, lsFailed, ordersRestored, vendorsRestored, ordersWriteErr, srcDate:payload.date||payload.exportedAt||''};
     }
 
     document.getElementById('restoreBtn').onclick=function(){
@@ -8468,22 +8516,36 @@ window.onload=async()=>{
                     return;
                 }
 
-                const jsonBlob=new Blob([JSON.stringify(payload)],{type:'application/json'});
-                const rawMB=(jsonBlob.size/1024/1024).toFixed(0);
-
-                pushBtn.textContent=`⏳ جاري الضغط (${rawMB}MB)...`;
-                const gzBlob=await new Response(jsonBlob.stream().pipeThrough(new CompressionStream('gzip'))).blob();
-                const gzMB=(gzBlob.size/1024/1024).toFixed(1);
-                if(gzBlob.size>95*1024*1024) throw new Error(`الملف المضغوط ${gzMB}MB — أكبر من حد GitHub (100MB)`);
-
-                pushBtn.textContent=`⏳ جاري الترميز (${gzMB}MB)...`;
-                const b64=await blobToBase64(gzBlob);
-
-                pushBtn.textContent=`⏳ جاري الرفع (${gzMB}MB)...`;
-                const blobRes=await ghApi(c,'/git/blobs',{method:'POST',body:JSON.stringify({content:b64,encoding:'base64'})});
-                const treeRes=await ghApi(c,'/git/trees',{method:'POST',body:JSON.stringify({
-                    tree:[{path:c.path||'latest_backup.json.gz', mode:'100644', type:'blob', sha:blobRes.sha}]
-                })});
+                // تقسيم (2026-10-02): كل شيت خام بملف لحاله بنفس الكوميت. الآيفون كان ينهار وهو يفك
+                // ملف واحد بيه كل شي (23MB مضغوط) — هسه الملف الأساسي صغير (طلبيات+إعدادات+تدقيق)
+                // والشيتات تنسحب وحدة وحدة. sheetFiles بالملف الأساسي = الفهرس.
+                const sheets=payload.excelSheets||{}; delete payload.excelSheets;
+                const basePath=c.path||'latest_backup.json.gz';
+                const dir=basePath.includes('/')?basePath.slice(0,basePath.lastIndexOf('/')+1):'';
+                const gzOf=str=>new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
+                const putBlob=async g=>{
+                    if(g.size>95*1024*1024) throw new Error(`ملف مضغوط ${(g.size/1048576).toFixed(1)}MB — أكبر من حد GitHub (100MB)`);
+                    return (await ghApi(c,'/git/blobs',{method:'POST',body:JSON.stringify({content:await blobToBase64(g),encoding:'base64'})})).sha;
+                };
+                const tree=[]; payload.sheetFiles=[]; payload._split=1;
+                let rawBytes=0, gzBytes=0;
+                const sheetNames=Object.keys(sheets);
+                for(let i=0;i<sheetNames.length;i++){
+                    const nm=sheetNames[i];
+                    pushBtn.textContent=`⏳ شيت ${i+1}/${sheetNames.length}: ${nm}...`;
+                    const s=JSON.stringify(sheets[nm]); rawBytes+=s.length;
+                    const g=await gzOf(s); gzBytes+=g.size;
+                    const path=`${dir}sheets/${i}.json.gz`;
+                    tree.push({path, mode:'100644', type:'blob', sha:await putBlob(g)});
+                    payload.sheetFiles.push({name:nm, path, bytes:g.size});
+                    sheets[nm]=null; // نحرّر الذاكرة أول بأول
+                }
+                pushBtn.textContent='⏳ جاري رفع الطلبيات...';
+                const coreStr=JSON.stringify(payload); rawBytes+=coreStr.length;
+                const coreGz=await gzOf(coreStr); gzBytes+=coreGz.size;
+                tree.unshift({path:basePath, mode:'100644', type:'blob', sha:await putBlob(coreGz)});
+                const rawMB=(rawBytes/1048576).toFixed(0), gzMB=(gzBytes/1048576).toFixed(1);
+                const treeRes=await ghApi(c,'/git/trees',{method:'POST',body:JSON.stringify({tree})});
                 const stamp=new Date().toLocaleString('en-GB',{hour12:false}).replace(',','');
                 // parents: [] = كوميت يتيم — يمسح التاريخ القديم فيبقى المستودع بنسخة واحدة
                 const commitRes=await ghApi(c,'/git/commits',{method:'POST',body:JSON.stringify({
@@ -8523,8 +8585,10 @@ window.onload=async()=>{
                 // شبكات الموبايل (LTE/5G) تنقطع لحظياً بشكل طبيعي. نطلب Range اختيارياً (استئناف من نفس
                 // البايت بدل الصفر) على *نفس endpoint المجرَّب فعلياً* — لو GitHub تجاهل الـRange ورجّع
                 // 200 كامل بدل 206 جزئي، الكود يكتشفها ويرجع تلقائياً لسلوك "من الصفر" المضمون (بلا كسر شي).
+                // صارت دالة (2026-10-02) لأن الملف الأساسي وكل شيت ينسحبون بنفس الطريقة.
                 const MAX_ATTEMPTS=5;
-                const dlUrl=`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(c.path)}`;
+                const ghDownloadBlob=async (path, totalSize, label)=>{
+                const dlUrl=`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${String(path).split('/').map(encodeURIComponent).join('/')}`;
                 let parts=[], received=0, lastErr=null;
                 for(let attempt=1; attempt<=MAX_ATTEMPTS; attempt++){
                     try{
@@ -8543,7 +8607,7 @@ window.onload=async()=>{
                                 if(done) break;
                                 parts.push(value); received+=value.length;
                                 const pct=totalSize>0?Math.min(99,Math.round(received/totalSize*100)):0;
-                                setProgress(pct, (totalSize>0
+                                setProgress(pct, label+(totalSize>0
                                     ? `${pct}% (${(received/1024/1024).toFixed(1)}MB / ${(totalSize/1024/1024).toFixed(1)}MB)`
                                     : `${(received/1024/1024).toFixed(1)}MB...`)+attemptLabel);
                             }
@@ -8562,19 +8626,41 @@ window.onload=async()=>{
                     }
                 }
                 if(lastErr) throw new Error(`فشل التحميل بعد ${MAX_ATTEMPTS} محاولات (توقف عند ${(received/1024/1024).toFixed(1)}MB) — تأكد من قوة الشبكة.\n${lastErr.message}`);
-                const gzBytes=new Blob(parts);
+                return new Blob(parts);
+                };
+                const gunzipJson=async blob=>JSON.parse(await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text());
 
-                setProgress(100,'جاري فك الضغط...');
-                const ds=new DecompressionStream('gzip');
-                const jsonText=await new Response(gzBytes.stream().pipeThrough(ds)).text();
-
-                setProgress(100,'جاري تطبيق البيانات...');
-                const payload=JSON.parse(jsonText);
+                let payload=await gunzipJson(await ghDownloadBlob(c.path, totalSize, ''));
+                // صيغة مقسّمة: الشيتات بملفات منفصلة (sheetFiles). صيغة قديمة: excelSheets داخل الملف نفسه — نفس المسار القديم.
+                const sheetFiles=Array.isArray(payload.sheetFiles)?payload.sheetFiles:null;
+                setProgress(100,'جاري حفظ الطلبيات...');
                 const r=await applyBackupPayload(payload);
-                let msg=`✅ تم التحديث من GitHub\n• ${r.orders||'?'} طلبية\n• ${r.vendors||'?'} مكتب\n• ${r.auditRestored} صف تدقيق\n• ${r.sheetsRestored} sheet`;
+                payload=null;
+                if(r.ordersWriteErr){
+                    alert('❌ البيانات نزلت بس الطلبيات ما انحفظت بهذا الجهاز — بقت القديمة.\n'+r.ordersWriteErr+'\n\nسكّر تبويبات التطبيق الثانية وجرّب مرة ثانية.');
+                    location.reload(); return;
+                }
+                // الطلبيات انحفظت. هسه الشيتات وحدة وحدة — ذروة الذاكرة = أكبر شيت، مو الكل.
+                const sheetsFailed=[];
+                if(sheetFiles){
+                    let ok=0;
+                    try{ await excelDbClear(); }catch(e){ console.warn('restore: excel clear failed',e); }
+                    for(let i=0;i<sheetFiles.length;i++){
+                        const sf=sheetFiles[i];
+                        try{
+                            const aoa=await gunzipJson(await ghDownloadBlob(sf.path, sf.bytes||0, `شيت ${i+1}/${sheetFiles.length}: ${sf.name} — `));
+                            await excelDbPut(sf.name, aoa);
+                            ok++;
+                        }catch(e){ sheetsFailed.push(`${sf.name}: ${e.message||e}`); }
+                    }
+                    r.sheetsRestored=`${ok}/${sheetFiles.length}`;
+                }
+                let msg=`✅ تم التحديث من GitHub\n• ${r.ordersRestored||r.orders||'?'} مادة\n• ${r.vendorsRestored||r.vendors||'?'} مكتب قبل الفلاتر (انحفظ وتأكدت منه)\n• ${r.auditRestored} صف تدقيق\n• ${r.sheetsRestored} sheet`;
+                if(r.srcDate){ const d=new Date(r.srcDate); if(!isNaN(d)) msg+=`\n• وقت الرفع: ${d.toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`; }
                 if(r.lsFailed&&r.lsFailed.length){
                     msg+=`\n\n⚠️ ${r.lsFailed.length} مفتاح ما انحفظ:\n`+r.lsFailed.map(f=>`- ${f.key} (${(f.size/1024).toFixed(0)}KB)`).join('\n');
                 }
+                if(sheetsFailed.length) msg+=`\n\n⚠️ ${sheetsFailed.length} شيت ما نزل (الطلبيات سليمة):\n`+sheetsFailed.map(s=>'- '+s).join('\n');
                 msg+='\n\nسيتم إعادة تحميل الصفحة';
                 alert(msg);
                 location.reload();
@@ -14217,7 +14303,7 @@ window.onload=async()=>{
     };
     document.getElementById('clearAllArchiveBtn').onclick=()=>{
         if(!confirm('حذف كل الأرشيف؟')) return;
-        localStorage.removeItem('ph_archive');
+        if(window.__archiveStore) window.__archiveStore.clear(); else localStorage.removeItem('ph_archive');
         localStorage.removeItem('ph_active_snapshot');
         renderArchiveModal();
         updateActiveSnapshotBadge();
