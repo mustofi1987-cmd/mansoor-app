@@ -496,6 +496,10 @@
             <select id="globalOtherFilter" class="ios-input text-sm w-auto"><option value="">مكاتب أخرى</option><option value="yes">يوجد</option><option value="no">لا يوجد</option></select>
             <select id="globalFakeFilter" class="ios-input text-sm w-auto" title="المواد الزائفة (FAKE) — رقمها مصحَّح بالإكسل"><option value="">🚩 FAKE: الكل</option><option value="yes">اعرض FAKE بس</option><option value="no">اخفِ FAKE</option></select>
             <button onclick="clearGlobalFilters()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(255,59,48,0.08);border:1px solid rgba(255,59,48,0.3);color:#dc2626" title="إزالة كل فلاتر الفيندور الشامل"><i class="fas fa-eraser ml-1"></i> ↺ إزالة الفلاتر</button>
+            <select id="globalPdfCols" class="ios-input text-sm w-auto" title="أعمدة ملف الطباعة — شاملة: كل أعمدة الجدول + التغطية · مختصرة: المادة والكمية والشركة بس"><option value="full">🖨️ طباعة شاملة</option><option value="short">🖨️ طباعة مختصرة</option></select>
+            <button onclick="gvExportPDF(true)" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(194,65,12,0.1);color:#c2410c" title="PDF حسب الفلاتر الحالية — كل مكتب يبدي بصفحة جديدة"><i class="fas fa-print ml-1"></i>طباعة: كل مكتب بصفحة</button>
+            <button onclick="gvExportPDF(false)" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(194,65,12,0.1);color:#c2410c" title="PDF حسب الفلاتر الحالية — المكاتب متتالية بلا فراغ"><i class="fas fa-print ml-1"></i>طباعة: متتالي</button>
+            <button onclick="gvExportItemsPDF()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(15,118,110,0.1);color:#0f766e" title="PDF حسب الفلاتر الحالية — كل مادة بسطر واحد: التسلسل · المادة · الكمية · كل المكاتب اللي عندها المادة"><i class="fas fa-list-ol ml-1"></i>طباعة: قائمة مواد</button>
         </div>
         <div class="overflow-auto max-h-[460px] rounded-xl border">
             <table class="w-full text-sm table-ios" id="globalTable">
@@ -584,6 +588,7 @@
                         </div>
                         <div class="flex gap-2 flex-wrap">
                             <button id="auditPrintSelectedBtn" class="ios-btn bg-[#AF52DE] text-white px-4 py-2 text-sm" disabled><i class="fas fa-file-pdf ml-1"></i> طباعة المحدد (<span id="auditPrintCount">0</span>)</button>
+                            <button id="auditPrintContBtn" class="ios-btn text-white px-4 py-2 text-sm" style="background:#1e3a8a" disabled title="الفواتير المحددة وحدة ورا وحدة بنفس الصفحة — ورق أقل. نفس جدول الطباعة العادية."><i class="fas fa-layer-group ml-1"></i> طباعة متتالية (<span id="auditPrintContCount">0</span>)</button>
                             <button id="auditSelectAllBtn" class="ios-btn bg-gray-200 px-3 py-2 text-xs"><i class="fas fa-check-double ml-1"></i>تحديد الكل</button>
                             <button id="auditClearSelBtn" class="ios-btn bg-gray-200 px-3 py-2 text-xs"><i class="fas fa-times ml-1"></i>مسح</button>
                             <button onclick="clearAuditFilters()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(255,59,48,0.08);border:1px solid rgba(255,59,48,0.3);color:#dc2626" title="إزالة فلاتر التدقيق"><i class="fas fa-eraser ml-1"></i> ↺ إزالة الفلاتر</button>
@@ -1609,7 +1614,7 @@ window.isExcludedDT=isExcludedDT;
 
 // ======== روابط المكاتب (نفس المكتب باسمين بمتابعة الوصول) ========
 // مكتب يجي أحياناً باسم مختلف (نفس المالك) — يربط اسم بديل (alias) باسم رئيسي (canonical)
-// يُستخدم فقط بتبويب "متابعة الوصول"/"عائدات" (dtApplyOfficeLinks)، ما يمس باقي التبويبات.
+// يُستخدم بتبويب "متابعة الوصول"/"عائدات" (dtApplyOfficeLinks)، وبحساب «مكاتب أخرى» (computeOtherVendors) من 2026-10-03.
 // الربط **مجموعة متعدية** (بطلب المستخدم 2026-08-15): أي اسمين مربوطين يصيرون بنفس
 // المجموعة، وأي ربط ثاني يمس أحدهم يدمج المجموعتين. يعني لو ربطت 1↔2 وبعدين 2↔3،
 // الأربعة يصيرون مجموعة وحدة تلقائياً — ما عاد يفرق منو "الأساسي" ومنو "البديل".
@@ -1750,7 +1755,8 @@ window.applyExcludeFilter=applyExcludeFilter;
 // الإرسال/PDF/الطابور/الأرشيف كلها تقرا appState.orders، فتتبع السياسة تلقائياً (قرار مصطفى).
 // المقفولة (رقمها = الإكسل دائماً): FAKE* · Phantom · Apple Transfer · Apple Trigger · Check · أي كمية معدّلة يدوياً —
 // لأن معدّل الـFAKE منفوخ: إعادة حسابه بالهدف ترجّع الرقم الغلط (Agiolax: 480 مصحَّح → 9,689 لو انحسب).
-const COV_POLICY_DEFAULT={covOn:false,covMaxAt:15,covMaxNo:15,tgtOn:false,tgtAt:60,tgtNo:45,keepShare:true};
+// ⚠️ قفل الـFAKE صار اختياري (2026-10-03): tgtFake=true يخلي الهدف يعيد حسابه من المباع الفعلي (شوف covApply). الافتراضي مقفول.
+const COV_POLICY_DEFAULT={covOn:false,covMaxAt:15,covMaxNo:15,tgtOn:false,tgtAt:60,tgtNo:45,tgtFake:false,keepShare:true};
 // FAKE صار فلتر عرض (🚩 FAKE بجداول التبويبين، مثل «مكاتب أخرى») — مو جزء من السياسة اللي تغيّر الطلبية
 function covPolicy(){
     if(!appState.covPolicy){
@@ -1785,13 +1791,23 @@ function covApply(o,p){
         o._covChanged=String(q)!==String(o.xlQty);
         o.requiredQty=String(q); o.requiredQtyNum=q;
     }
+    // «الهدف يشمل الفيك» (tgtFake — اختياري ومطفي افتراضياً، طلب مصطفى 2026-10-03): من المباع الفعلي مو من المعدّل المنفوخ.
+    // الإكسل (Module7:247): P = Max(0, Int(المباع/2) − الرصيد) ⇒ نص المباع = raw + bal = صرف 50 يوم (نافذة 100) ⇒ هدف 50 = رقم الإكسل نفسه.
+    // مقيس على Sheet3 الحي: raw+bal = Int(sold/2) بـ417 من 417. يبقى مقفول: «Possible Stock Fake» وraw=20 برصيد ≤0 (حد أدنى مفروض، Module7:248) · بلا raw · اليدوي.
+    else if(p.tgtOn && p.tgtFake && o.cv.type==='FAKE' && !o.isCheck && !o.qtyManual && o.cv.raw>0 && !(o.cv.raw===20 && o.cv.bal<=0)){
+        let q=covRoundQty(Math.trunc((o.cv.at?p.tgtAt:p.tgtNo)*(o.cv.raw+o.cv.bal)/50-o.cv.bal+1e-9));
+        // نفس حد الإكسل الأدنى (Module7:248): الحسبة صفر بس الرصيد قليل والتغطية واطية → 20، مو حذف
+        if(q<=0){ if(o.cv.bal<12 && o.cv.cov<35) q=20; else return false; }
+        o._covChanged=String(q)!==String(o.xlQty);
+        o.requiredQty=String(q); o.requiredQtyNum=q;
+    }
     return true;
 }
 function covBadge(o){
     if(!o||!o.cv) return '';
     let h='';
     if(o._covChanged) h+=` <span class="cov-badge" style="background:#e0f2fe;color:#0369a1" title="رقم الإكسل الأصلي قبل فلتر الهدف">إكسل ${escapeHtml(String(o.xlQty))}</span>`;
-    if(covIsFake(o)) h+=` <span class="cov-badge" style="background:#fee2e2;color:#b91c1c" title="${escapeHtml(o.cv.type)} — رقمها مصحَّح بالإكسل ومقفول">FAKE</span>`;
+    if(covIsFake(o)) h+=` <span class="cov-badge" style="background:#fee2e2;color:#b91c1c" title="${escapeHtml(o.cv.type)} — رقمها مصحَّح بالإكسل، ومقفول إلا إذا مأشّر «الهدف يشمل الفيك»">FAKE</span>`;
     return h;
 }
 function covRefresh(){
@@ -1828,6 +1844,7 @@ function covRenderBars(){
     const html=`<div class="font-bold mb-1" style="color:#0f766e">📐 التغطية والهدف <span class="font-normal text-[10px]">— الإرسال يمشي عليها</span></div>
         <label class="flex items-center gap-1 mb-1 cursor-pointer"><input type="checkbox" data-cov-chk="covOn" ${p.covOn?'checked':''}> أخفِ اللي تغطي أكثر من: @ ${num('covMaxAt',48)} · بلا @ ${num('covMaxNo',48)} يوم</label>
         <label class="flex items-center gap-1 mb-1 cursor-pointer flex-wrap"><input type="checkbox" data-cov-chk="tgtOn" ${p.tgtOn?'checked':''}> الهدف: @ ${num('tgtAt',48)} · بلا @ ${num('tgtNo',48)} يوم</label>
+        <label class="flex items-center gap-1 mb-1 cursor-pointer flex-wrap" style="padding-right:18px" title="مطفي: الفيك يبقى على رقم الإكسل. مأشّر: ينحسب بالهدف من المباع الفعلي (هدف 50 يوم = رقم الإكسل). الكميات المعدّلة يدوياً ما تتغير بالحالتين."><input type="checkbox" data-cov-chk="tgtFake" ${p.tgtFake?'checked':''}> الهدف يشمل الفيك <span class="text-[10px] text-gray-500">— من المباع الفعلي · المعدّلة يدوياً تبقى</span></label>
         <div class="flex items-center gap-1 mb-1 flex-wrap">الحصة: ${seg('keepShare',true,'تبقى دائماً')}${seg('keepShare',false,'تنفلتر')}</div>
         <div class="flex items-center justify-between gap-1 flex-wrap"><span class="text-[10px] cov-status">${status}</span>
         <button type="button" class="cov-seg on" data-cov-apply="1" title="يطبّق الأرقام المكتوبة فوراً">✓ طبّق</button>
@@ -2101,16 +2118,19 @@ function computeOtherVendors(orders){
     // التجميع يبقى حسب اسم المادة (itemName) — الغرض الأصلي: "هذي المادة متوفرة عند فيندور ثاني".
     // داخل كل مادة، مقارنة الفيندورات مطبَّعة بـ_smNorm (نفس التطبيع اللي يستخدمه doImport) بدل
     // النص الخام، حتى فيندور بفرق مسافة/حالة أحرف ما يُحسب "فيندور آخر" كاذب لنفسه.
-    const map=new Map(); // itemName -> Map(normVendorKey -> اسم الفيندور الأصلي)
+    // المكاتب الموحّدة (روابط المكاتب بمتابعة الوصول، resolveOffice) تنحسب مكتب واحد (طلب مصطفى 2026-10-03):
+    // «صدى المعمورة» و«المعمورة» المربوطين مو «مكتب آخر» لبعض.
+    const vKey=v=>_smNorm(resolveOffice(v));
+    const map=new Map(); // itemName -> Map(مفتاح مجموعة المكتب -> اسم الفيندور الأصلي)
     orders.forEach(o=>{
         if(!map.has(o.itemName)) map.set(o.itemName,new Map());
         const vm=map.get(o.itemName);
-        const k=_smNorm(o.vendor);
+        const k=vKey(o.vendor);
         if(!vm.has(k)) vm.set(k,o.vendor);
     });
     orders.forEach(o=>{
         const vm=map.get(o.itemName)||new Map();
-        const myKey=_smNorm(o.vendor);
+        const myKey=vKey(o.vendor);
         const others=Array.from(vm.entries()).filter(([k])=>k!==myKey).map(([,name])=>name);
         o.otherVendors=others.join(', ');
         o.hasOtherVendors=others.length>0;
@@ -2623,13 +2643,19 @@ function deleteItemById(id){
 window.deleteItem=deleteItemById;
 
 // ======================== GLOBAL VIEW ========================
-function renderGlobalView(){
+// قائمة جدول الفيندور الشامل بعد كل فلاتره (بحث · كمية · شركة · حصة · مكاتب أخرى · FAKE · الچبس) —
+// مصدر واحد للشاشة والطباعة (gvExportPDF) حتى ما يطلع الـPDF غير اللي ظاهر.
+function globalFilteredItems(){
     let all=[...appState.orders];
     const f=appState.globalFilters;
     all=filterItems(all,{search:f.item,reqCompare:f.reqCompare,reqValue:f.reqValue,company:f.company,share:f.share,otherVendors:f.other,fake:f.fake,sortField:f.sortField,sortDir:f.sortDir});
     all=all.filter(item=>!f.vendor||item.vendor.toLowerCase().includes(f.vendor.toLowerCase()));
     // Apply global kanban chip filter
     if(typeof globalKanbanFilter === 'function') all=globalKanbanFilter(all);
+    return all;
+}
+function renderGlobalView(){
+    const all=globalFilteredItems();
     // Update kanban chip counts
     if(typeof updateGlobalKanbanCounts === 'function') updateGlobalKanbanCounts();
     const totalPages=Math.ceil(all.length/appState.pageSize)||1;
@@ -2671,6 +2697,127 @@ window.updateGlobalQty=(cell)=>{
     if(item && cell.textContent.trim()!==String(item.requiredQty)) item.qtyManual=true; // نفس منطق updateQty
     if(item){ item.requiredQty=cell.textContent.trim(); item.isCheck=item.requiredQty.toLowerCase()==='check'; item.requiredQtyNum=item.isCheck?0:(parseFloat(item.requiredQty)||0); if(window.dtInvalidateCheckSet) window.dtInvalidateCheckSet(); if(appState.selectedVendor) renderItemsTable(appState.orders.filter(o=>o.vendor===appState.selectedVendor)); renderGlobalView(); autoSave(); }
 };
+
+// طباعة PDF للفيندور الشامل حسب الفلاتر الحالية — perOffice: كل مكتب يبدي بصفحة · وإلا المكاتب متتالية.
+// الرسم بـdtPdfGrouped المشترك. الكمية = requiredQty مثل الشاشة (المصحَّح/المعدَّل) — ما ينطبع أي رقم ثاني مكانها.
+async function gvExportPDF(perOffice){
+    if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
+    const all=globalFilteredItems();
+    if(!all.length){ alert('⚠️ ما أكو مواد بالفلاتر الحالية'); return; }
+    const byVendor=new Map();
+    all.forEach(o=>{ if(!byVendor.has(o.vendor)) byVendor.set(o.vendor,[]); byVendor.get(o.vendor).push(o); });
+    const offices=[...byVendor.keys()].sort((a,b)=>String(a).localeCompare(String(b),'ar'));
+    // الملف صور صفحات كاملة — مقيس 2026-10-03: ~11 صف بالصفحة و~0.45MB للصفحة (1500 مادة = 143 صفحة = 64MB)
+    // مختصرة = المادة · الكمية · الشركة (صفوف بسطر واحد ≈ 16 بالصفحة) · شاملة = كل أعمدة الجدول + التغطية
+    const short=(document.getElementById('globalPdfCols')||{}).value==='short', perPg=short?16:11;
+    const estPages=perOffice ? offices.reduce((n,v)=>n+Math.ceil(byVendor.get(v).length/perPg),0) : Math.ceil((all.length+offices.length*2)/perPg);
+    // بلا قيود ولا تأكيد (طلب مصطفى 2026-10-03): الكامل ينطبع مثل المفلتر — بس الملف الطويل ينرسم بدقة أخف حتى يبقى حجمه معقول
+    const big=estPages>60;
+    try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(_){} // القياس بخط Tajawal مو ببديله
+    const num=v=>(typeof v==='number'&&isFinite(v))?String(Math.round(v*10)/10):'—';
+    const cellsOf=(o,i)=>{
+        const cv=o.cv||{};
+        let name=String(o.itemName||'');
+        if(covIsFake(o)) name+='  [FAKE]';
+        if(o._covChanged) name+=`  (Excel ${o.xlQty})`;
+        return {
+            bg: (o.share>0&&o.hasOtherVendors)?'#fdebd9':o.share>0?'#fde3e1':o.hasOtherVendors?'#ece6fb':'#ffffff',
+            v:{ n:String(i+1), item:name, qty:String(o.requiredQty??'—'),
+                gap:`${Math.round(o.currentGap1||0)} / ${Math.round(o.currentGap2||0)}`,
+                avg:num(cv.avg), mbal:num(cv.bal), cov:num(cv.cov)==='—'?'—':num(cv.cov)+' يوم', type:cv.type?String(cv.type):'—',
+                other:o.otherVendors||'—', share:o.share>0?String(o.share):'—', company:o.company||'—' }
+        };
+    };
+    const note=gvPdfNote(`${all.length} مادة · ${offices.length} مكتب`);
+    showToast('⏳ جاري تجهيز PDF...',true);
+    try{ await window.dtPdfGrouped({
+        title:'Mansoor Pharmacy Report — الفيندور الشامل',
+        note, groupPerPage:!!perOffice, repeatGroup:true, dpr:big?1.5:2.2, quality:big?0.8:0.92, searchKeys:['item','company','other'],
+        onProgress:pg=>showToast(`⏳ PDF: صفحة ${pg} من ~${estPages}`,true),
+        cols:short ? GV_PDF_COLS_SHORT : GV_PDF_COLS_FULL,
+        groups:offices.map(v=>[v, byVendor.get(v).map(cellsOf)]),
+        fileName:'الفيندور_الشامل_'+(short?'مختصر_':'')+(perOffice?'مكتب_بصفحة':'متتالي')
+    }); }catch(e){ showToast('❌ فشل توليد PDF'); alert('❌ فشل توليد PDF: '+(e&&e.message||e)); return; }
+    showToast('✅ تم تصدير PDF');
+}
+window.gvExportPDF=gvExportPDF;
+
+// ملخص الفلاتر الفعّالة برأس صفحة الطباعة (مشترك بين طباعات الفيندور الشامل)
+function gvPdfNote(head){
+    const f=appState.globalFilters, p=covPolicy(), tags=[];
+    if(f.vendor) tags.push('فيندور: '+f.vendor);
+    if(f.item) tags.push('مادة: '+f.item);
+    if(f.reqCompare) tags.push(f.reqCompare==='check'?'Check':`الكمية ${f.reqCompare} ${f.reqValue??''}`);
+    if(f.company&&f.company.size) tags.push(`شركات: ${f.company.size}`);
+    if(f.share) tags.push(f.share==='yes'?'بيها حصة':'بلا حصة');
+    if(f.other) tags.push(f.other==='yes'?'بيها مكاتب أخرى':'بلا مكاتب أخرى');
+    if(f.fake) tags.push(f.fake==='yes'?'FAKE بس':'بلا FAKE');
+    if(typeof globalKanbanState!=='undefined' && globalKanbanState.active!=='all') tags.push('چبس: '+globalKanbanState.active);
+    if(appState.atOnlyMode) tags.push('@ فقط');
+    if(p.covOn) tags.push(`تغطية ≤ ${p.covMaxAt}/${p.covMaxNo}`);
+    if(p.tgtOn) tags.push(`هدف ${p.tgtAt}/${p.tgtNo}`);
+    let note=head+(tags.length?' · '+tags.join(' · '):'');
+    if(note.length>80) note=note.slice(0,79)+'…'; // أطول من هيچ يركب على العنوان
+    return note;
+}
+const GV_PDF_COLS_SHORT=[
+            {key:'n',      label:'#',              w:10,  align:'center', maxLines:1},
+            {key:'item',   label:'المادة',          w:128, align:'left', maxLines:2},
+            {key:'qty',    label:'الكمية',          w:27,  align:'center', maxLines:1},
+            {key:'other',  label:'مكاتب أخرى',      w:78,  align:'left'},
+            {key:'company',label:'الشركة',          w:40,  align:'left', maxLines:2},
+];
+const GV_PDF_COLS_FULL=[
+            {key:'n',      label:'#',              w:8,  align:'center', maxLines:1},
+            {key:'item',   label:'المادة',          w:80, align:'left'},
+            {key:'qty',    label:'الكمية',          w:16, align:'center', maxLines:1},
+            {key:'gap',    label:'رصيد G1 / G2',    w:24, align:'center', maxLines:1},
+            {key:'avg',    label:'معدل يومي',       w:17, align:'center', maxLines:1},
+            {key:'mbal',   label:'رصيد المنصور',    w:23, align:'center', maxLines:1},
+            {key:'cov',    label:'التغطية',         w:20, align:'center', maxLines:1, rtl:true},
+            {key:'type',   label:'نوع الكمية',      w:23, align:'center', maxLines:2},
+            {key:'other',  label:'مكاتب أخرى',      w:36, align:'left'},
+            {key:'share',  label:'الحصة',           w:11, align:'center', maxLines:1},
+            {key:'company',label:'الشركة',          w:25, align:'left', maxLines:2},
+];
+
+// طباعة «قائمة مواد» (طلب مصطفى 2026-10-03): كل مادة بسطر واحد بدل ما تتكرر لكل مكتب —
+// # · المادة · الكمية · كل المكاتب اللي عندها المادة. نفس فلاتر الجدول. الكمية = requiredQty مثل الشاشة؛
+// لو كميات المكاتب مختلفة لنفس المادة تنكتب كلها («100 / 50») وكل مكتب جنبه كميته.
+async function gvExportItemsPDF(){
+    if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
+    const all=globalFilteredItems();
+    if(!all.length){ alert('⚠️ ما أكو مواد بالفلاتر الحالية'); return; }
+    const byItem=new Map();
+    all.forEach(o=>{ let g=byItem.get(o.itemName); if(!g){ g={name:String(o.itemName||''), fake:false, rows:[]}; byItem.set(o.itemName,g); } g.rows.push(o); if(covIsFake(o)) g.fake=true; });
+    const items=[...byItem.values()];
+    // بلا ترتيب مختار بالجدول → أبجدي بالاسم (أسهل للبحث بالورقة)؛ وإلا نفس ترتيب الشاشة
+    if(!appState.globalFilters.sortField) items.sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base'}));
+    const estPages=Math.ceil(items.length/12), big=estPages>60;
+    try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(_){}
+    const cells=items.map((g,i)=>{
+        const qtys=[...new Set(g.rows.map(o=>String(o.requiredQty??'—')))], same=qtys.length===1;
+        const offices=[...new Set(g.rows.map(o=>same?o.vendor:`${o.vendor} (${o.requiredQty})`))];
+        return {v:{ n:String(i+1), item:g.name+(g.fake?'  [FAKE]':''), qty:same?qtys[0]:qtys.join(' / '), offices:offices.join('  ،  ') }};
+    });
+    const note=gvPdfNote(`${items.length} مادة · ${new Set(all.map(o=>o.vendor)).size} مكتب`);
+    showToast('⏳ جاري تجهيز PDF...',true);
+    try{ await window.dtPdfGrouped({
+        title:'Mansoor Pharmacy Report — الفيندور الشامل (قائمة مواد)',
+        note, dpr:big?1.5:2.2, quality:big?0.8:0.92, searchKeys:['item','offices'],
+        onProgress:pg=>showToast(`⏳ PDF: صفحة ${pg} من ~${estPages}`,true),
+        cols:[
+            {key:'n',      label:'#',                 w:10,  align:'center', maxLines:1},
+            {key:'item',   label:'المادة',             w:112, align:'left', maxLines:2},
+            {key:'qty',    label:'الكمية المطلوبة',    w:30,  align:'center', maxLines:2},
+            {key:'offices',label:'المكاتب',            w:131, align:'right', maxLines:4, rtl:true},
+        ],
+        groups:[['قائمة المواد', cells]],
+        fileName:'الفيندور_الشامل_قائمة_مواد'
+    }); }catch(e){ showToast('❌ فشل توليد PDF'); alert('❌ فشل توليد PDF: '+(e&&e.message||e)); return; }
+    showToast('✅ تم تصدير PDF');
+}
+window.gvExportItemsPDF=gvExportItemsPDF;
 
 // ======================== MESSAGE GENERATION ========================
 function generateMessage(){
@@ -6924,7 +7071,8 @@ async function dtPdfGrouped(cfg){
     const list=cfg.groups;
     if(!list.length){ alert('⚠️ ما أكو مواد للطباعة'); return; }
     const { jsPDF } = window.jspdf;
-    const DPR=2.2, PAGE_W_MM=297, PAGE_H_MM=210, S=3.78*DPR;
+    // cfg.dpr / cfg.quality اختياريان: دقة وضغط أقل للملفات الطويلة (الافتراضي 2.2 / 0.92 مثل السابق)
+    const DPR=cfg.dpr||2.2, PAGE_W_MM=297, PAGE_H_MM=210, S=3.78*DPR;
     const W=Math.round(PAGE_W_MM*S), H=Math.round(PAGE_H_MM*S);
     const FONT='Tajawal, Arial, sans-serif', M=7;
     const cols=cfg.cols.map(c=>({...c}));
@@ -6933,7 +7081,8 @@ async function dtPdfGrouped(cfg){
     const HDR_Y=M*S, HDR_H=13*S, FOOT_H=8*S;
     const pdf=new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
     const today=new Date().toISOString().slice(0,10);
-    let canvas, ctx, y, page=0;
+    let canvas, ctx, y, page=0, hidden=[];
+    const hide=(t,yPx)=>{ const s=String(t==null?'':t).replace(/[^\x20-\x7E]+/g,' ').replace(/\s+/g,' ').trim(); if(s) hidden.push({t:s, x:M+2, y:yPx/S}); };
     const newPage=()=>{
         page++;
         canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
@@ -6943,13 +7092,17 @@ async function dtPdfGrouped(cfg){
         ctx.fillStyle='#ffffff'; ctx.textAlign='right'; ctx.font=`bold ${6*S}px ${FONT}`;
         ctx.fillText(cfg.title, TX+TW*S-3*S, HDR_Y+8.8*S);
         ctx.textAlign='left'; ctx.font=`bold ${4.5*S}px ${FONT}`;
-        ctx.fillText(`${today}   ·   صفحة ${page}`, TX+3*S, HDR_Y+8.5*S);
+        ctx.fillText(`${today}   ·   صفحة ${page}`, TX+3*S, HDR_Y+(cfg.note?5.6:8.5)*S);
+        // cfg.note اختياري: سطر ثاني صغير تحت التاريخ (مثل ملخص الفلاتر)
+        if(cfg.note){ ctx.font=`bold ${3.6*S}px ${FONT}`; ctx.direction='rtl'; ctx.fillText(cfg.note, TX+3*S, HDR_Y+10.8*S); ctx.direction='ltr'; }
         y=HDR_Y+HDR_H+3*S;
     };
     const flush=()=>{
         ctx.fillStyle='#475569'; ctx.font=`bold ${3.8*S}px ${FONT}`; ctx.textAlign='center';
         ctx.fillText(`مذخر أدوية المنصور  ·  صفحة ${page}`, W/2, H-M*S+1*S);
-        pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,PAGE_W_MM,PAGE_H_MM);
+        pdf.addImage(canvas.toDataURL('image/jpeg',cfg.quality||0.92),'JPEG',0,0,PAGE_W_MM,PAGE_H_MM);
+        // cfg.searchKeys اختياري: طبقة نص مخفية فوق الصورة حتى يشتغل البحث (Ctrl+F) بالـPDF — لاتيني بس (خط jsPDF القياسي)
+        if(hidden.length){ pdf.setFontSize(6); hidden.forEach(h=>pdf.text(h.t,h.x,h.y,{renderingMode:'invisible'})); hidden=[]; }
     };
     const bottom=()=>H-M*S-FOOT_H;
     // استراحة بين الصفحات: المتصفح يرسم ويستجيب بدل ما يتجمّد بالطباعات الطويلة · cfg.onProgress(رقم الصفحة) اختياري
@@ -6966,6 +7119,7 @@ async function dtPdfGrouped(cfg){
         y+=TH_H;
     };
     newPage();
+    let firstGroup=true;
     for(const [office,items] of list){
         ctx.font=`bold ${FS}px ${FONT}`;
         const rows=items.map(c0=>{
@@ -6981,14 +7135,21 @@ async function dtPdfGrouped(cfg){
             });
             c.h=Math.max(MINH, n*LH+2*PADY); return c;
         });
-        if(y+OFF_H+TH_H+rows[0].h > bottom()){ flush(); pdf.addPage(); newPage(); await tick(); }
-        ctx.fillStyle='#fff7ed'; ctx.fillRect(TX,y,TW*S,OFF_H);
-        ctx.strokeStyle='#c2410c'; ctx.lineWidth=1.5; ctx.strokeRect(TX,y,TW*S,OFF_H);
-        ctx.fillStyle='#9a3412'; ctx.textAlign='right'; ctx.font=`bold ${4.8*S}px ${FONT}`;
-        ctx.fillText(`${office}  (${items.length} مادة)`, TX+TW*S-3*S, y+OFF_H/2+1.7*S);
-        y+=OFF_H; head();
+        // cfg.groupPerPage اختياري: كل مجموعة (مكتب) تبدي بصفحة جديدة
+        if((cfg.groupPerPage && !firstGroup) || y+OFF_H+TH_H+rows[0].h > bottom()){ flush(); pdf.addPage(); newPage(); await tick(); }
+        firstGroup=false;
+        // شريط اسم المجموعة (المكتب). cfg.repeatGroup اختياري: ينعاد بأول كل صفحة تكملة ويّا «تابع» حتى ما تبقى صفحة بلا اسم مكتب
+        const band=more=>{
+            ctx.fillStyle='#fff7ed'; ctx.fillRect(TX,y,TW*S,OFF_H);
+            ctx.strokeStyle='#c2410c'; ctx.lineWidth=1.5; ctx.strokeRect(TX,y,TW*S,OFF_H);
+            ctx.fillStyle='#9a3412'; ctx.textAlign='right'; ctx.font=`bold ${4.8*S}px ${FONT}`;
+            ctx.fillText(`${office}  (${items.length} مادة)${more?'  —  تابع':''}`, TX+TW*S-3*S, y+OFF_H/2+1.7*S);
+            if(cfg.searchKeys) hide(office, y+OFF_H/2+1.7*S);
+            y+=OFF_H;
+        };
+        band(false); head();
         for(const c of rows){
-            if(y+c.h > bottom()){ flush(); pdf.addPage(); newPage(); head(); await tick(); }
+            if(y+c.h > bottom()){ flush(); pdf.addPage(); newPage(); if(cfg.repeatGroup) band(true); head(); await tick(); }
             let x=TX+TW*S;
             ctx.font=`bold ${FS}px ${FONT}`;
             cols.forEach(col=>{
@@ -6998,13 +7159,14 @@ async function dtPdfGrouped(cfg){
                 const l=c.lines[col.key];
                 ctx.fillStyle = c.skip ? '#6b7280' : (col.key==='qty' ? '#0f172a' : (col.key==='note'||col.key==='status') && c.v[col.key]!=='—' ? '#9a3412' : '#111827');
                 if(col.key==='qty') ctx.font=`bold ${5*S}px ${FONT}`; else ctx.font=`bold ${FS}px ${FONT}`;
-                ctx.textAlign=col.align==='right'?'right':'center';
-                const tx=col.align==='right' ? x+col.w*S-1.5*S : x+col.w*S/2;
+                ctx.textAlign=col.align==='right'?'right':col.align==='left'?'left':'center';
+                const tx=col.align==='right' ? x+col.w*S-1.5*S : col.align==='left' ? x+1.5*S : x+col.w*S/2;
                 let ty=y+(c.h-l.length*LH)/2+LH*0.75;
                 if(col.rtl) ctx.direction='rtl'; // عربي + أرقام + أقواس ينرسمون بترتيب صحيح
                 l.forEach(t=>{ ctx.fillText(t, tx, ty); ty+=LH; });
                 if(col.rtl) ctx.direction='ltr';
             });
+            if(cfg.searchKeys) hide(cfg.searchKeys.map(k=>[].concat(c.v[k]).join(' ')).join('  '), y+c.h/2+1.5*S);
             if(c.skip){ ctx.strokeStyle='#6b7280'; ctx.beginPath(); ctx.moveTo(TX+TW*S-cols[0].w*S+2*S, y+c.h/2); ctx.lineTo(TX+TW*S-2*S, y+c.h/2); ctx.stroke(); }
             y+=c.h;
         }
@@ -9998,6 +10160,7 @@ window.onload=async()=>{
         document.getElementById('auditSelectedCount').textContent=auditState.selectedInvoices.size;
         document.getElementById('auditPrintCount').textContent=auditState.selectedInvoices.size;
         document.getElementById('auditPrintSelectedBtn').disabled=auditState.selectedInvoices.size===0;
+        auditSyncContBtn();
 
         const body=document.getElementById('auditBody');
         body.innerHTML='';
@@ -10112,6 +10275,7 @@ window.onload=async()=>{
                 document.getElementById('auditSelectedCount').textContent=auditState.selectedInvoices.size;
                 document.getElementById('auditPrintCount').textContent=auditState.selectedInvoices.size;
                 document.getElementById('auditPrintSelectedBtn').disabled=auditState.selectedInvoices.size===0;
+                auditSyncContBtn();
             };
         });
         body.querySelectorAll('button[data-print-inv]').forEach(btn=>{
@@ -10238,19 +10402,7 @@ window.onload=async()=>{
 
         // أعمدة الطباعة — Stock + AccStat مدمجة • Return 3 أسطر • Expiry كامل
         // العرض بالميليمتر، يُعاد تحجيمه إلى 285mm إجمالي (landscape A4)
-        const P_COLS=[
-            {key:'idx',     label:'#',         w:6,   align:'center'},
-            {key:'product', label:'Product',   w:46,  align:'right',  wrap:true},
-            {key:'expiry',  label:'Expiry',    w:20,  align:'center'},  // أوسع لإظهار MM/YYYY كاملاً
-            {key:'qty',     label:'Qty',       w:12,  align:'center'},
-            {key:'accStat', label:'Acc/St',    w:18,  align:'center'},  // Acc + Status (out/par/com)
-            {key:'stock',   label:'Stock',     w:24,  align:'center'},  // Total + GAP2 + GAP في صندوق
-            {key:'mov30',   label:'M30',       w:11,  align:'center'},  // اختصار يضمن ظهور كامل
-            {key:'cov',     label:'Cov',       w:11,  align:'center'},
-            {key:'dec',     label:'Decision',  w:28,  align:'center', wrap:true},
-            {key:'reason',  label:'Reason',    w:38,  align:'right',  wrap:true},
-            {key:'ret',     label:'Return',    w:71,  align:'right'},  // 3 أسطر مخصصة
-        ]; // sum = 285mm
+        const P_COLS=AUDIT_P_COLS;
 
         let first=true;
         for(let i=0;i<invoices.length;i++){
@@ -10271,17 +10423,103 @@ window.onload=async()=>{
         showToast('✅ PDF جاهز');
     }
 
-    async function auditRenderInvoicePage(pdf, inv, chunk, pageIdx, totalPages, cols, startIdx){
+    // زر «طباعة متتالية» يتبع نفس عدّاد «طباعة المحدد»
+    function auditSyncContBtn(){
+        const n=auditState.selectedInvoices.size, b=document.getElementById('auditPrintContBtn'), c=document.getElementById('auditPrintContCount');
+        if(c) c.textContent=n; if(b) b.disabled=n===0;
+    }
+    // طباعة متتالية: الفواتير وحدة ورا وحدة بنفس الصفحة (شريط نحيف لكل فاتورة) — نفس جدول الطباعة العادية بالضبط.
+    // الفاتورة اللي ما تسع تكمل بالصفحة الجاية (شريطها «تابع»)، وما ينترك صف يتيم بآخر الصفحة لو الفاتورة بيها أكثر.
+    async function auditPrintInvoicesContinuous(keys){
+        if(!keys || !keys.length){ alert('لا توجد فواتير للطباعة'); return; }
+        if(typeof window.jspdf==='undefined'){ alert('jsPDF غير محمّل'); return; }
+        const rows=auditGetCurrentRows();
+        const invoices=[];
+        keys.forEach(k=>{
+            const [ref,date]=k.split('__');
+            const invRows=rows.filter(r=>(r.ref||'-')===ref && (r.date||'-')===date);
+            if(invRows.length) invoices.push({ref, date, rows:invRows});
+        });
+        if(!invoices.length){ alert('لم يتم العثور على فواتير'); return; }
+        showToast('⏳ جاري بناء PDF...',true);
+        try{
+            const { jsPDF }=window.jspdf;
+            const pdf=new jsPDF({orientation:'l', unit:'mm', format:'a4'});
+            // نفس قياسات auditRenderInvoicePage (شريط 8 · رأس جدول 11 · صف 14 mm)
+            const PAGE_W_MM=297, PAGE_H_MM=210, S=3.78*2.2, FONT='Tajawal, Arial, sans-serif';
+            const W=Math.round(PAGE_W_MM*S), H=Math.round(PAGE_H_MM*S);
+            const BAND_H=8*S, TH_H=11*S, ROW_H=14*S, GAP=3*S, HDR_Y=6*S, HDR_H=14*S, BOTTOM=H-9*S;
+            let canvas, ctx, y, page=0;
+            const newPage=()=>{
+                page++;
+                canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H; ctx=canvas.getContext('2d');
+                ctx.fillStyle='#f8fafc'; ctx.fillRect(0,0,W,H);
+                ctx.fillStyle='#1e3a8a';
+                if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(6*S, HDR_Y, W-12*S, HDR_H, 4*S); ctx.fill(); } else ctx.fillRect(6*S, HDR_Y, W-12*S, HDR_H);
+                ctx.fillStyle='#ffffff'; ctx.textAlign='right'; ctx.font=`bold ${6*S}px ${FONT}`;
+                ctx.fillText('🔍 تدقيق فواتير — مذخر أدوية المنصور', W-10*S, HDR_Y+6.2*S);
+                ctx.font=`bold ${5*S}px ${FONT}`; ctx.fillStyle='rgba(255,255,255,0.96)';
+                ctx.fillText(auditState.selectedVendor||'', W-10*S, HDR_Y+12*S);
+                ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font=`${4.6*S}px ${FONT}`;
+                ctx.fillText(`تاريخ الطباعة: ${new Date().toLocaleDateString('ar-IQ')}`, 10*S, HDR_Y+6*S);
+                ctx.font=`bold ${4.6*S}px ${FONT}`;
+                ctx.fillText(`صفحة ${page}  •  ${invoices.length} فاتورة`, 10*S, HDR_Y+11.8*S);
+                y=HDR_Y+HDR_H+GAP;
+            };
+            const flush=()=>{
+                ctx.fillStyle='#475569'; ctx.font=`bold ${3.8*S}px ${FONT}`; ctx.textAlign='center';
+                ctx.fillText(`مذخر أدوية المنصور  ·  صفحة ${page}`, W/2, H-3.5*S);
+                if(page>1) pdf.addPage('a4','l');
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM, undefined, 'FAST');
+            };
+            const fits=()=>Math.floor((BOTTOM-y-BAND_H-TH_H)/ROW_H);
+            newPage();
+            for(let i=0;i<invoices.length;i++){
+                const inv=invoices[i]; let done=0, part=0;
+                showToast(`📄 ${i+1}/${invoices.length}`,true);
+                await new Promise(r=>setTimeout(r,0));
+                while(done<inv.rows.length){
+                    let fit=fits();
+                    if(fit<Math.min(2, inv.rows.length-done)){ flush(); newPage(); fit=fits(); }
+                    const chunk=inv.rows.slice(done, done+fit); part++;
+                    y=await auditRenderInvoicePage(pdf, inv, chunk, 0, 0, AUDIT_P_COLS, done, {ctx, y, part})+GAP;
+                    done+=chunk.length;
+                }
+            }
+            flush();
+            pdf.save(`تدقيق_فواتير_متتالية_${new Date().toISOString().slice(0,10)}.pdf`);
+            showToast('✅ PDF جاهز');
+        }catch(e){ showToast('❌ فشل بناء PDF'); alert('❌ فشل بناء PDF: '+(e&&e.message||e)); }
+    }
+
+    // أعمدة طباعة التدقيق — مشتركة بين الطباعة العادية والمتتالية
+    const AUDIT_P_COLS=[
+            {key:'idx',     label:'#',         w:6,   align:'center'},
+            {key:'product', label:'Product',   w:46,  align:'right',  wrap:true},
+            {key:'expiry',  label:'Expiry',    w:20,  align:'center'},  // أوسع لإظهار MM/YYYY كاملاً
+            {key:'qty',     label:'Qty',       w:12,  align:'center'},
+            {key:'accStat', label:'Acc/St',    w:18,  align:'center'},  // Acc + Status (out/par/com)
+            {key:'stock',   label:'Stock',     w:24,  align:'center'},  // Total + GAP2 + GAP في صندوق
+            {key:'mov30',   label:'M30',       w:11,  align:'center'},  // اختصار يضمن ظهور كامل
+            {key:'cov',     label:'Cov',       w:11,  align:'center'},
+            {key:'dec',     label:'Decision',  w:28,  align:'center', wrap:true},
+            {key:'reason',  label:'Reason',    w:38,  align:'right',  wrap:true},
+            {key:'ret',     label:'Return',    w:71,  align:'right'},  // 3 أسطر مخصصة
+    ]; // sum = 285mm
+
+    // cont اختياري ({ctx, y, part}) — للطباعة المتتالية: يرسم على canvas موجود عند cont.y بشريط نحيف بدل الرأس الكبير،
+    // بلا addImage، ويرجّع الـy بعد آخر صف. بلاه = الطباعة العادية (صفحة كاملة لكل جزء فاتورة) بلا أي تغيير.
+    async function auditRenderInvoicePage(pdf, inv, chunk, pageIdx, totalPages, cols, startIdx, cont){
         const PAGE_W_MM=297, PAGE_H_MM=210;
         const DPR=2.2;
         const PX=3.78*DPR;
         const W=Math.round(PAGE_W_MM*PX), H=Math.round(PAGE_H_MM*PX);
-        const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
-        const ctx=canvas.getContext('2d');
+        const canvas=cont?null:document.createElement('canvas'); if(canvas){ canvas.width=W; canvas.height=H; }
+        const ctx=cont?cont.ctx:canvas.getContext('2d');
         const FONT='Tajawal, Arial, sans-serif';
         const S=PX;
         // خلفية فاتحة مثل قالب الطلبيات
-        ctx.fillStyle='#f8fafc'; ctx.fillRect(0,0,W,H);
+        if(!cont){ ctx.fillStyle='#f8fafc'; ctx.fillRect(0,0,W,H); }
 
         // استخرج Group Status من أول سطر فيه قيمة
         let invGroup='';
@@ -10289,6 +10527,7 @@ window.onload=async()=>{
 
         // ===== HEADER (أزرق مثل قالب الطلبيات) =====
         const HDR_Y=6*S, HDR_H=26*S;
+        if(!cont){
         ctx.fillStyle='#1e3a8a';
         if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(6*S, HDR_Y, W-12*S, HDR_H, 4*S); ctx.fill(); } else ctx.fillRect(6*S, HDR_Y, W-12*S, HDR_H);
 
@@ -10329,6 +10568,23 @@ window.onload=async()=>{
             ctx.fillStyle=fg; ctx.textAlign='left';
             ctx.fillText(`Group: ${invGroup}`, 10*S+2*S, badgeY+1.6*S);
         }
+        } else {
+            // ===== الطباعة المتتالية: شريط نحيف للفاتورة (8mm) بدل الرأس الكبير =====
+            const bX=6*S, bY=cont.y, bW=W-12*S, bH=8*S;
+            ctx.fillStyle='#dbeafe'; ctx.fillRect(bX, bY, bW, bH);
+            ctx.strokeStyle='#1e3a8a'; ctx.lineWidth=1.2; ctx.strokeRect(bX, bY, bW, bH);
+            ctx.fillStyle='#1e3a8a'; ctx.textAlign='right'; ctx.font=`bold ${5*S}px ${FONT}`;
+            ctx.fillText(`فاتورة: ${inv.ref||'-'}  •  ${inv.date||'-'}  •  ${inv.rows.length} مادة${cont.part>1?'  •  تابع':''}`, bX+bW-3*S, bY+bH/2+1.8*S);
+            if(invGroup){
+                const gl=invGroup.toLowerCase();
+                const bg=gl.includes('don')?'#dc2626':gl.includes('partial')?'#ea580c':gl.includes('dispense')?'#16a34a':gl.includes('hold')?'#a16207':'#1e40af';
+                ctx.font=`bold ${4.4*S}px ${FONT}`;
+                const gw=ctx.measureText(`Group: ${invGroup}`).width+4*S;
+                ctx.fillStyle=bg; ctx.fillRect(bX+2*S, bY+1.4*S, gw, bH-2.8*S);
+                ctx.fillStyle='#ffffff'; ctx.textAlign='left';
+                ctx.fillText(`Group: ${invGroup}`, bX+4*S, bY+bH/2+1.6*S);
+            }
+        }
 
         // ===== TABLE =====
         const TABLE_W_MM=PAGE_W_MM-12;
@@ -10336,7 +10592,7 @@ window.onload=async()=>{
         const scale=TABLE_W_MM/sumW;
         const colsScaled=cols.map(c=>({...c, w:c.w*scale}));
 
-        const TABLE_X=6*S, TABLE_Y=HDR_Y+HDR_H+3*S, TH_H=11*S, ROW_H=14*S;
+        const TABLE_X=6*S, TABLE_Y=cont?cont.y+8*S:HDR_Y+HDR_H+3*S, TH_H=11*S, ROW_H=14*S;
 
         // رؤوس — أزرق غامق مثل قالب الطلبيات
         ctx.fillStyle='#1e3a8a'; ctx.fillRect(TABLE_X, TABLE_Y, TABLE_W_MM*S, TH_H);
@@ -10575,6 +10831,7 @@ window.onload=async()=>{
         // إطار
         ctx.strokeStyle='#334155'; ctx.lineWidth=1.2;
         ctx.strokeRect(TABLE_X, TABLE_Y, TABLE_W_MM*S, TH_H+chunk.length*ROW_H);
+        if(cont) return TABLE_Y+TH_H+chunk.length*ROW_H; // المتتالية: الصفحة تنحفظ من auditPrintInvoicesContinuous
 
         const imgData=canvas.toDataURL('image/jpeg', 0.9);
         pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM, undefined, 'FAST');
@@ -10634,6 +10891,9 @@ window.onload=async()=>{
     };
     document.getElementById('auditPrintSelectedBtn').onclick=()=>{
         auditPrintInvoices(Array.from(auditState.selectedInvoices));
+    };
+    document.getElementById('auditPrintContBtn').onclick=()=>{
+        auditPrintInvoicesContinuous(Array.from(auditState.selectedInvoices));
     };
 
     // ========= ربط تدقيق بالنسخة الاحتياطية العامة =========
@@ -13053,6 +13313,9 @@ window.onload=async()=>{
     async function populateOfficeLinkDatalists(){
         if(!dtState.data.length) await dtLoadFromStore();
         const officeSet=new Set(dtState.data.map(r=>r.office).filter(Boolean));
+        // + أسماء مكاتب الطلبية: «مكاتب أخرى» تطابق باسم الطلبية، وهو أحياناً يختلف عن اسم شيت الديلفري
+        // (مثل «نيوسل مكتب الوسام المندوب عمر 13%+3» مقابل «مكتب الوسام المندوب عمر صلاح الدين») — بلاها الربط ما يمسك.
+        (appState.ordersRaw||[]).forEach(o=>{ if(o.vendor) officeSet.add(o.vendor); });
         const opts=Array.from(officeSet).sort((a,b)=>a.localeCompare(b,'ar')).map(o=>`<option value="${escapeHtml(o)}">`).join('');
         document.getElementById('olkCanonicalDatalist').innerHTML=opts;
         document.getElementById('olkAliasDatalist').innerHTML=opts;
@@ -13106,6 +13369,10 @@ window.onload=async()=>{
         await window.__renderDeliveryTracking();
         if(typeof window.__renderReturnsTab==='function') await window.__renderReturnsTab();
         renderVendorsList();   // روابط المكاتب تغيّر resolveOffice → حالة المكتب بتبويب المكاتب تتغيّر وياها
+        // و«مكاتب أخرى» تتبع الروابط (computeOtherVendors) — تنحسب من جديد وتنرسم بالتبويبين
+        computeOtherVendors(appState.orders);
+        if(appState.selectedVendor) renderItemsTable(appState.orders.filter(o=>o.vendor===appState.selectedVendor));
+        if(typeof renderGlobalView==='function') renderGlobalView();
     }
 
     window.removeOfficeLink=async function(idx){
