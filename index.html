@@ -8566,6 +8566,9 @@ window.onload=async()=>{
             try{ return JSON.parse(localStorage.getItem(GH_CFG_KEY)||'null'); }catch(_){ return null; }
         }
         function saveCfg(c){ localStorage.setItem(GH_CFG_KEY, JSON.stringify(c)); }
+        // علامة «آخر نسخة بيانات هذا الجهاز زامنها» = sha الملف الأساسي. تنكتب عند نجاح ⬆️/⬇️ بس.
+        const GH_DATA_SHA_KEY='ph_gh_data_sha';
+        function markDataSha(sha){ try{ if(sha) localStorage.setItem(GH_DATA_SHA_KEY, sha); }catch(_){} }
 
         function openSettings(){
             const cur=getCfg()||{owner:'',repo:'',path:'latest_backup.json.gz',token:''};
@@ -8705,7 +8708,8 @@ window.onload=async()=>{
                 pushBtn.textContent='⏳ جاري رفع الطلبيات...';
                 const coreStr=JSON.stringify(payload); rawBytes+=coreStr.length;
                 const coreGz=await gzOf(coreStr); gzBytes+=coreGz.size;
-                tree.unshift({path:basePath, mode:'100644', type:'blob', sha:await putBlob(coreGz)});
+                const coreSha=await putBlob(coreGz);
+                tree.unshift({path:basePath, mode:'100644', type:'blob', sha:coreSha});
                 const rawMB=(rawBytes/1048576).toFixed(0), gzMB=(gzBytes/1048576).toFixed(1);
                 const treeRes=await ghApi(c,'/git/trees',{method:'POST',body:JSON.stringify({tree})});
                 const stamp=new Date().toLocaleString('en-GB',{hour12:false}).replace(',','');
@@ -8714,6 +8718,7 @@ window.onload=async()=>{
                     message:`backup: ${stamp}`, tree:treeRes.sha, parents:[]
                 })});
                 await ghApi(c,'/git/refs/heads/main',{method:'PATCH',body:JSON.stringify({sha:commitRes.sha, force:true})});
+                markDataSha(coreSha); // هذا الجهاز هو اللي رفع — ما ينبّه نفسه
 
                 pushBtn.innerHTML=orig; pushBtn.disabled=false;
                 alert(`✅ تم الرفع لـGitHub\n• ${payload.orders} طلبية\n• ${payload.auditRows} صف تدقيق\n• ${payload.excelSheetCount} sheet\n• الحجم: ${rawMB}MB → ${gzMB}MB\n\nتقدر تطفي اللابتوب — الموبايل يسحبها أي وقت.`);
@@ -8741,8 +8746,8 @@ window.onload=async()=>{
                 progWrap.classList.remove('hidden');
                 setProgress(0,'جاري التحقق من الملف...');
 
-                let totalSize=0;
-                try{ totalSize=(await ghFetchMeta(c)).size||0; }catch(e){ throw e; }
+                let totalSize=0, remoteSha='';
+                try{ const meta=await ghFetchMeta(c); totalSize=meta.size||0; remoteSha=meta.sha||''; }catch(e){ throw e; }
 
                 // شبكات الموبايل (LTE/5G) تنقطع لحظياً بشكل طبيعي. نطلب Range اختيارياً (استئناف من نفس
                 // البايت بدل الصفر) على *نفس endpoint المجرَّب فعلياً* — لو GitHub تجاهل الـRange ورجّع
@@ -8802,6 +8807,8 @@ window.onload=async()=>{
                     alert('❌ البيانات نزلت بس الطلبيات ما انحفظت بهذا الجهاز — بقت القديمة.\n'+r.ordersWriteErr+'\n\nسكّر تبويبات التطبيق الثانية وجرّب مرة ثانية.');
                     location.reload(); return;
                 }
+                // بعد applyBackupPayload حصراً: هي تسوي localStorage.clear وترجّع مفاتيح الجهاز الرافع (علامته قديمة)
+                markDataSha(remoteSha);
                 // الطلبيات انحفظت. هسه الشيتات وحدة وحدة — ذروة الذاكرة = أكبر شيت، مو الكل.
                 const sheetsFailed=[];
                 if(sheetFiles){
@@ -8834,6 +8841,35 @@ window.onload=async()=>{
                 try{ if(wakeLock) await wakeLock.release(); }catch(_){}
             }
         };
+
+        // ===== شريط «أكو بيانات أحدث» عند الفتح (قرار 2026-10-03) =====
+        // يقارن sha الملف الأساسي على GitHub بعلامة هذا الجهاز. ما ينزّل شي وحده: الزر ينادي ⬇️ نفسه بتأكيده.
+        // بلا علامة (أول فتحة بعد هالتحديث): تنزرع بصمت — حتى ما ينگال للسرفس «نزّل» وهو المصدر وبيه شغل ما مرفوع.
+        // ✕ يخفيه لهالفتحة بس (العلامة ما تتغير) — عكس بانر الكود القديم اللي كان يسجّل «شفته» بكل فتح.
+        (function checkNewerData(){
+            const c=getCfg();
+            if(!c||!c.owner||!c.repo||!c.token) return;
+            ghFetchMeta(c).then(async meta=>{
+                if(!meta||!meta.sha) return;
+                const seen=localStorage.getItem(GH_DATA_SHA_KEY);
+                if(!seen){ markDataSha(meta.sha); return; }
+                if(seen===meta.sha || document.getElementById('dataUpdateBanner')) return;
+                let when='';
+                try{
+                    const d=new Date((await ghApi(c,'/commits/main')).commit.committer.date);
+                    if(!isNaN(d)) when=' — انرفعت '+d.toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+                }catch(_){}
+                const b=document.createElement('div');
+                b.id='dataUpdateBanner';
+                b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#0f172a;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3);flex-wrap:wrap;text-align:center';
+                b.innerHTML=`<span>🆕 أكو بيانات أحدث على GitHub من جهاز ثاني${escapeHtml(when)}</span>
+                    <button id="dataUpdateBannerBtn" style="background:#34C759;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer">⬇️ نزّلها الآن</button>
+                    <button id="dataUpdateBannerClose" style="background:transparent;color:#fff;border:none;font-size:16px;cursor:pointer;opacity:.7">✕</button>`;
+                document.body.appendChild(b);
+                document.getElementById('dataUpdateBannerBtn').onclick=()=>{ b.remove(); btn.click(); };
+                document.getElementById('dataUpdateBannerClose').onclick=()=>b.remove();
+            }).catch(()=>{});
+        })();
     })();
 
     // ======================== LOCAL APP CODE UPDATE (Chrome/Edge فقط — File System Access API) ========================
