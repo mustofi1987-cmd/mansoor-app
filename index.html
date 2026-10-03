@@ -1256,6 +1256,21 @@ let autoSaveTimer=null;
 function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTimer=setTimeout(saveToStorage,800); }
 // Auto-save every 30 seconds
 setInterval(saveToStorage, 30000);
+// ===== حارس «عصر البيانات» (2026-10-03) =====
+// ⬇️/الاستعادة تكتب عصر جديد (applyBackupPayload). أي حفظ من ذاكرة انحمّلت قبله — نفس التبويب وهو بعده ينزّل الشيتات،
+// أو تبويب ثاني مفتوح — كان يرجّع الطلبيات/الروابط/الاستثناءات القديمة فوق المستعادة بدقّة الـ30 ثانية، والرسالة تگول ✅.
+const DATA_EPOCH_KEY='ph_data_epoch';
+const _dataEpochAtLoad=localStorage.getItem(DATA_EPOCH_KEY);
+function dataEpochStale(){ try{ return localStorage.getItem(DATA_EPOCH_KEY)!==_dataEpochAtLoad; }catch(_){ return false; } }
+// تبويب ثاني استعاد بيانات: هذا التبويب ذاكرته قديمة وحفظه موقوف — لازم ينعاد تحميله
+window.addEventListener('storage',e=>{
+    if(e.key!==DATA_EPOCH_KEY || !dataEpochStale() || document.getElementById('staleTabBanner')) return;
+    const b=document.createElement('div');
+    b.id='staleTabBanner';
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:700;text-align:center';
+    b.innerHTML='<span>⚠️ البيانات تحدّثت بتبويب ثاني — هذا التبويب قديم وحفظه موقوف</span><button style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer" onclick="location.reload()">أعد التحميل</button>';
+    document.body.appendChild(b);
+});
 
 // ======================== STORAGE ========================
 // ===== IndexedDB لـ ph_orders — بديل localStorage =====
@@ -1291,6 +1306,7 @@ function ordIdbPut(key,val){
 window.__ordersIDB={ get:ordIdbGet, put:ordIdbPut, KEY:ORD_KEY };
 
 function saveToStorage(){
+    if(dataEpochStale()) return; // بيانات مستعادة أحدث من ذاكرة هذا التبويب — لا تكتب فوقها
     if(typeof bumpRepIndex==='function') bumpRepIndex(); // أي حفظ = احتمال تغيّر المندوبين/الروابط
     // الطلبيات → IndexedDB (بلا سقف localStorage، فما عاد يحتاج حذف الأرشيف عند الامتلاء)
     ordIdbPut(ORD_KEY, JSON.stringify(appState.ordersRaw)).catch(e=>{
@@ -8359,10 +8375,14 @@ window.onload=async()=>{
         }
         if(!payload.localStorage) throw new Error('الملف فارغ');
         // مسح localStorage الحالي وكتابة الجديد — كل مفتاح لحاله (بلا ما فشل مفتاح وحد يوقف البقية)
+        if(autoSaveTimer) clearTimeout(autoSaveTimer);
         localStorage.clear();
+        // عصر جديد فوراً (مو عصر الملف — ذاك مال الجهاز الرافع): من هاللحظة كل حفظ من ذاكرة قديمة ينرفض
+        localStorage.setItem(DATA_EPOCH_KEY, Date.now()+'-'+Math.random().toString(36).slice(2));
         if(window.__archiveStore) await window.__archiveStore.clear(); // أرشيف قديم بـIndexedDB ما يبقى
         const lsFailed=[];
         for(const k in payload.localStorage){
+            if(k===DATA_EPOCH_KEY) continue;
             if(k==='ph_orders') continue; // يُستعاد بـIndexedDB تحت — ما نكتبه بـlocalStorage نهائياً (سبب مشكلة الـquota أصلاً)
             if(k==='ph_archive') continue; // ينكتب آخر شي تحت — لو ما وسع يروح لـIndexedDB بدل ما يضيع
             const v=payload.localStorage[k];
@@ -8801,14 +8821,15 @@ window.onload=async()=>{
                 // صيغة مقسّمة: الشيتات بملفات منفصلة (sheetFiles). صيغة قديمة: excelSheets داخل الملف نفسه — نفس المسار القديم.
                 const sheetFiles=Array.isArray(payload.sheetFiles)?payload.sheetFiles:null;
                 setProgress(100,'جاري حفظ الطلبيات...');
+                const prevMark=localStorage.getItem(GH_DATA_SHA_KEY);
                 const r=await applyBackupPayload(payload);
+                // applyBackupPayload تمسح العلامة؛ بلاها أول فتحة تزرعها بصمت والشريط ما يرجع يعرض التنزيل لو فشل اللي بعد
+                try{ localStorage.setItem(GH_DATA_SHA_KEY, prevMark||'incomplete'); }catch(_){}
                 payload=null;
                 if(r.ordersWriteErr){
                     alert('❌ البيانات نزلت بس الطلبيات ما انحفظت بهذا الجهاز — بقت القديمة.\n'+r.ordersWriteErr+'\n\nسكّر تبويبات التطبيق الثانية وجرّب مرة ثانية.');
                     location.reload(); return;
                 }
-                // بعد applyBackupPayload حصراً: هي تسوي localStorage.clear وترجّع مفاتيح الجهاز الرافع (علامته قديمة)
-                markDataSha(remoteSha);
                 // الطلبيات انحفظت. هسه الشيتات وحدة وحدة — ذروة الذاكرة = أكبر شيت، مو الكل.
                 const sheetsFailed=[];
                 if(sheetFiles){
@@ -8824,6 +8845,15 @@ window.onload=async()=>{
                     }
                     r.sheetsRestored=`${ok}/${sheetFiles.length}`;
                 }
+                // تحقق أخير قبل إعادة التحميل: الطلبيات بعدها نفس اللي نزلت؟ (تنزيل الشيتات ياخذ دقايق، وحفظ قديم ممكن يكتب فوقها)
+                let ordersNow=null;
+                try{ ordersNow=JSON.parse((await ordIdbGet(ORD_KEY))||'[]').length; }catch(_){}
+                if(ordersNow!==r.ordersRestored){
+                    alert(`❌ البيانات نزلت بس انكتب فوقها (بالجهاز ${ordersNow} مادة والمفروض ${r.ordersRestored}).\n\nسكّر كل تبويبات التطبيق الثانية وأعد ⬇️.`);
+                    location.reload(); return;
+                }
+                // العلامة بعد applyBackupPayload حصراً (هي تسوي localStorage.clear)، وبس لو كلشي نزل — حتى الشريط يعرضها مرة ثانية لو لا
+                if(!sheetsFailed.length) markDataSha(remoteSha);
                 let msg=`✅ تم التحديث من GitHub\n• ${r.ordersRestored||r.orders||'?'} مادة\n• ${r.vendorsRestored||r.vendors||'?'} مكتب قبل الفلاتر (انحفظ وتأكدت منه)\n• ${r.auditRestored} صف تدقيق\n• ${r.sheetsRestored} sheet`;
                 if(r.srcDate){ const d=new Date(r.srcDate); if(!isNaN(d)) msg+=`\n• وقت الرفع: ${d.toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`; }
                 if(r.lsFailed&&r.lsFailed.length){
