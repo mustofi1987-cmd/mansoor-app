@@ -11088,11 +11088,12 @@ window.onload=async()=>{
     //  range, Sheet2 replaced fully). Test-only trigger button; no Bonus
     //  tab UI yet. See BONUS-TAB-DESIGN.md section 5a for the merge rule.
     // ================================================================
-    window.qsSyncBonus=function(){
+    // auto={file,mode} = من صندوق المزامنة: بلا نافذة اختيار ملف وبلا رسالة تأكيد · يرجّع true إذا كملت كلها (البونصات، وأسعار النت إذا موجودة بالملف)
+    window.qsSyncBonus=function(auto){
         const input=document.createElement('input');
         input.type='file'; input.accept='.xlsx,.xls,.xlsm'; input.style.display='none';
-        input.addEventListener('change', async function(){
-            const file=input.files && input.files[0]; input.remove();
+        const run=async function(){
+            const file=auto ? auto.file : (input.files && input.files[0]); input.remove();
             if(!file) return;
             const statusEl=document.getElementById('qsBonusStatus');
             try{
@@ -11134,11 +11135,14 @@ window.onload=async()=>{
 
                 let newFrom=newRows[0][dateCol], newTo=newRows[0][dateCol];
                 newRows.forEach(r=>{ const d=r[dateCol]; if(d<newFrom) newFrom=d; if(d>newTo) newTo=d; });
+                // بلا رسالة تأكيد ما أحد يشوف المدى — تاريخ مو سنة-شهر-يوم يوسّع مدى الاستبدال ويمسح صفوف ما إلها علاقة
+                const isoDay=/^\d{4}-\d{2}-\d{2}$/;
+                if(auto && !(isoDay.test(newFrom) && isoDay.test(newTo))) throw new Error('تواريخ الملف مو بصيغة سنة-شهر-يوم ('+newFrom+' → '+newTo+') — ما ينستبدل بلا تأكيد');
 
                 const existing=await window.__excelStore.getSheet('BX_Sale_Data');
                 const oldRows=(existing && existing.rows) ? existing.rows : [];
                 const modeInp=document.querySelector('input[name="qsBonusMode"]:checked');
-                const mode=modeInp ? modeInp.value : 'replace';
+                const mode=auto ? auto.mode : (modeInp ? modeInp.value : 'replace');
 
                 let mergedRows, removedCount, summary;
                 if(mode==='wipeall'){
@@ -11186,7 +11190,7 @@ window.onload=async()=>{
                 newRows.forEach(r=>{ String(r[vendCol]||'').split(',').forEach(o=>{ const t=o.trim(); if(t) officeSet.add(t); }); });
                 summary=summary.replace('متابعة', 'المدى الكلي بعد العملية: '+finalFrom+' → '+finalTo+' • مكاتب بالملف: '+officeSet.size+'\n\nمتابعة');
 
-                if(!confirm(summary)){
+                if(!auto && !confirm(summary)){
                     if(statusEl) statusEl.textContent='⚠️ أُلغي — البيانات القديمة بلا تغيير';
                     return;
                 }
@@ -11195,21 +11199,71 @@ window.onload=async()=>{
                 await excelDbPut('BX_Sale_Data', { sheetName:'BX_Sale_Data', headers, rows:mergedRows, rowCount:mergedRows.length, importedAt });
                 await qsStoreSheet('Sheet2', qsReadAoaRaw(wb, mapName));
 
-                if(statusEl) statusEl.textContent='✅ '+mergedRows.length.toLocaleString()+' صف ('+finalFrom+' → '+finalTo+')';
+                // أسعار النت من نفس الملف بنفس الضغطة — اختيارية: غيابها أو عطلها ما يفشّل مزامنة البونصات
+                let netNote='', netOk=true;
+                const hasNp=n=>wb.SheetNames.some(s=>s.trim().toLowerCase()===n);
+                if(window.npIngest && hasNp('np_net_price') && hasNp('np_purchase_log')){
+                    try{ netNote=' • 💲 نت '+(await window.npIngest(wb)).toLocaleString()+' سطر'; }
+                    catch(e){ netOk=false; netNote=' • ⚠️ أسعار النت ما انسحبت: '+e.message; console.error('net ingest failed', e); }
+                    await bonusNetRefresh();
+                    if(window.__bonusPools) bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0);
+                }
+
+                if(statusEl) statusEl.textContent='✅ '+mergedRows.length.toLocaleString()+' صف ('+finalFrom+' → '+finalTo+')'+netNote;
                 showToast('✅ تمت مزامنة بيانات البونصات');
                 await qsShowStamp('qsBonusStamp','BX_Sale_Data');
                 // أمان: يرجّع الوضع "استبدال بالنطاق" تلقائياً بعد كل مزامنة — يمنع بقاء "مسح شامل"/"إضافة" فعّال بصمت بالمرة الجاية
                 const replaceRadio=document.querySelector('input[name="qsBonusMode"][value="replace"]');
                 if(replaceRadio) replaceRadio.checked=true;
+                return netOk;   // الصندوق ما ينحسب «تم» إذا أسعار النت بالملف وما انسحبت — يعيد المحاولة بالفتحة الجاية
             }catch(e){
                 if(statusEl) statusEl.textContent='❌ خطأ: '+e.message;
                 showToast('❌ خطأ: '+e.message);
                 console.error('bonus sync failed', e);
             }
-        });
+        };
+        if(auto) return run();
+        input.addEventListener('change', run);
         document.body.appendChild(input);
         input.click();
     };
+
+    // ===== صندوق المزامنة — ملف sync_inbox.js جنب التطبيق يعلن مزامنة جاهزة (id + ملف بيانات)، والتطبيق يدخّلها مرة وحدة عند الفتح.
+    // موجود حتى تنزامن البونصات وأسعار النت بلا ضغط: نفس مسار ⚡ بالضبط بوضع «استبدال بالنطاق». بلا الملف ما يصير شي.
+    const INBOX_DONE_KEY='ph_sync_inbox_done';
+    function inboxLoadScript(src){
+        return new Promise((res,rej)=>{
+            const s=document.createElement('script'); s.src=src;
+            s.onload=()=>{ s.remove(); res(); }; s.onerror=()=>{ s.remove(); rej(new Error('ما انقرا '+src)); };
+            document.head.appendChild(s);
+        });
+    }
+    async function bonusInboxCheck(){
+        try{ await inboxLoadScript('sync_inbox.js'); }catch(_){ return; }   // ماكو صندوق — الحالة العادية
+        const box=window.__syncInbox;
+        if(!box || !box.id || !box.data) return;
+        let done=''; try{ done=localStorage.getItem(INBOX_DONE_KEY)||''; }catch(_){}
+        if(done===box.id) return;
+        // id = وقت تجهيز الصندوق (UTC). بونصات مزامَنة بعده أحدث منه — ما ننزل فوقها بصمت (مثلاً لو ضاعت علامة «تم» بمسح بيانات المتصفح)
+        const cur=await window.__excelStore.getSheet('BX_Sale_Data');
+        if(cur && cur.importedAt && new Date(cur.importedAt)>new Date(box.id)){ try{ localStorage.setItem(INBOX_DONE_KEY, box.id); }catch(_){} return; }
+        showToast('📥 صندوق المزامنة: جاري إدخال '+(box.label||'بيانات جديدة')+' — انتظر');
+        try{
+            await inboxLoadScript(box.data);
+            const d=window.__syncInboxData; window.__syncInboxData=null;
+            if(!d || d.id!==box.id || !d.b64) throw new Error('ملف البيانات ما يطابق الصندوق');
+            const bin=atob(d.b64), bytes=new Uint8Array(bin.length);
+            for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+            const ok=await window.qsSyncBonus({file:new File([bytes], d.name||'sync_inbox.xlsx'), mode:'replace'});
+            if(!ok) throw new Error(((document.getElementById('qsBonusStatus')||{}).textContent||'المزامنة ما كملت').replace(/^❌\s*/,''));
+            try{ localStorage.setItem(INBOX_DONE_KEY, box.id); }catch(_){}
+            showToast('✅ صندوق المزامنة: دخلت '+(box.label||'البيانات'));
+        }catch(e){
+            showToast('❌ صندوق المزامنة: '+e.message);
+            console.error('sync inbox failed', e);
+        }
+    }
+    setTimeout(bonusInboxCheck, 2500);
 
     // ===== Bonus tab — Step 2: فلترة (تاريخ/مكتب/مادة، منطق BX_MultiMatch) + عرض Pools
     function bonusEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -11301,6 +11355,183 @@ window.onload=async()=>{
         if(label) label.textContent=v[1];
     }
 
+    // ===== سعر البيع — من تصدير product.template بأودو (عمودي Name + Sales Price). عرض فقط، بلا أي حساب.
+    // المطابقة: الاسم بالضبط أولاً (فراغات/حالة الحروف)، وبعدها بلا @@ و&& — لأن «X» و«X @@» مادتان بسعرين مختلفين.
+    const BONUS_PRICE_KEY='PT_Sale_Price';
+    function bonusPriceKey(s, loose){
+        let t=String(s==null?'':s);
+        if(loose) t=t.replace(/[@&]+/g,' ');
+        return t.replace(/\s+/g,' ').trim().toLowerCase();
+    }
+    // توقيع الاسم للمطابقة التقريبية: أول كلمة (الاسم التجاري) + مجموعة الكلمات + الأرقام (الجرعة/الحجم) مرتّبة
+    function bonusNameSig(s){
+        const t=String(s==null?'':s).replace(/[@&]+/g,' ').toLowerCase().match(/[a-z؀-ۿ]+|\d+(?:\.\d+)?/g)||[];
+        const words=t.filter(x=>!/^\d/.test(x));
+        return {first:words[0]||'', words:new Set(words), nums:t.filter(x=>/^\d/.test(x)).sort().join('|')};
+    }
+    function bonusBuildPriceMap(rows){
+        const exact=new Map(), loose=new Map(), byFirst=new Map();
+        const add=(m,k,e)=>{ if(!k) return; const a=m.get(k); if(a) a.push(e); else m.set(k,[e]); };
+        (rows||[]).forEach(r=>{
+            const e={name:String(r['Name']||''), price:Number(r['Sale Price'])||0, qoh:Number(r['QOH'])||0, company:String(r['Company']||'')};
+            add(exact, bonusPriceKey(e.name,false), e);
+            add(loose, bonusPriceKey(e.name,true), e);
+            e.sig=bonusNameSig(e.name);
+            add(byFirst, e.sig.first, e);
+        });
+        return {exact, loose, byFirst, cache:new Map()};
+    }
+    // مرشحو الاسم المتغيّر بأودو: نفس أول كلمة + تشابه كلمات، مرتّبين من الأقرب.
+    // minScore=0.6 للمطابقة التلقائية (وتشترط نفس الأرقام بالضبط: 500 ≠ 250) · 0 لقائمة التصحيح اليدوي (كل اللي بنفس الاسم التجاري)
+    function bonusFuzzyCandidates(m, product, minScore){
+        const s=bonusNameSig(product);
+        if(!s.first || !s.words.size) return [];
+        const out=[];
+        (m.byFirst.get(s.first)||[]).forEach(e=>{
+            const sameNums=e.sig.nums===s.nums;
+            if(minScore>0 && !sameNums) return;
+            let inter=0; s.words.forEach(w=>{ if(e.sig.words.has(w)) inter++; });
+            const c=inter/s.words.size, j=inter/(s.words.size+e.sig.words.size-inter);
+            if(c>=minScore) out.push({e, score:(sameNums?1:0)+c+j/100});
+        });
+        return out.sort((a,b)=>b.score-a.score);
+    }
+    // تصحيح يدوي محفوظ: {مفتاح اسم مادة البونص: اسم المادة بملف الأسعار، أو '' = «ما إلها مقابل»}
+    const BONUS_ALIAS_KEY='ph_bonus_price_alias';
+    function bonusPriceAlias(){ try{ return JSON.parse(localStorage.getItem(BONUS_ALIAS_KEY)||'{}')||{}; }catch(_){ return {}; } }
+    // null = ما انزامنت أسعار. how: exact | approx (الاسم تغيّر بأودو — مطابقة تقريبية) | manual (مصحَّح يدوياً) | none
+    // prices: [] بلا سعر · [x] محسوم · أكثر = اسم مكرر بأسعار مختلفة (ما نختار بصمت؛ إذا واحد بس من المكررين بيه رصيد ناخذ سعره)
+    function bonusProductInfo(product){
+        const m=window.__bonusPriceMap;
+        if(!m) return null;
+        const ck=bonusPriceKey(product,false);
+        let info=m.cache.get(ck);
+        if(info) return info;
+        const alias=bonusPriceAlias()[ck];
+        let list, how='exact', via='';
+        if(alias!==undefined){ how='manual'; via=alias.trim(); list=alias ? (m.exact.get(bonusPriceKey(alias,false))||[]) : []; }
+        else {
+            // صف موجود بس سعره صفر = مو مطابقة: نكمل للمستوى اللي بعده، وإذا ما لگينا نرجع له (حتى تبقى شركته)
+            const ex=m.exact.get(ck), lo=m.loose.get(bonusPriceKey(product,true)), priced=l=>!!l && l.some(e=>e.price>0);
+            list=priced(ex) ? ex : null;
+            // «X» و«X @@» مادتان بسعرين — مطابقة بلا @@/&& استنتاج، تنعرض ≈ ويه اسم المقابل مو كمطابقة تامة
+            if(!list && priced(lo)){ list=lo; how='approx'; via=Array.from(new Set(lo.filter(e=>e.price>0).map(e=>e.name.trim()))).join(' | '); }
+            if(!list){
+                const c=bonusFuzzyCandidates(m, product, 0.6).filter(x=>x.e.price>0);
+                const fz=c.filter(x=>x.score===c[0].score).map(x=>x.e);
+                if(fz.length){ list=fz; how='approx'; via=Array.from(new Set(fz.map(e=>e.name.trim()))).join(' | '); }
+                else { list=ex||lo||[]; how=list.length ? 'exact' : 'none'; }
+            }
+        }
+        const uniq=a=>Array.from(new Set(a.map(e=>e.price))).sort((x,y)=>x-y);
+        const priced=list.filter(e=>e.price>0), stocked=uniq(priced.filter(e=>e.qoh>0));
+        info={prices:stocked.length===1 ? stocked : uniq(priced), how, via, company:(list.find(e=>e.company)||{}).company||''};
+        m.cache.set(ck, info);
+        return info;
+    }
+    function bonusSalePrices(product){ const i=bonusProductInfo(product); return i ? i.prices : null; }
+    // إخفاء الأسعار اختياري (الشركة تبقى ظاهرة) — الأسعار نفسها تبقى مخزونة وترجع بتأشيرة وحدة
+    const BONUS_HIDE_PRICE_KEY='ph_bonus_hide_price';
+    function bonusPriceHidden(){ try{ return localStorage.getItem(BONUS_HIDE_PRICE_KEY)==='1'; }catch(_){ return false; } }
+    window.bonusTogglePrice=function(show){
+        try{ localStorage.setItem(BONUS_HIDE_PRICE_KEY, show ? '0' : '1'); }catch(_){}
+        if(window.__bonusPools) bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0);
+    };
+    function bonusSalePriceHtml(product, pidx){
+        const i=bonusProductInfo(product);
+        if(!i) return '';
+        if(bonusPriceHidden()) return i.company ? `<span class="text-[10px] text-gray-500" style="white-space:nowrap">${bonusEsc(i.company)}</span>` : '';
+        const a=i.prices, txt=a.map(v=>v.toLocaleString()).join(' / '), via=i.via ? ' ← '+i.via : '';
+        const chip=(bg,fg,t,tip)=>`<span class="text-[11px] font-bold" style="background:${bg};color:${fg};border-radius:6px;padding:2px 6px;white-space:nowrap;cursor:pointer" title="${bonusEsc(tip)} — اضغط للتصحيح" data-bonus-action="price-fix" data-pidx="${pidx}">${t}</span>`;
+        let c;
+        if(!a.length) c=chip('#f1f5f9','#94a3b8','سعر البيع: —', i.how==='manual' ? (i.via ? 'المقابل المختار يدوياً ما موجود أو بلا سعر بملف الأسعار الحالي'+via : 'محدَّدة يدوياً «ما إلها مقابل»') :'المادة مو موجودة بملف الأسعار (أو سعرها صفر)'+via);
+        else if(a.length>1) c=chip('#fef3c7','#b45309','⚠️ سعر البيع: '+txt,'أكثر من مادة بنفس الاسم بأسعار مختلفة — تأكد من الصحيح'+via);
+        else if(i.how==='approx') c=chip('#dbeafe','#1d4ed8','≈ سعر البيع: '+txt,'الاسم تغيّر بأودو — مطابقة تقريبية'+via);
+        else if(i.how==='manual') c=chip('#ecfdf5','#047857','✓ سعر البيع: '+txt,'مصحَّح يدوياً'+via);
+        else c=chip('#ecfdf5','#047857','سعر البيع: '+txt,'من ملف product.template');
+        // المطابقة التقريبية استنتاج — اسم المادة المقابلة ينعرض ظاهر، مو بالتلميح بس
+        if(i.how==='approx') c+=`<span class="text-[10px]" style="color:#1d4ed8">← ${bonusEsc(i.via)}</span>`;
+        if(i.company) c+=`<span class="text-[10px] text-gray-500" style="white-space:nowrap">${bonusEsc(i.company)}</span>`;
+        return c;
+    }
+    // تصحيح يدوي لمقابل المادة بملف الأسعار: رقم من القائمة · كلمة للبحث · 0 = ما إلها مقابل · x = رجّع التلقائي
+    function bonusPriceFix(product, term){
+        const m=window.__bonusPriceMap;
+        if(!m) return;
+        let cands=[];
+        if(term){
+            const ts=term.toLowerCase().split(/\s+/).filter(Boolean);
+            for(const list of m.exact.values()){
+                if(ts.every(t=>list[0].name.toLowerCase().includes(t))){ cands.push(list[0]); if(cands.length>=12) break; }
+            }
+        } else cands=bonusFuzzyCandidates(m, product, 0).slice(0,12).map(x=>x.e);
+        const ans=prompt('المادة: '+product+'\n\n'+(cands.length ? cands.map((e,n)=>(n+1)+') '+e.name.trim()+' — '+e.price.toLocaleString()).join('\n') : 'ما لگيت مرشحين')+
+            '\n\nاكتب الرقم · أو كلمة للبحث بالاسم · 0 = ما إلها مقابل · x = رجّع المطابقة التلقائية', '');
+        const v=(ans||'').trim();
+        if(!v) return;
+        const al=bonusPriceAlias(), ck=bonusPriceKey(product,false);
+        if(/^x$/i.test(v)) delete al[ck];
+        else if(v==='0') al[ck]='';
+        else if(/^\d+$/.test(v)){ if(!cands[+v-1]) return; al[ck]=cands[+v-1].name; }
+        else return bonusPriceFix(product, v);
+        localStorage.setItem(BONUS_ALIAS_KEY, JSON.stringify(al));
+        m.cache.clear();
+        bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0);
+    }
+    // يقرا workbook مفتوح ويخزّن جدول نحيف (Name / Sale Price / QOH). مفصول عن منتقي الملف حتى ينختبر بلا نافذة اختيار.
+    async function bonusPriceImport(wb, fileName){
+        let f=null;
+        for(const sn of wb.SheetNames){
+            const aoa=qsReadAoaRaw(wb, sn);
+            const hdr=(aoa[0]||[]).map(h=>String(h||'').trim());
+            const ni=hdr.findIndex(h=>/^name$/i.test(h));
+            const pi=hdr.findIndex(h=>/sale.*price|سعر\s*البيع/i.test(h));
+            if(ni>=0 && pi>=0){ f={aoa, ni, pi, qi:hdr.findIndex(h=>/quantity on hand/i.test(h)), ci:hdr.findIndex(h=>/manufacturer/i.test(h)), priceHdr:hdr[pi]}; break; }
+        }
+        if(!f) throw new Error('الملف لازم بيه عمود Name وعمود Sales Price');
+        // السعر يجي نص «3,290 IQD» أو رقم — الاثنين مقبولين
+        const num=v=>typeof v==='number' ? v : (parseFloat(String(v==null?'':v).replace(/[^\d.\-]/g,''))||0);
+        // أودو يصدّر الشركة الفاضية False
+        const co=v=>(v==null || v===false || /^false$/i.test(String(v).trim())) ? '' : String(v).trim();
+        const rows=f.aoa.slice(1).map(r=>({
+            'Name':String(r[f.ni]==null?'':r[f.ni]).trim(), 'Sale Price':num(r[f.pi]), 'QOH':f.qi>=0?num(r[f.qi]):0, 'Company':f.ci>=0?co(r[f.ci]):''
+        })).filter(r=>r['Name']);
+        const priced=rows.filter(r=>r['Sale Price']>0).length;
+        if(!priced) throw new Error('عمود «'+f.priceHdr+'» بلا أي سعر صالح');
+        await excelDbPut(BONUS_PRICE_KEY, {sheetName:BONUS_PRICE_KEY, headers:['Name','Sale Price','QOH','Company'], rows,
+            rowCount:rows.length, importedAt:new Date().toISOString(), sourceFile:fileName||''});
+        return {total:rows.length, priced};
+    }
+    window.bonusPriceImport=bonusPriceImport;
+    window.qsSyncSalePrice=function(){
+        const input=document.createElement('input');
+        input.type='file'; input.accept='.xlsx,.xls,.xlsm'; input.style.display='none';
+        input.addEventListener('change', async function(){
+            const file=input.files && input.files[0]; input.remove();
+            if(!file) return;
+            const statusEl=document.getElementById('qsSalePriceStatus');
+            try{
+                if(statusEl) statusEl.textContent='⏳ جاري القراءة...';
+                const wb=XLSX.read(await file.arrayBuffer(), {type:'array'});
+                const res=await bonusPriceImport(wb, file.name);
+                if(statusEl) statusEl.textContent='✅ '+res.priced.toLocaleString()+' مادة بسعر من '+res.total.toLocaleString();
+                showToast('✅ تمت مزامنة أسعار البيع');
+                // الكارتات مرسومة = نحدّث الأسعار ونعيد الرسم بس؛ bonusTabInit يعيد بناءها ويمسح التأشير/الإضافات/النسب المعدّلة
+                if(window.__bonusPools && window.__bonusData){
+                    bonusLoadPrices(await window.__excelStore.getSheet(BONUS_PRICE_KEY));
+                    bonusFillCompanyList();
+                    bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0);
+                } else await window.bonusTabInit();
+            }catch(e){
+                if(statusEl) statusEl.textContent='❌ خطأ: '+e.message;
+                showToast('❌ خطأ: '+e.message);
+                console.error('sale price sync failed', e);
+            }
+        });
+        document.body.appendChild(input);
+        input.click();
+    };
+
     window.bonusApplyFilters=function(){
         const data=window.__bonusData;
         if(!data) return;
@@ -11309,6 +11540,9 @@ window.onload=async()=>{
         const to=(document.getElementById('bonusToDate')||{}).value||'';
         const officesTerm=(document.getElementById('bonusOfficeFilter')||{}).value||'';
         const materialsTerm=(document.getElementById('bonusMaterialFilter')||{}).value||'';
+        // الشركة تجي من ملف product.template (💰) — بلاه الفلتر ما عنده مصدر
+        const companyTerm=((document.getElementById('bonusCompanyFilter')||{}).value||'').trim();
+        if(companyTerm && !window.__bonusPriceMap) showToast('⚠️ بلا 💰 مزامنة سعر البيع، فلتر الشركة يدوّر باسم المادة فقط');
 
         const filtered=rows.filter(r=>{
             const d=r[keys.date];
@@ -11316,6 +11550,9 @@ window.onload=async()=>{
             if(to && (!d || d>to)) return false;
             if(officesTerm && !bonusMultiMatch(r[keys.office], officesTerm)) return false;
             if(materialsTerm && !bonusMultiMatch(r[keys.product], materialsTerm)) return false;
+            // الشركة من ملف الأسعار، أو مذكورة باسم المادة نفسه (مواد قديمة انحذفت/تغيّر اسمها ما إلها شركة بالملف)
+            if(companyTerm && !bonusMultiMatch((bonusProductInfo(r[keys.product])||{}).company, companyTerm)
+                && !bonusMultiMatch(r[keys.product], companyTerm)) return false;
             return true;
         });
 
@@ -11358,11 +11595,12 @@ window.onload=async()=>{
     };
 
     window.bonusClearFilters=function(){
-        ['bonusFromDate','bonusToDate','bonusOfficeFilter','bonusMaterialFilter'].forEach(id=>{
+        ['bonusFromDate','bonusToDate','bonusOfficeFilter','bonusMaterialFilter','bonusCompanyFilter'].forEach(id=>{
             const el=document.getElementById(id); if(el) el.value='';
         });
         window.__bonusSelectedMonths=new Set();
         window.__bonusOfficeSelected=new Set();
+        if(window.__bonusNetFilter) window.__bonusNetFilter.clear();
         bonusRenderMonthCards();
         bonusRenderOfficeChips();
         const resBox=document.getElementById('bonusOfficeResults'); if(resBox) resBox.classList.add('hidden');
@@ -11802,6 +12040,7 @@ window.onload=async()=>{
             const pool=window.__bonusPools[pidx];
             if(!pool) return;
             const action=btn.dataset.bonusAction;
+            if(action==='price-fix'){ bonusPriceFix(pool.product); return; }
             if(action==='expand'){
                 pool.expanded=!pool.expanded;
                 bonusRenderPools(window.__bonusPools, window.__bonusPools.reduce((s,p)=>s+p.rows.length,0));
@@ -11943,17 +12182,127 @@ window.onload=async()=>{
         });
     }
 
+    // ===== مقارنة بونص المكاتب (💲 أسعار نت) ويه نسبة الكارت — شارة لكل مكتب اشترينا منه المادة، بلا إخفاء أي واحد.
+    // النسبة = البونص ÷ المدفوع (10+3 = 30%). «بونص فقط» (مقدماً / فاتورة صفرية) ينعرض بس خارج المقارنة. السماحية نفس NP_TOL بـModule71.
+    const BONUS_NET_TOL=0.005;
+    const BONUS_NET_V={ match:['✓ مطابق','#166534','#dcfce7'], less:['⬇ واصل أقل','#b45309','#fef3c7'], more:['⬆ واصل أكثر','#1d4ed8','#dbeafe'],
+        none:['✗ واصل بلا بونص','#b91c1c','#fee2e2'], adv:['🎁 بونص مقدماً','#475569','#f1f5f9'], nopurch:['بلا شراء','#64748b','#f8fafc'],
+        nopct:['• واصل بونص','#475569','#f1f5f9'] };
+    function bonusNetVerdict(o, pct){
+        if(o.type==='advance') return 'adv';
+        if(o.type==='nopurch') return 'nopurch';
+        const v=o.vpct||0;
+        if(v<=0) return 'none';
+        // كارت نسبته 0% (ما انصرف منه بونص) ما عنده مرجع — «أكثر من 0%» حكم مضلّل
+        if(!(pct>0)) return 'nopct';
+        return Math.abs(v-pct)<=BONUS_NET_TOL ? 'match' : (v<pct ? 'less' : 'more');
+    }
+    // null = أسعار النت ما انزامنت · [] = المادة ما إلها شراء بيها
+    function bonusNetOffices(product){
+        const a=window.__bonusNet && window.npOfficesFor ? window.npOfficesFor(product) : null;
+        return a ? a.slice().sort((x,y)=>(x.pharm-y.pharm) || String(y.date).localeCompare(String(x.date))) : null;
+    }
+    function bonusNetHtml(p){
+        const list=bonusNetOffices(p.product);
+        if(!list) return '';
+        const pc=v=>(Math.round(v*1000)/10)+'%';
+        // المطابقة بلا @/& استنتاج — اسم المادة بأسعار النت ينعرض ظاهر لما يختلف عن اسم الكارت
+        const via=Array.from(new Set(list.map(o=>String(o.name).trim()).filter(n=>bonusPriceKey(n,false)!==bonusPriceKey(p.product,false))));
+        const head='<span class="text-[11px] font-bold text-gray-500" style="white-space:nowrap">💲 بونص المكاتب:</span>'
+            +(via.length ? `<span class="text-[10px] text-gray-400">(← ${bonusEsc(via.join(' | '))})</span>` : '');
+        if(!list.length) return `<div class="flex flex-wrap items-center gap-1 mt-2">${head}<span class="text-[11px] text-gray-400">ماكو شراء بهالاسم بملف النت${window.__bonusNet.from ? ' (الملف يبدي من '+bonusEsc(window.__bonusNet.from)+')' : ''}</span></div>`;
+        return `<div class="flex flex-wrap items-center gap-1 mt-2">${head}`+list.map(o=>{
+            const k=bonusNetVerdict(o, p.pct), v=BONUS_NET_V[k];
+            let t=`<b>${v[0]}</b>`;
+            if(k==='adv') t+=` ${(o.adv||0).toLocaleString()} ق — خارج المقارنة`;
+            else if(k==='less' || k==='more') t+=` (${pc(o.vpct)} مقابل ${pc(p.pct)})`;
+            else if(k==='nopct') t+=` ${pc(o.vpct)} — اكتب نسبة الكارت للمقارنة`;
+            t+=` · ${o.pharm?'<span style="opacity:.7">[صيدلية]</span> ':''}${bonusEsc(o.vendor||'—')}`;
+            if(k==='match' || k==='less' || k==='more' || k==='nopct') t+=` · ${bonusEsc(o.deal)}${k==='match'?' ('+pc(o.vpct)+')':''} · ${o.type==='late'?'وصل متأخر':'ويه الشراء'}`;
+            if(o.date) t+=` · ${bonusEsc(o.date)}`;
+            if(k!=='adv' && o.adv>0) t+=` · <b>+ مقدماً ${o.adv.toLocaleString()} ق</b>`;
+            if(o.prev) t+=` · سابقاً ${bonusEsc(o.prev.deal)} (${bonusEsc(o.prev.date)})`;
+            return `<span class="text-[11px]" style="background:${v[2]};color:${v[1]};border-radius:6px;padding:2px 6px;cursor:pointer" title="اضغط لسجل الشراءات كامل" onclick="npOpenLog(${o.i})">${t}</span>`;
+        }).join('')+'</div>';
+    }
+    // عدّ الكارتات حسب حالة مكاتبها — كارت بيه أكثر من مكتب ينعد بكل حالة موجودة بيه
+    function bonusNetCountsText(poolList){
+        if(!window.__bonusNet) return '';
+        const c={match:0, less:0, more:0, allNone:0, noBuy:0};
+        poolList.forEach(p=>{
+            const list=bonusNetOffices(p.product)||[];
+            if(!list.length){ c.noBuy++; return; }
+            const ks=new Set(list.map(o=>bonusNetVerdict(o, p.pct)));
+            if(ks.has('match')) c.match++;
+            if(ks.has('less')) c.less++;
+            if(ks.has('more')) c.more++;
+            if(ks.size===1 && ks.has('nopurch')) c.noBuy++;
+            else if(!['match','less','more','adv','nopct'].some(k=>ks.has(k))) c.allNone++;
+        });
+        return ` • 💲 ${c.match.toLocaleString()} مطابق · ${c.less.toLocaleString()} أقل · ${c.more.toLocaleString()} أكثر · ${c.allNone.toLocaleString()} كل مكاتبها بلا بونص · ${c.noBuy.toLocaleString()} بلا شراء`;
+    }
+
+    // يقرا أسعار النت من المخزن ويحدّث سطر الحالة — عند فتح التبويب وبعد أي مزامنة تجيبها
+    async function bonusNetRefresh(){
+        try{ window.__bonusNet = window.npBonusReady ? await window.npBonusReady() : null; }catch(_){ window.__bonusNet=null; }
+        const nst=document.getElementById('qsNetStamp');
+        if(nst) nst.textContent = window.__bonusNet ? ('أسعار النت: آخر مزامنة '+fmtDateTime(window.__bonusNet.importedAt)+' • '+window.__bonusNet.count.toLocaleString()+' سطر (مادة×مكتب)'+(window.__bonusNet.from ? ' • الشراءات من '+window.__bonusNet.from : ''))
+            : 'أسعار النت: لم تتم المزامنة بعد — ⚡ مزامنة سريعة تسحبها من نفس الملف (بعد زر «أسعار نت مع بونص» بـSheet5)';
+    }
+
+    // ===== فلتر حالة بونص المكاتب — عرض فقط: يخفي الكارتات وما يلمس التأشير ولا الطباعة ولا النسب المكتوبة.
+    // كارت بيه أكثر من مكتب يحمل كل حالاتها · «مقدماً» = مكتب مقدماً فقط، أو شراء وياه بونص مقدماً.
+    const BONUS_NET_F=[['adv','🎁 واصل مقدماً'],['more','⬆ واصل زايد'],['less','⬇ واصل ناقص'],['none','✗ غير واصل'],
+        ['match','✓ مطابق'],['nopct','• واصل (كارت 0%)'],['nopurch','بلا شراء']];
+    function bonusNetKinds(p){
+        const ks=new Set();
+        (bonusNetOffices(p.product)||[]).forEach(o=>{ ks.add(bonusNetVerdict(o, p.pct)); if(o.adv>0) ks.add('adv'); });
+        if(!ks.size) ks.add('nopurch');
+        return ks;
+    }
+    function bonusNetFilterBar(kinds, nf, nShown){
+        const bar=document.getElementById('bonusNetFilterBar'); if(!bar) return;
+        bar.classList.toggle('hidden', !kinds || !kinds.length);
+        if(!kinds || !kinds.length) return;
+        const cnt={}; kinds.forEach(ks=>ks.forEach(k=>{ cnt[k]=(cnt[k]||0)+1; }));
+        bar.innerHTML='<span class="text-[11px] font-bold text-gray-500">💲 حالة بونص المكاتب:</span>'
+            +BONUS_NET_F.map(([k,l])=>{
+                const v=BONUS_NET_V[k], on=nf.has(k);
+                return `<button onclick="window.bonusNetFilterToggle('${k}')" class="text-[11px] font-bold" style="border-radius:999px;padding:3px 9px;background:${v[2]};color:${v[1]};border:2px solid ${on?v[1]:'#e5e7eb'};${cnt[k]?'':'opacity:.45'}">${on?'☑ ':''}${l} <b>${(cnt[k]||0).toLocaleString()}</b></button>`;
+            }).join('')
+            +(nf.size ? `<button onclick="window.bonusNetFilterToggle('')" class="ios-btn text-xs px-2 py-1">↺ الكل</button>`
+                +`<span class="text-[11px] font-bold" style="color:#7c3aed">معروض ${nShown.toLocaleString()} من ${kinds.length.toLocaleString()} — الطباعة والملخص و«تحديد الكل» يبقون على كل المواد</span>` : '');
+    }
+    window.bonusNetFilterToggle=function(k){
+        const s=window.__bonusNetFilter||(window.__bonusNetFilter=new Set());
+        if(!k) s.clear(); else if(s.has(k)) s.delete(k); else s.add(k);
+        if(window.__bonusPools) bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0);
+    };
+
     function bonusRenderPools(poolList, rowCount){
         const countEl=document.getElementById('bonusResultCount');
-        if(countEl) countEl.textContent = rowCount.toLocaleString()+' صف مطابق • '+poolList.length.toLocaleString()+' مادة';
+        if(countEl) countEl.textContent = rowCount.toLocaleString()+' صف مطابق • '+poolList.length.toLocaleString()+' مادة'
+            +(window.__bonusPriceMap && !bonusPriceHidden() ? ' • '+poolList.filter(p=>!bonusSalePrices(p.product).length).length.toLocaleString()+' بلا سعر بيع • '
+                +poolList.filter(p=>bonusProductInfo(p.product).how==='approx').length.toLocaleString()+' سعر تقريبي ≈' : '')
+            +bonusNetCountsText(poolList);
         bonusUpdateSortBar();
         const sortBar=document.getElementById('bonusSortBar');
         if(sortBar) sortBar.classList.toggle('hidden', !poolList.length);
         const cont=document.getElementById('bonusPoolsList');
         if(!cont) return;
         bonusWireDelegation(cont);
+        // الفلتر يشتغل بس وأسعار النت مزامَنة — بلاها ماكو حالة نفلتر عليها
+        const kinds=window.__bonusNet ? poolList.map(bonusNetKinds) : null;
+        const nf=kinds && window.__bonusNetFilter ? window.__bonusNetFilter : new Set();
+        const shown=pidx=>!nf.size || [...nf].some(k=>kinds[pidx].has(k));
+        const nShown=nf.size ? poolList.filter((_,i)=>shown(i)).length : poolList.length;
+        bonusNetFilterBar(kinds, nf, nShown);
         if(!poolList.length){
             cont.innerHTML='<div class="text-center text-gray-400 py-10 text-sm">لا نتائج بهذا الفلتر</div>';
+            return;
+        }
+        if(!nShown){
+            cont.innerHTML='<div class="text-center text-gray-400 py-10 text-sm">ماكو مادة بحالة البونص المختارة — اضغط «↺ الكل»</div>';
             return;
         }
         // تنبيه عام فوق كل الكاردات — علمود ما تضطر تدوّر كارت كارت
@@ -11963,13 +12312,15 @@ window.onload=async()=>{
                 <div class="font-black text-sm" style="color:#b45309">⚠️ ${preList.length.toLocaleString()} مادة بيها بونص مسحوب مسبقاً على اسم المكتب — إجمالي ${preList.reduce((s,p)=>s+p.preTaken,0).toLocaleString()} ق</div>
                 <div class="text-xs mt-1" style="color:#78350f">${preList.map(p=>`${bonusEsc(p.product)} <b>${p.preTaken.toLocaleString()}</b> ق`).join(' &nbsp;·&nbsp; ')}</div>
             </div>` : '';
-        cont.innerHTML=banner+poolList.map((p,pidx)=>`
+        // الكارت المخفي يبقى بمكانه بالقائمة (pidx ثابت) — الأزرار والتسلسل ما يتغيرون
+        cont.innerHTML=banner+poolList.map((p,pidx)=>!shown(pidx) ? '' : `
             <div class="border rounded-xl p-3 mb-2 bg-white" style="${p.enabled?'':'opacity:0.4'}">
                 <div class="flex items-center justify-between gap-2 mb-2">
                     <div class="flex items-center gap-2">
                         <input type="checkbox" ${p.enabled?'checked':''} data-bonus-material-check data-pidx="${pidx}" title="مؤشَّرة = تدخل بالطباعة والملخص">
                         <span class="font-black text-xs" style="min-width:22px;text-align:center;color:#6b7280;background:#f1f5f9;border-radius:6px;padding:2px 6px" title="تسلسل المادة">${pidx+1}</span>
                         <div class="font-bold text-sm">${bonusEsc(p.product)}</div>
+                        ${bonusSalePriceHtml(p.product, pidx)}
                     </div>
                     <div class="flex gap-1">
                         <button class="ios-btn text-xs px-2 py-1" data-bonus-action="expand" data-pidx="${pidx}">${p.expanded?'▲ طي':'▼ '+p.rows.length+' صف'}</button>
@@ -11979,14 +12330,33 @@ window.onload=async()=>{
                 <div class="grid grid-cols-4 gap-2 text-center text-xs" data-pool-summary="${pidx}">
                     ${bonusCardSummaryHtml(p, pidx)}
                 </div>
+                ${bonusNetHtml(p)}
                 ${p.expanded ? bonusRowsTableHtml(p, pidx) : ''}
             </div>
         `).join('');
     }
 
+    // أسعار البيع — الخريطة تنبني مرة لكل مزامنة (37 ألف صف)، مو بكل فتحة تبويب
+    function bonusLoadPrices(prec){
+        if(!prec){ window.__bonusPriceMap=null; window.__bonusPriceStamp=null; }
+        else if(window.__bonusPriceStamp!==prec.importedAt){ window.__bonusPriceMap=bonusBuildPriceMap(prec.rows); window.__bonusPriceStamp=prec.importedAt; }
+        const spc=document.getElementById('bonusShowPrice');
+        if(spc) spc.checked=!bonusPriceHidden();
+        const pst=document.getElementById('qsSalePriceStamp');
+        if(pst) pst.textContent = prec ? ('أسعار البيع: آخر مزامنة '+fmtDateTime(prec.importedAt)+' • '+(prec.rowCount||0).toLocaleString()+' مادة') : 'أسعار البيع: لم تتم المزامنة بعد';
+    }
+    // شركات مواد البونص فقط (مو كل شركات أودو) — لفلتر الشركة
+    function bonusFillCompanyList(){
+        const cdl=document.getElementById('bonusCompanyList');
+        if(cdl) cdl.innerHTML=Array.from(new Set((window.__bonusAllProducts||[]).map(n=>(bonusProductInfo(n)||{}).company).filter(Boolean))).sort()
+            .map(n=>`<option value="${bonusEsc(n)}">`).join('');
+    }
     window.bonusTabInit=async function(){
         if(!window.__excelStore) return;
-        const rec=await window.__excelStore.getSheet('BX_Sale_Data');
+        const all=await window.__excelStore.getAll();
+        const rec=all['BX_Sale_Data']||null;
+        bonusLoadPrices(all[BONUS_PRICE_KEY]||null);
+        await bonusNetRefresh();
         const empty=document.getElementById('bonusEmptyState');
         const main=document.getElementById('bonusMainContent');
         if(!empty || !main) return;
@@ -12018,6 +12388,7 @@ window.onload=async()=>{
         window.__bonusAllProducts=Array.from(new Set(rec.rows.map(r=>r[keys.product]).filter(Boolean))).sort();
         const pdl=document.getElementById('bonusProductList');
         if(pdl) pdl.innerHTML=window.__bonusAllProducts.map(n=>`<option value="${bonusEsc(n)}">`).join('');
+        bonusFillCompanyList();
 
         // قائمة أسماء المكاتب المفردة (عمود Vendors مفصول بفارزة) — للـautocomplete
         const officeSet=new Set();
@@ -17300,7 +17671,37 @@ document.addEventListener('DOMContentLoaded', function(){
         }finally{ st.pdfBusy=false; }
     }
 
-    Object.assign(window, { npRender, npSync, npIngest, npSetFilter, npSearch, npToggle, npClearFilters, npPanel, npPanelSearch, npPick,
+    // ===== جسر لتبويب «البونصات» — كل المكاتب اللي اشترينا منها المادة: آخر شراء (الجدول) + المقدماً والبونص الأقدم (السجل).
+    // المطابقة بلا @/& : أسماء المشتريات بلا لاحقة وأسماء مبيعات البونص بيها @ / @@ (مقيس 2026-10-05 على مواد بايونير بس: 177 من 179 مطابقة ما تصير إلا هيچ، وصفر تصادم).
+    // استنتاج — فاسم المادة المقابلة ينعرض بالكارت لما يختلف (name).
+    const bonusKey=s=>keyOf(String(s||'').replace(/[@&]+/g,' '));
+    async function npBonusReady(){
+        await npLoad();
+        if(!st.rows) return null;
+        // أقدم تاريخ بالملف — مادة ما إلها شراء غالباً شراؤها قبل بداية التصدير، مو خطأ مطابقة
+        let from='';
+        st.log.forEach(a=>a.forEach(e=>{ if(e.date && (!from || e.date<from)) from=e.date; }));
+        return {importedAt:st.importedAt, count:st.rows.length, from};
+    }
+    function npOfficesFor(product){
+        if(!st.rows) return null;
+        if(st.bIdxFor!==st.rows){
+            st.bIdx=new Map(); st.bIdxFor=st.rows;
+            st.rows.forEach(r=>{ const k=bonusKey(r.name); let a=st.bIdx.get(k); if(!a) st.bIdx.set(k, a=[]); a.push(r); });
+        }
+        return (st.bIdx.get(bonusKey(product))||[]).map(r=>{
+            if(r._bo) return r._bo;
+            const mine=(st.log.get(r.key)||[]).filter(e=>e.vendor===r.vendor);   // مرتّب من الأحدث
+            const adv=mine.reduce((s,e)=>s+(e.purchase ? 0 : (e.same||0)), 0);
+            // آخر شراء بلا بونص بس شراء أقدم من نفس المكتب كان بيه — ينذكر حتى ما تضيع المعلومة
+            const prev=r.type==='none' ? mine.find(e=>e.purchase && e.paid>0 && ((e.same||0)+(e.late||0))>0) : null;
+            return r._bo={ i:r.i, name:r.name, vendor:r.vendor, date:r.date, deal:r.deal, vpct:r.vpct, type:r.type, nPurch:r.nPurch,
+                adv:r.type==='advance' ? (r.bqty||adv) : adv,
+                prev:prev ? {deal:prev.deal, date:prev.date} : null, pharm:/^(ص|صيدلية)\s/.test(r.vendor) };
+        });
+    }
+
+    Object.assign(window, { npBonusReady, npOfficesFor, npRender, npSync, npIngest, npSetFilter, npSearch, npToggle, npClearFilters, npPanel, npPanelSearch, npPick,
         npPanelClear, npSort, npSortDefault, npPage, npToggleRow, npTogglePage, npSelectAll, npSelectFiltered, npClearSel,
         npOpenLog, npCloseLog, npExportExcel, npExportPDF });
     window.__npState=st;
@@ -18274,8 +18675,13 @@ document.addEventListener('DOMContentLoaded', function(){
 
         <div class="p-3 rounded-xl mb-3" style="background:#faf5ff;border:1px solid #e9d5ff">
             <div class="flex flex-wrap items-center gap-3">
-                <button onclick="window.qsSyncBonus()" class="ios-btn text-white px-3 py-2 text-sm font-bold" style="background:#7c3aed" title="اختر ملف Excel — يدوّر عن BX_Sale_Data و Sheet2 تلقائياً"><i class="fas fa-bolt ml-1"></i>⚡ مزامنة سريعة</button>
+                <button onclick="window.qsSyncBonus()" class="ios-btn text-white px-3 py-2 text-sm font-bold" style="background:#7c3aed" title="اختر ملف Excel — يدوّر عن BX_Sale_Data و Sheet2 تلقائياً، ويسحب أسعار النت (NP_Net_Price + NP_Purchase_Log) وياها إذا موجودة"><i class="fas fa-bolt ml-1"></i>⚡ مزامنة سريعة</button>
                 <span id="qsBonusStatus" class="text-xs text-gray-500"></span>
+                <button onclick="window.qsSyncSalePrice()" class="ios-btn text-white px-3 py-2 text-sm font-bold" style="background:#047857" title="اختر تصدير product.template من أودو — لازم بيه عمود Name وعمود Sales Price"><i class="fas fa-tag ml-1"></i>💰 مزامنة سعر البيع</button>
+                <span id="qsSalePriceStatus" class="text-xs text-gray-500"></span>
+                <label class="flex items-center gap-1 text-xs font-bold" style="color:#047857" title="يخفي شارات السعر من الكاردات — الأسعار تبقى مخزونة">
+                    <input type="checkbox" id="bonusShowPrice" checked onchange="window.bonusTogglePrice(this.checked)"> إظهار أسعار البيع
+                </label>
             </div>
             <div class="flex flex-wrap items-center gap-3 mt-2 text-xs">
                 <label class="flex items-center gap-1 font-bold" style="color:#6b21a8">
@@ -18289,6 +18695,8 @@ document.addEventListener('DOMContentLoaded', function(){
                 </label>
             </div>
             <div id="qsBonusStamp" class="text-[10px] text-gray-400 mt-2">لم تتم المزامنة بعد</div>
+            <div id="qsSalePriceStamp" class="text-[10px] text-gray-400">أسعار البيع: لم تتم المزامنة بعد</div>
+            <div id="qsNetStamp" class="text-[10px] text-gray-400">أسعار النت: لم تتم المزامنة بعد</div>
         </div>
 
         <div id="bonusEmptyState" class="text-center py-16 text-gray-400">
@@ -18356,6 +18764,11 @@ document.addEventListener('DOMContentLoaded', function(){
                         <label class="text-xs font-bold text-gray-500 block mb-1">المواد (فاصلة بين أكثر من مادة)</label>
                         <input type="text" id="bonusMaterialFilter" placeholder="مثلاً: VEROTEC" class="ios-input text-sm w-full">
                     </div>
+                    <div style="flex:1;min-width:150px">
+                        <label class="text-xs font-bold text-gray-500 block mb-1">الشركة (اختياري — فاصلة بين أكثر من شركة)</label>
+                        <input type="text" id="bonusCompanyFilter" list="bonusCompanyList" placeholder="مثلاً: PIONEER" class="ios-input text-sm w-full">
+                        <datalist id="bonusCompanyList"></datalist>
+                    </div>
                     <button onclick="window.bonusApplyFilters()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#7c3aed">فلترة</button>
                     <button onclick="window.bonusClearFilters()" class="ios-btn text-xs px-3 py-2" title="يمسح حقول الفلتر فقط">↺ مسح الفلتر</button>
                     <button onclick="window.bonusUndo()" class="ios-btn text-xs px-3 py-2" title="يرجع آخر تعديل (تأشير/إضافة/تغيير نسبة)">↶ تراجع</button>
@@ -18363,6 +18776,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     <button onclick="window.bonusExportPDF()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#002060" title="يطبع كل الصفوف المؤشَّرة صح (بونص ≥ 1) — صفحة لكل مكتب، نفس تخطيط طباعة الإكسل"><i class="fas fa-file-pdf ml-1"></i> PDF</button>
                 </div>
                 <div id="bonusResultCount" class="text-xs text-gray-500 mt-2"></div>
+                <div id="bonusNetFilterBar" class="hidden flex items-center gap-1 flex-wrap mt-2 pt-2 border-t"></div>
                 <div class="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t">
                     <span class="text-[11px] font-bold text-gray-500">المواد (تدخل بالطباعة والملخص لو مؤشَّرة):</span>
                     <button onclick="window.bonusMaterialsCheckAll(true)" class="ios-btn text-xs px-2 py-1"><i class="fas fa-check-double ml-1"></i>تحديد الكل</button>
