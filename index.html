@@ -13382,7 +13382,7 @@ window.onload=async()=>{
                     ${sorted.map(([p,q],i)=>`<tr class="${i%2?'bg-orange-50':'bg-white'}">
                         <td class="p-2 text-center font-bold text-gray-500 border border-gray-200">${i+1}</td>
                         <td class="p-2 font-bold border border-gray-200">${escapeHtml(p)}</td>
-                        <td class="p-2 text-center font-black border border-gray-200 ${q<=0?'text-red-600':'text-blue-700'}">${q}</td>
+                        <td class="p-2 text-center font-black border border-gray-200 vs-qty-cell ${q<=0?'text-red-600':'text-blue-700'}" data-idx="${i}"><span class="vs-qty-val cursor-pointer">${q}</span> <button type="button" class="vs-qty-edit text-gray-400 text-xs mr-1" title="تعديل الرصيد"><i class="fas fa-pen"></i></button></td>
                     </tr>`).join('')}
                 </tbody>
             </table>
@@ -13390,6 +13390,43 @@ window.onload=async()=>{
         document.getElementById('vendorPickerPanel').classList.add('hidden');
         document.getElementById('vendorStockResultsPanel').classList.remove('hidden');
     }
+
+    // تعديل رقم الرصيد مباشرة بالجدول (للكشف الحالي فقط — يظهر بالـPDF/الصور/الواتساب ويختفي عند التوليد من جديد)
+    (function(){
+        const resultsEl=document.getElementById('vendorStockResults');
+        resultsEl.addEventListener('click', e=>{
+            const trigger=e.target.closest('.vs-qty-val, .vs-qty-edit');
+            if(!trigger) return;
+            const td=trigger.closest('.vs-qty-cell');
+            if(!td || td.querySelector('input') || !_vendorStockData) return;
+            const idx=parseInt(td.dataset.idx,10);
+            const row=_vendorStockData.rows[idx];
+            if(!row) return;
+            const input=document.createElement('input');
+            input.type='number'; input.step='any'; input.value=row.qty;
+            input.className='ios-input text-center font-black';
+            input.style.cssText='width:90px;padding:2px 4px';
+            td.innerHTML=''; td.appendChild(input);
+            input.focus(); input.select();
+            let done=false;
+            const finish=save=>{
+                if(done) return; done=true;
+                if(save){
+                    const v=parseFloat(input.value);
+                    if(!isNaN(v)) row.qty=v;
+                }
+                const q=row.qty;
+                td.classList.toggle('text-red-600', q<=0);
+                td.classList.toggle('text-blue-700', q>0);
+                td.innerHTML=`<span class="vs-qty-val cursor-pointer">${q}</span> <button type="button" class="vs-qty-edit text-gray-400 text-xs mr-1" title="تعديل الرصيد"><i class="fas fa-pen"></i></button>`;
+            };
+            input.addEventListener('keydown', ev=>{
+                if(ev.key==='Enter'){ ev.preventDefault(); finish(true); }
+                else if(ev.key==='Escape'){ ev.preventDefault(); finish(false); }
+            });
+            input.addEventListener('blur', ()=>finish(true));
+        });
+    })();
 
     // يبني صور Canvas لكشف الرصيد (صفحة لكل عنصر) — مصدر مشترك للـPDF ولصور واتساب
     async function buildVendorStockCanvases(){
