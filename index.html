@@ -284,7 +284,9 @@
         <button id="exportPdfBtn" class="ios-btn bg-[#AF52DE] text-white px-4 py-2 text-sm" title="تصدير كل الطلبيات PDF"><i class="fas fa-file-pdf ml-1"></i> PDF</button>
         <button id="exportPdfSelectedBtn" class="ios-btn bg-[#5856D6] text-white px-4 py-2 text-sm" title="تصدير المحدد فقط (✓) PDF"><i class="fas fa-file-pdf ml-1"></i> PDF محدد</button>
         <button id="syncExcelBtn" class="ios-btn bg-gradient-to-r from-[#34C759] to-[#007AFF] text-white px-4 py-2 text-sm" title="مزامنة شاملة من ملف Excel — كل الـ sheets دفعة واحدة"><i class="fas fa-sync-alt ml-1"></i> 🔄 مزامنة Excel</button>
+        <button id="tabSyncBtn" onclick="tabSyncOpen()" class="ios-btn text-white px-4 py-2 text-sm" style="background:linear-gradient(135deg,#0f766e,#0369a1)" title="أشّر التبويبات اللي تريدها واختر ملف Excel مرة وحدة — كل تبويب يسحب شيته"><i class="fas fa-layer-group ml-1"></i> 🗂 مزامنة حسب التبويب</button>
         <button id="vendorStockBtn" class="ios-btn bg-[#FF9500] text-white px-4 py-2 text-sm" title="كشف رصيد المكتب من UpdatedStock_Smart"><i class="fas fa-clipboard-list ml-1"></i> كشف رصيد</button>
+        <button id="officeLinkBtn" class="ios-btn text-white px-4 py-2 text-sm" style="background:#0369a1" title="نفس المكتب اجه باسمين؟ اربطهم هنا"><i class="fas fa-link ml-1"></i> روابط المكاتب</button>
         <button id="excludeListBtn" class="ios-btn bg-[#FF3B30] text-white px-4 py-2 text-sm" title="استثناء مادة من مكتب معيّن — تختفي من كشف الرصيد والطلبية/الإرسال"><i class="fas fa-ban ml-1"></i> استثناءات</button>
         <button id="liveStatusBtn" class="ios-btn bg-gradient-to-r from-[#0A84FF] to-[#5856D6] text-white px-4 py-2 text-sm relative" title="شاشة متابعة الإرسال المباشرة"><i class="fas fa-satellite-dish ml-1"></i> 📡 متابعة مباشرة <span id="liveStatusDot" class="hidden absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span></button>
         <button id="archiveModalBtn" class="ios-btn bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white px-4 py-2 text-sm" title="أرشيف الطلبيات"><i class="fas fa-box-archive ml-1"></i> 📦 الأرشيف</button>
@@ -363,10 +365,19 @@
                 <!-- ======== فلتر موقف المندوب (multi-select) ======== -->
                 <div class="flex gap-1 mb-2 flex-wrap" id="stanceFilterChips"></div>
                 <!-- ======== Toggle: إرسال المفحوصة @ فقط ======== -->
-                <label class="ios-btn bg-white border-2 border-[#16a34a] text-[#15803d] px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer mb-2 w-full justify-center" title="عند التفعيل: الرسائل والـ PDF تحتوي فقط المواد المفحوصة (@) — الباقي يُخفى">
-                    <input type="checkbox" id="atOnlyToggle" class="cursor-pointer" style="accent-color:#16a34a">
-                    <span>📋 إرسال المواد المفحوصة @ فقط</span>
-                </label>
+                <div id="sendModeBar" class="mb-2 w-full rounded-xl px-2 py-1.5 text-xs font-bold" style="border:2px solid #16a34a;background:#fff" title="وضع الإرسال: يحدد شنو يدخل بالرسائل والصور والـPDF والطابور — يبقى شغّال بعد استيراد جديد، ويرجع «الكل» بعد إعادة تحميل الصفحة">
+                    <div class="flex items-center gap-1.5 flex-wrap justify-center">
+                        <span>📋 الفحص:</span>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-sm="at:at" checked onchange="sendModeToggle(this)"> مفحوص @</label>
+                        <label class="flex items-center gap-1"><input type="checkbox" data-sm="at:noat" checked onchange="sendModeToggle(this)"> غير مفحوص</label>
+                        <span style="color:#9ca3af">|</span>
+                        <span>🏢 مكاتب أخرى:</span>
+                        <label class="flex items-center gap-1" title="مواد ما موجودة عند مكتب ثاني"><input type="checkbox" data-sm="ov:none" checked onchange="sendModeToggle(this)"> بلا مكاتب أخرى</label>
+                        <label class="flex items-center gap-1" title="مادة موجودة عند مكتب ثاني وهذا المكتب هو الأرخص أو مساوي"><input type="checkbox" data-sm="ov:cheap" checked onchange="sendModeToggle(this)"> بيها مكاتب — الأرخص</label>
+                        <label class="flex items-center gap-1" title="مادة موجودة عند مكتب ثاني وهذا المكتب أغلى (هي اللي تتأجّل بـ«الأرخص فقط»)"><input type="checkbox" data-sm="ov:dear" checked onchange="sendModeToggle(this)"> بيها مكاتب — المؤجّلة</label>
+                    </div>
+                    <div id="sendModeHint" class="hidden text-center mt-1" style="font-size:11px"></div>
+                </div>
                 <!-- ======== سياسة التغطية والهدف (covRenderBars) — تغيّر الطلبية نفسها، مو العرض بس ======== -->
                 <div class="cov-policy-bar mb-2"></div>
                 <!-- ======== زر إزالة الفلاتر ======== -->
@@ -483,9 +494,12 @@
             <button class="global-chip" data-gk="nomatch" style="color:#4b5563;background:#e5e7eb">⚫ No Match <span class="cnt" id="gk-nomatch">0</span></button>
         </div>
         <div class="cov-policy-bar mb-3" style="max-width:640px"></div>
-        <div class="flex flex-wrap gap-2 mb-4">
+        <div class="flex flex-wrap gap-x-3 gap-y-2 mb-4">
+          <div class="fgrp" style="--c:#2563eb"><span class="fgl">🔍 بحث</span>
             <input type="text" id="globalVendorSearch" placeholder="🔍 بحث فيندور" class="ios-input w-36 text-sm">
             <input type="text" id="globalItemSearch" placeholder="🔍 بحث مادة" class="ios-input w-36 text-sm">
+          </div>
+          <div class="fgrp" style="--c:#7c3aed"><span class="fgl">🧮 تصفية المواد</span>
             <select id="globalReqFilter" class="ios-input text-sm w-auto"><option value="">الكمية</option><option value=">">أكبر</option><option value="<">أصغر</option><option value="=">يساوي</option><option value="check">Check</option></select>
             <input type="number" id="globalReqValue" placeholder="العدد" class="ios-input w-20 text-sm" disabled>
             <div class="relative multiselect" id="globalCompanyMultiselect">
@@ -495,11 +509,25 @@
             <select id="globalShareFilter" class="ios-input text-sm w-auto"><option value="">الحصة</option><option value="yes">يوجد</option><option value="no">لا يوجد</option></select>
             <select id="globalOtherFilter" class="ios-input text-sm w-auto"><option value="">مكاتب أخرى</option><option value="yes">يوجد</option><option value="no">لا يوجد</option></select>
             <select id="globalFakeFilter" class="ios-input text-sm w-auto" title="المواد الزائفة (FAKE) — رقمها مصحَّح بالإكسل"><option value="">🚩 FAKE: الكل</option><option value="yes">اعرض FAKE بس</option><option value="no">اخفِ FAKE</option></select>
-            <button onclick="clearGlobalFilters()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(255,59,48,0.08);border:1px solid rgba(255,59,48,0.3);color:#dc2626" title="إزالة كل فلاتر الفيندور الشامل"><i class="fas fa-eraser ml-1"></i> ↺ إزالة الفلاتر</button>
+          </div>
+          <div class="fgrp text-sm font-bold" style="--c:#16a34a" title="نفس فلتر «📋 الفحص» بتبويب المكاتب (وضع الإرسال) — تغييره هنا يتغيّر هناك والعكس"><span class="fgl">📋 الفحص</span>
+                <label class="flex items-center gap-1"><input type="checkbox" data-sm="at:at" checked onchange="sendModeToggle(this)"> مفحوص @</label>
+                <label class="flex items-center gap-1"><input type="checkbox" data-sm="at:noat" checked onchange="sendModeToggle(this)"> غير مفحوص</label>
+          </div>
+          <div class="fgrp" style="--c:#b91c1c"><span class="fgl">💲 أسعار النت</span>
+            <select id="globalNetFilter" class="ios-input text-sm w-auto" title="مقارنة سعر النت بين المكاتب الأخرى لنفس المادة — يحتاج مزامنة 💲 أسعار نت"><option value="">💲 فرق السعر: الكل</option><option value="warn">⛔ أرخص عند غيره (≥ العتبة)</option><option value="any">أرخص عند غيره (أي فرق)</option><option value="odd">⚠️ فرق كبير ≥ 70% (تأكد من السعر)</option><option value="best">✓ هذا الأرخص</option><option value="nocmp">بلا سعر للمقارنة</option><option value="hideDear">🙈 اخفِ المكاتب الأغلى</option><option value="review">🔍 مواد المراجعة (موقوفة بوضع الإرسال)</option></select>
+            <label class="ios-input text-sm w-auto flex items-center gap-1" title="نسبة الفرق اللي يطلع عندها تحذير «لا تقطع من فلان» — (السعر الأول − الثاني) ÷ الأول">العتبة <input type="number" id="globalNetThr" min="0" max="100" step="1" value="10" class="w-12 text-center bg-transparent outline-none font-bold">%</label>
+            <span id="globalNetHint" class="text-[11px] text-gray-500 self-center font-bold"></span>
+            <button id="gvPcBtn" onclick="gvPcOpen()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:#fee2e2;color:#b91c1c" title="كل المواد الأرخص عند مكتب ثاني بقائمة وحدة — ✕ يلغي المادة من المكتب الأغلى، ↩ يرجّعها، وطباعة مختصرة">⛔ لوحة فرق الأسعار</button>
+          </div>
+          <div class="fgrp" style="--c:#c2410c"><span class="fgl">🖨️ طباعة</span>
             <select id="globalPdfCols" class="ios-input text-sm w-auto" title="أعمدة ملف الطباعة — شاملة: كل أعمدة الجدول + التغطية · مختصرة: المادة والكمية والشركة بس"><option value="full">🖨️ طباعة شاملة</option><option value="short">🖨️ طباعة مختصرة</option></select>
             <button onclick="gvExportPDF(true)" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(194,65,12,0.1);color:#c2410c" title="PDF حسب الفلاتر الحالية — كل مكتب يبدي بصفحة جديدة"><i class="fas fa-print ml-1"></i>طباعة: كل مكتب بصفحة</button>
             <button onclick="gvExportPDF(false)" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(194,65,12,0.1);color:#c2410c" title="PDF حسب الفلاتر الحالية — المكاتب متتالية بلا فراغ"><i class="fas fa-print ml-1"></i>طباعة: متتالي</button>
             <button onclick="gvExportItemsPDF()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(15,118,110,0.1);color:#0f766e" title="PDF حسب الفلاتر الحالية — كل مادة بسطر واحد: التسلسل · المادة · الكمية · كل المكاتب اللي عندها المادة"><i class="fas fa-list-ol ml-1"></i>طباعة: قائمة مواد</button>
+            <button onclick="gvExportPricesPDF()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:rgba(22,101,52,0.1);color:#166534" title="PDF حسب الفلاتر الحالية — كل مادة ومكاتبها تحت بعض، الأرخص أول: المادة · الكمية · المكتب · سعر النت · أرخص مكتب ثاني · الفرق. ويه «اخفِ المكاتب الأغلى» تطلع كل مادة بسطر واحد (الأرخص)"><i class="fas fa-tags ml-1"></i>طباعة: أسعار</button>
+          </div>
+          <button onclick="clearGlobalFilters()" class="ios-btn text-xs px-3 py-2 font-bold self-end" style="background:rgba(255,59,48,0.08);border:1px solid rgba(255,59,48,0.3);color:#dc2626" title="إزالة كل فلاتر الفيندور الشامل"><i class="fas fa-eraser ml-1"></i> ↺ إزالة الفلاتر</button>
         </div>
         <div class="overflow-auto max-h-[460px] rounded-xl border">
             <table class="w-full text-sm table-ios" id="globalTable">
@@ -510,6 +538,8 @@
                         <th class="p-2 sortable" data-gsort="itemName">المادة <span class="sort-ind" id="gsort-itemName"></span></th>
                         <th class="p-2 sortable" data-gsort="requiredQtyNum">الكمية <span class="sort-ind" id="gsort-requiredQtyNum"></span></th>
                         <th class="p-2">الرصيد</th>
+                        <th class="p-2" title="سعر النت لآخر شراء من مكتب السطر (من 💲 أسعار نت)">السعر الأول</th>
+                        <th class="p-2" title="أرخص سعر نت بين «مكاتب أخرى» لنفس المادة بالطلبية — رمادي 🕓 = شراء أقدم من 6 أشهر">السعر الثاني</th>
                         <th class="p-2 sortable" data-gsort="hasOtherVendors">مكاتب أخرى <span class="sort-ind" id="gsort-hasOtherVendors"></span></th>
                         <th class="p-2 sortable" data-gsort="share">الحصة <span class="sort-ind" id="gsort-share"></span></th>
                         <th class="p-2 sortable" data-gsort="company">الشركة <span class="sort-ind" id="gsort-company"></span></th>
@@ -785,6 +815,27 @@
     </div>
 </div>
 
+<!-- TAB SYNC MODAL — مزامنة حسب التبويب -->
+<div id="tabSyncModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+    <div class="ios-card w-full max-w-2xl p-6 max-h-[92vh] overflow-auto">
+        <div class="flex justify-between items-start mb-3">
+            <div>
+                <h2 class="text-xl font-black"><i class="fas fa-layer-group ml-2" style="color:#0f766e"></i>مزامنة حسب التبويب</h2>
+                <p class="text-xs text-gray-500 mt-1">أشّر التبويبات واختر ملف الإكسل مرة وحدة — كل تبويب مؤشَّر يسحب شيته بنفس طريقة زر ⚡ ماله. تبويب يفشل ما يوقف الباقين.</p>
+            </div>
+            <button onclick="document.getElementById('tabSyncModal').classList.add('hidden')" class="text-gray-500 text-xl"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+            <button onclick="tabSyncSelectAll(true)" class="ios-btn bg-[#34C759] text-white text-xs px-3 py-1"><i class="fas fa-check-double ml-1"></i>تحديد الكل</button>
+            <button onclick="tabSyncSelectAll(false)" class="ios-btn bg-gray-300 text-xs px-3 py-1"><i class="fas fa-times ml-1"></i>إلغاء</button>
+            <span class="text-xs text-gray-600">المحدد: <b id="tabSyncCount">0</b></span>
+        </div>
+        <div id="tabSyncList" class="bg-white rounded-lg border p-2 mb-3"></div>
+        <button id="tabSyncRunBtn" onclick="tabSyncPickFile()" class="ios-btn text-white px-5 py-2.5 text-sm font-bold" style="background:linear-gradient(135deg,#0f766e,#0369a1)"><i class="fas fa-folder-open ml-1"></i> اختر ملف Excel وزامن المحدد</button>
+        <div id="tabSyncStatus" class="text-xs text-gray-600 mt-2"></div>
+    </div>
+</div>
+
 <!-- LIVE SEND TRACKER MODAL -->
 <div id="liveStatusModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden flex items-start justify-center p-3 overflow-auto">
     <div class="ios-card w-full max-w-5xl p-5 my-4">
@@ -982,6 +1033,21 @@
 </div>
 
 <!-- OFFICE LINKS MODAL (متابعة الوصول) -->
+<!-- ⛔ لوحة فرق الأسعار (الفيندور الشامل) — المحتوى يترسم من gvPcRender -->
+<div id="gvPcModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+    <div class="ios-card w-full max-w-5xl p-6 max-h-[92vh] overflow-auto">
+        <div class="flex justify-between mb-3">
+            <div>
+                <h2 class="text-xl font-black">⛔ لوحة فرق الأسعار</h2>
+                <p class="text-xs text-gray-500 mt-1">مواد أرخص عند مكتب ثاني بالطلبية (حسب العتبة). <b>✕ أجّل</b> بالسطر يشيل المادة من طلبية المكتب الأغلى — ما تنرسل له لحد ما ترجّعها <b>↩</b>، وكمية المكتب الأرخص ما تتغيّر. <b>✕</b> على اسم المكتب = لا تلمس هذا المكتب. بعد الإرسال افتح <b>⏸ المؤجّلة</b> وراجعها على راحتك.</p>
+                <p class="text-xs font-bold mt-1" style="color:#b45309">⚠️ التأجيل يأثر على الطابور الجاي — طابور مولَّد قبل التأجيل (queue.json) ما يتغيّر، ولّده من جديد.</p>
+            </div>
+            <button onclick="document.getElementById('gvPcModal').classList.add('hidden')" class="text-gray-500 text-xl"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="gvPcBody"></div>
+    </div>
+</div>
+
 <div id="officeLinkModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
     <div class="ios-card w-full max-w-3xl p-6 max-h-[92vh] overflow-auto">
         <div class="flex justify-between mb-4">
@@ -1112,6 +1178,7 @@
 
         <!-- ======== مرحلة 1: التقرير ======== -->
         <div id="queueStageReport">
+            <div id="qSendModeNote" class="hidden rounded-xl p-2 mb-2 text-xs font-bold" style="background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3"></div>
             <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-sm">
                 <div class="font-bold mb-1">📋 ملخص الطابور:</div>
                 <div class="flex gap-4 flex-wrap text-xs">
@@ -1137,6 +1204,8 @@
                 <div id="qNoPhoneList" class="max-h-48 overflow-auto"></div>
                 <div class="text-xs text-gray-500 mt-2">💡 هذه المكاتب ستتخطّى. أضف أرقامها من تبويب "المندوبين" ثم أعد التحديد.</div>
             </div>
+
+            <div id="qAfterNote" class="rounded-xl p-2 mb-3 text-xs font-bold" style="white-space:pre-wrap;direction:rtl;border:2px solid #16a34a;background:#f0fdf4" title="الرسالة الإضافية اللي تنرسل بعد صور كل مكتب — تعديلها وتفعيلها من زر «رسائل المتابعة» فوق"></div>
 
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-xs text-amber-800">
                 <strong>قبل البدء:</strong>
@@ -1214,6 +1283,7 @@ const appState = {
     orders:[],
     ordersRaw:[],       // كل الطلبيات الخام قبل فلترة الاستثناء — مصدر الحقيقة (appState.orders = عرض مفلتر منه)
     excludeList:[],     // [{material, vendor, addedAt}] — يُستثنى من كشف الرصيد والطلبية/الإرسال
+    priceCancel:[],     // [{material, vendor, alt, p1, p2, addedAt}] — مادة ملغاة من المكتب الأغلى (لوحة فرق الأسعار): تطلع من الطلبية/الإرسال بس
     officeLinks:[],     // [{canonical, alias, addedAt}] — نفس المكتب باسمين بمتابعة الوصول (يدمج تحت اسم الـ canonical)
     representatives:[], // each rep: { name, phone, vendorNames: [] }
     selectedVendor:null,
@@ -1227,12 +1297,12 @@ const appState = {
     phoneFilter:'all',  // 'all' | 'with' | 'without'
     shareFilter:'all',  // 'all' | 'all-shared' | 'some-shared' | 'none-shared'
     atFilter:new Set(), // multi-select: 'all-at', 'some-at', 'none-at' — مواد مفحوصة بغداد @ (فارغ = الكل)
-    atOnlyMode:false,   // إرسال المواد المفحوصة @ فقط
+    sendMode:{at:{at:true,noat:true},ov:{none:true,cheap:true,dear:true}}, // وضع الإرسال (بالذاكرة بس) — علامات صح: كل مجموعة مفتاح=true يعني ينرسل · المصدر الوحيد: sendHeld()
     dupFilter:'all',    // 'all' | 'normal' | 'same_no_add' | 'same_plus_add' — تصنيف تكرار الطلبية
     stanceFilter:new Set(), // multi-select على OFFICE_STANCE_VALUES + 'empty' (فارغ = الكل)
     filters:{ officeStatus:new Set() },
     itemFilters:{ search:'',reqCompare:'',reqValue:null,company:new Set(),share:'',otherVendors:'',fake:'',sortField:'',sortDir:1 },
-    globalFilters:{ vendor:'',item:'',reqCompare:'',reqValue:null,company:new Set(),share:'',other:'',fake:'',sortField:'',sortDir:1 },
+    globalFilters:{ vendor:'',item:'',reqCompare:'',reqValue:null,company:new Set(),share:'',other:'',fake:'',net:'',sortField:'',sortDir:1 },
     // ======== حالة الأتمتة (الطابور) ========
     queuedVendors:new Set(),      // المكاتب المحددة للإرسال التلقائي
     _visibleVendorNames:[],       // المكاتب الظاهرة حالياً بعد الفلترة (لـ "تحديد الظاهر")
@@ -1260,17 +1330,23 @@ setInterval(saveToStorage, 30000);
 // ⬇️/الاستعادة تكتب عصر جديد (applyBackupPayload). أي حفظ من ذاكرة انحمّلت قبله — نفس التبويب وهو بعده ينزّل الشيتات،
 // أو تبويب ثاني مفتوح — كان يرجّع الطلبيات/الروابط/الاستثناءات القديمة فوق المستعادة بدقّة الـ30 ثانية، والرسالة تگول ✅.
 const DATA_EPOCH_KEY='ph_data_epoch';
-const _dataEpochAtLoad=localStorage.getItem(DATA_EPOCH_KEY);
+let _dataEpochAtLoad=localStorage.getItem(DATA_EPOCH_KEY);
 function dataEpochStale(){ try{ return localStorage.getItem(DATA_EPOCH_KEY)!==_dataEpochAtLoad; }catch(_){ return false; } }
-// تبويب ثاني استعاد بيانات: هذا التبويب ذاكرته قديمة وحفظه موقوف — لازم ينعاد تحميله
-window.addEventListener('storage',e=>{
-    if(e.key!==DATA_EPOCH_KEY || !dataEpochStale() || document.getElementById('staleTabBanner')) return;
+// 2026-10-10: العصر صار يتجدد بكل حفظ حقيقي (مو بالاستعادة بس). قبلها تبويب ثاني مفتوح بذاكرة قديمة كان يكتب
+// مندوبيه القدامى فوق الجدد بحفظ الـ30 ثانية بلا أي تنبيه — «أحفظ الرقم الجديد وأرجع ألگاه القديم».
+let _lastSaveSig=null;   // توقيع آخر حالة انحمّلت/انحفظت بهذا التبويب — حفظ بلا تغيير ما يكتب ولا يجدد العصر
+let _restoring=false;    // استعادة شغّالة بهذا التبويب (تنتهي بإعادة تحميل) — الحفظ موقوف بلا بانر
+function saveSigRest(){ return JSON.stringify([appState.representatives,[...appState.sentVendors],appState.excludeList,appState.priceCancel||[],appState.officeLinks,appState.officeStance,appState.stanceMsgConfig]); }
+// تبويب ثاني حفظ أو استعاد بيانات: هذا التبويب ذاكرته قديمة وحفظه موقوف — لازم ينعاد تحميله
+window.addEventListener('storage',e=>{ if(e.key===DATA_EPOCH_KEY && dataEpochStale()) showStaleTabBanner(); });
+function showStaleTabBanner(){
+    if(_restoring || document.getElementById('staleTabBanner') || !document.body) return;
     const b=document.createElement('div');
     b.id='staleTabBanner';
     b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:700;text-align:center';
     b.innerHTML='<span>⚠️ البيانات تحدّثت بتبويب ثاني — هذا التبويب قديم وحفظه موقوف</span><button style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer" onclick="location.reload()">أعد التحميل</button>';
     document.body.appendChild(b);
-});
+}
 
 // ======================== STORAGE ========================
 // ===== IndexedDB لـ ph_orders — بديل localStorage =====
@@ -1306,10 +1382,14 @@ function ordIdbPut(key,val){
 window.__ordersIDB={ get:ordIdbGet, put:ordIdbPut, KEY:ORD_KEY };
 
 function saveToStorage(){
-    if(dataEpochStale()) return; // بيانات مستعادة أحدث من ذاكرة هذا التبويب — لا تكتب فوقها
+    if(_restoring) return;
+    // تبويب ثاني حفظ/استعاد بعد ما انحمّل هذا التبويب — ذاكرته قديمة: لا تكتب فوقه، ونبّه (حتى لو فاته حدث storage)
+    if(dataEpochStale()){ showStaleTabBanner(); return; }
+    const ordStr=JSON.stringify(appState.ordersRaw), sig=ordStr.length+'|'+saveSigRest()+'|'+ordStr;
+    if(sig===_lastSaveSig) return; // ماكو تغيير بهذا التبويب — لا كتابة ولا عصر جديد
     if(typeof bumpRepIndex==='function') bumpRepIndex(); // أي حفظ = احتمال تغيّر المندوبين/الروابط
     // الطلبيات → IndexedDB (بلا سقف localStorage، فما عاد يحتاج حذف الأرشيف عند الامتلاء)
-    ordIdbPut(ORD_KEY, JSON.stringify(appState.ordersRaw)).catch(e=>{
+    ordIdbPut(ORD_KEY, ordStr).catch(e=>{
         console.error('فشل حفظ الطلبيات بـIndexedDB:',e);
         showToast('⚠️ فشل حفظ الطلبيات');
     });
@@ -1320,12 +1400,17 @@ function saveToStorage(){
     catch(e){ console.error('فشل حفظ حالة الإرسال:',e); }
     try{ localStorage.setItem('ph_exclude',JSON.stringify(appState.excludeList)); }
     catch(e){ console.error('فشل حفظ الاستثناءات:',e); }
+    try{ localStorage.setItem('ph_price_cancel',JSON.stringify(appState.priceCancel||[])); }
+    catch(e){ console.error('فشل حفظ الإلغاءات السعرية:',e); }
     try{ localStorage.setItem('ph_officelinks',JSON.stringify(appState.officeLinks)); }
     catch(e){ console.error('فشل حفظ روابط المكاتب:',e); }
     try{ localStorage.setItem('ph_office_stance',JSON.stringify(appState.officeStance)); }
     catch(e){ console.error('فشل حفظ مواقف المكاتب:',e); }
     try{ localStorage.setItem('ph_stance_msgs',JSON.stringify(appState.stanceMsgConfig)); }
     catch(e){ console.error('فشل حفظ نصوص رسائل المتابعة:',e); }
+    _lastSaveSig=sig;
+    // عصر جديد = التبويبات الثانية صارت قديمة. نتبنّاه بس إذا انكتب فعلاً (وإلا هذا التبويب يحسب نفسه قديم ويوقف حفظه)
+    try{ const ep=Date.now()+'-'+Math.random().toString(36).slice(2); localStorage.setItem(DATA_EPOCH_KEY, ep); if(localStorage.getItem(DATA_EPOCH_KEY)===ep) _dataEpochAtLoad=ep; }catch(_){}
 }
 window.saveToStorage=saveToStorage;
 async function loadFromStorage(){
@@ -1341,6 +1426,7 @@ async function loadFromStorage(){
         appState.ordersRaw=JSON.parse(ordersJson);
         await archiveLoadFallback(); // أرشيف ما وسع بـlocalStorage (آيفون) → من IndexedDB
         appState.excludeList=JSON.parse(localStorage.getItem('ph_exclude')||'[]');
+        try{ const pc=JSON.parse(localStorage.getItem('ph_price_cancel')||'[]'); appState.priceCancel=Array.isArray(pc) ? pc : []; }catch(_){ appState.priceCancel=[]; }
         appState.officeLinks=JSON.parse(localStorage.getItem('ph_officelinks')||'[]');
         applyExcludeFilter();
         // Migrate old reps format (vendorName string -> vendorNames array)
@@ -1355,6 +1441,8 @@ async function loadFromStorage(){
         appState.stanceMsgConfig=JSON.parse(localStorage.getItem('ph_stance_msgs')||'{}');
         ensureStanceMsgDefaults();
         computeOtherVendors(appState.orders);
+        // لقطة الحالة المحمّلة (بعد تهجير المندوبين والافتراضيات) — حتى أول حفظ دوري ما ينحسب «تغيير»
+        const _o=JSON.stringify(appState.ordersRaw); _lastSaveSig=_o.length+'|'+saveSigRest()+'|'+_o;
     }catch(e){}
 }
 
@@ -1606,6 +1694,26 @@ function isExcluded(material, vendor){
     return (appState.excludeList||[]).some(e=>_matNorm(e.material)===m && _smNorm(e.vendor)===v);
 }
 window.isExcluded=isExcluded;
+// ======== إلغاء سعري (مادة × المكتب الأغلى) — لوحة «فرق الأسعار» بالفيندور الشامل (2026-10-06) ========
+// قائمة مستقلة عن excludeList عمداً: الاستثناء يخفي المادة من متابعة الوصول/المرتجعات بعد (isExcludedDT)،
+// والإلغاء السعري يخص الطلبية والإرسال بس — ينطبّق بـapplyExcludeFilter وحده، والترجيع من اللوحة.
+// المكتب بمفتاح _smNorm (يتحمّل تغيّر الاسم بين المزامنات)، وإذا بالطلبية مكتبان مختلفان بنفس المفتاح
+// («مذخر امواج الساحل/ايهاب» و«مكتب امواج الساحل/ليث») تنشرط المطابقة الحرفية حتى ما تطيح مادة من المكتب الغلط.
+const _pcLit=s=>String(s||'').replace(/[@&#]+/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+// يرجّع دالة hit(مادة، مكتب) أو null إذا ماكو إلغاءات · hit.lits = مفتاح المكتب ← أسماؤه الحرفية بالصفوف
+function pcBuildIndex(rows){
+    const list=appState.priceCancel||[];
+    if(!list.length) return null;
+    const lits=new Map(), idx=new Map();
+    (rows||[]).forEach(o=>{ const k=_smNorm(o.vendor); let s=lits.get(k); if(!s) lits.set(k, s=new Set()); s.add(_pcLit(o.vendor)); });
+    list.forEach(e=>{ const k=_matNorm(e.material)+'|'+_smNorm(e.vendor); let a=idx.get(k); if(!a) idx.set(k, a=[]); a.push(_pcLit(e.vendor)); });
+    const hit=(material, vendor)=>{
+        const vk=_smNorm(vendor), a=idx.get(_matNorm(material)+'|'+vk);
+        return !!a && ((lits.get(vk)||{size:0}).size<=1 || a.includes(_pcLit(vendor)));
+    };
+    hit.lits=lits;
+    return hit;
+}
 // نسخة موازية لمتابعة الوصول/المرتجعات فقط — تطبّق resolveOffice (روابط المكاتب) قبل المطابقة.
 // isExcluded الأصلية تبقى بلا روابط عمداً (تعليق 1446: الروابط تخص DT/المرتجعات، ما تمس تبويب المكاتب).
 // كاش: isExcludedDT تُنادى مرة لكل صف بكل تمريرة فلترة (~5852 صف × ~7 تمريرات/رندر) — بلا هذا
@@ -1751,8 +1859,10 @@ window.quickExclude=function(material, vendor){
 
 // appState.orders = عرض appState.ordersRaw بعد إسقاط أزواج (مادة،مكتب) المستثناة — يُعاد حسابه بعد أي استيراد أو تغيير بالاستثناءات
 function applyExcludeFilter(){
-    const p=covPolicy(); let hid=0, chg=0, lock=0, withCv=0, fk=0;
+    const p=covPolicy(); let hid=0, chg=0, lock=0, withCv=0, fk=0, pc=0;
+    const pcHit=pcBuildIndex(appState.ordersRaw), pcVendors=new Set();
     appState.orders=(appState.ordersRaw||[]).filter(o=>!isExcluded(o.itemName,o.vendor)).filter(o=>{
+        if(pcHit && pcHit(o.itemName,o.vendor)){ pc++; pcVendors.add(o.vendor); return false; }
         if(!o.cv) return true;
         withCv++; if(covIsFake(o)) fk++;
         if(!covApply(o,p)){ hid++; return false; }
@@ -1760,8 +1870,16 @@ function applyExcludeFilter(){
         else if(o.cv.type!=='Normal' && !o.isCheck) lock++;
         return true;
     });
-    applyExcludeFilter._stats={hid,chg,lock,withCv,fk,total:(appState.ordersRaw||[]).length};
+    applyExcludeFilter._stats={hid,chg,lock,withCv,fk,pc,total:(appState.ordersRaw||[]).length};
     if(withCv) computeOtherVendors(appState.orders); // «مكاتب أخرى» تتبع اللي باقي بالطلبية فعلاً
+    // طلبية بلا بيانات تغطية: «مكاتب أخرى» ما تنعاد فوق، فالمكتب الملغى سعرياً يبقى مذكور — تنعاد هنا، وترجع لأصلها (كل الصفوف) لما تنرجَّع الإلغاءات
+    else if(pc || applyExcludeFilter._hadPc) computeOtherVendors(pc ? appState.orders : (appState.ordersRaw||[]));
+    applyExcludeFilter._hadPc=pc>0;
+    // مكتب انشالت كل مواده بالإلغاء السعري ما يبقى محدَّد بالطابور (وإلا يفشل بـ«لا توجد مواد»)
+    if(pc && appState.queuedVendors && appState.queuedVendors.size){
+        const live=new Set(appState.orders.map(o=>o.vendor));
+        pcVendors.forEach(v=>{ if(!live.has(v)) appState.queuedVendors.delete(v); });
+    }
     covRenderBars();
 }
 window.applyExcludeFilter=applyExcludeFilter;
@@ -1857,14 +1975,16 @@ function covRenderBars(){
     if(s.total && !s.withCv) status='<span style="color:#b45309">⚠️ الطلبيات الحالية انستوردت بلا بيانات التغطية، فالفلتر ما يأثر عليها — زامن (⚡) CompareSheet جديد من الماستر ماكرو</span>';
     else if(!s.withCv) status='<span class="text-gray-400">ماكو طلبيات</span>';
     else status=active?`<span style="color:#b91c1c">مخفي ${s.hid}</span> · <span style="color:#0369a1">تغيّرت ${s.chg}</span> · <span class="text-gray-500">مقفولة ${s.lock}</span>`:'<span class="text-gray-500">مطفي — أرقام الإكسل الأصلية</span>';
-    const html=`<div class="font-bold mb-1" style="color:#0f766e">📐 التغطية والهدف <span class="font-normal text-[10px]">— الإرسال يمشي عليها</span></div>
-        <label class="flex items-center gap-1 mb-1 cursor-pointer"><input type="checkbox" data-cov-chk="covOn" ${p.covOn?'checked':''}> أخفِ اللي تغطي أكثر من: @ ${num('covMaxAt',48)} · بلا @ ${num('covMaxNo',48)} يوم</label>
-        <label class="flex items-center gap-1 mb-1 cursor-pointer flex-wrap"><input type="checkbox" data-cov-chk="tgtOn" ${p.tgtOn?'checked':''}> الهدف: @ ${num('tgtAt',48)} · بلا @ ${num('tgtNo',48)} يوم</label>
-        <label class="flex items-center gap-1 mb-1 cursor-pointer flex-wrap" style="padding-right:18px" title="مطفي: الفيك يبقى على رقم الإكسل. مأشّر: ينحسب بالهدف من المباع الفعلي (هدف 50 يوم = رقم الإكسل). الكميات المعدّلة يدوياً ما تتغير بالحالتين."><input type="checkbox" data-cov-chk="tgtFake" ${p.tgtFake?'checked':''}> الهدف يشمل الفيك <span class="text-[10px] text-gray-500">— من المباع الفعلي · المعدّلة يدوياً تبقى</span></label>
-        <div class="flex items-center gap-1 mb-1 flex-wrap">الحصة: ${seg('keepShare',true,'تبقى دائماً')}${seg('keepShare',false,'تنفلتر')}</div>
-        <div class="flex items-center justify-between gap-1 flex-wrap"><span class="text-[10px] cov-status">${status}</span>
-        <button type="button" class="cov-seg on" data-cov-apply="1" title="يطبّق الأرقام المكتوبة فوراً">✓ طبّق</button>
-        <button type="button" class="cov-seg" data-cov-reset="1" style="color:#dc2626;border-color:rgba(220,38,38,0.4)" title="يطفي الفلاتر ويرجّع أرقام الإكسل (الكميات المعدّلة يدوياً تبقى)">↺ أرقام الإكسل</button></div>`;
+    // كل سطر = عنوان ملوّن + خانات @ / بلا @ بمربعات واضحة؛ السطر المفعّل يتلوّن (cov-row.on) حتى يبين شنو شغّال
+    const nums=(a,b)=>`<span class="cov-pair"><b>@</b> ${num(a,52)}</span><span class="cov-pair"><b>بلا @</b> ${num(b,52)}</span><span class="cov-unit">يوم</span>`;
+    const html=`<div class="cov-head">📐 التغطية والهدف <span>— الإرسال يمشي عليها · يغيّر الطلبية نفسها مو العرض بس</span></div>
+        <div class="cov-row${p.covOn?' on':''}" style="--c:#b91c1c"><label class="cov-lbl"><input type="checkbox" data-cov-chk="covOn" ${p.covOn?'checked':''}> 🙈 أخفِ اللي تغطي أكثر من</label>${nums('covMaxAt','covMaxNo')}</div>
+        <div class="cov-row${p.tgtOn?' on':''}" style="--c:#0369a1"><label class="cov-lbl"><input type="checkbox" data-cov-chk="tgtOn" ${p.tgtOn?'checked':''}> 🎯 الهدف (كم يوم تغطّي الطلبية)</label>${nums('tgtAt','tgtNo')}
+            <label class="cov-sub" title="مطفي: الفيك يبقى على رقم الإكسل. مأشّر: ينحسب بالهدف من المباع الفعلي (هدف 50 يوم = رقم الإكسل). الكميات المعدّلة يدوياً ما تتغير بالحالتين."><input type="checkbox" data-cov-chk="tgtFake" ${p.tgtFake?'checked':''}> يشمل الفيك <i>— من المباع الفعلي · المعدّلة يدوياً تبقى</i></label></div>
+        <div class="cov-row on" style="--c:#6d28d9"><span class="cov-lbl">🤝 الحصة</span>${seg('keepShare',true,'تبقى دائماً')}${seg('keepShare',false,'تنفلتر')}</div>
+        <div class="cov-foot"><span class="cov-status">${status}</span>
+        <span class="cov-btns"><button type="button" class="cov-seg on" data-cov-apply="1" title="يطبّق الأرقام المكتوبة فوراً">✓ طبّق</button>
+        <button type="button" class="cov-seg" data-cov-reset="1" style="color:#dc2626;border-color:rgba(220,38,38,0.4)" title="يطفي الفلاتر ويرجّع أرقام الإكسل (الكميات المعدّلة يدوياً تبقى)">↺ أرقام الإكسل</button></span></div>`;
     // أثناء الكتابة بخانة رقم: لا نعيد بناء شريطها (يضيع المؤشر) — نحدّث سطر الحالة بس
     const ae=document.activeElement;
     bars.forEach(b=>{
@@ -1874,7 +1994,24 @@ function covRenderBars(){
 }
 (function covBindOnce(){
     const st=document.createElement('style');
-    st.textContent=`.cov-policy-bar{font-size:12px;border:1px solid #99f6e4;background:#f0fdfa;border-radius:12px;padding:8px}
+    st.textContent=`.cov-policy-bar{font-size:12px;border:2px solid #14b8a6;background:#f0fdfa;border-radius:12px;padding:8px}
+.cov-head{font-weight:800;font-size:13px;color:#0f766e;margin-bottom:6px}
+.cov-head span{font-weight:400;font-size:10px;color:#64748b}
+.cov-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e2e8f0;border-right:4px solid #cbd5e1;border-radius:8px;padding:5px 8px;margin-bottom:5px}
+.cov-row.on{border-color:var(--c,#0f766e);border-right-color:var(--c,#0f766e);background:#fff}
+.cov-lbl{display:flex;align-items:center;gap:5px;font-weight:700;cursor:pointer;color:#334155}
+.cov-row.on .cov-lbl{color:var(--c,#0f766e)}
+.cov-pair{display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:8px;padding:1px 6px}
+.cov-pair b{font-size:11px;color:#475569}
+.cov-unit{font-size:11px;color:#64748b}
+.cov-sub{flex-basis:100%;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding-right:22px;cursor:pointer;color:#475569}
+.cov-sub i{font-style:normal;font-weight:400;font-size:10px;color:#94a3b8}
+.cov-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-top:2px}
+.cov-status{font-size:11px;font-weight:700}
+.cov-btns{display:flex;gap:4px}
+.fgrp{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border:2px solid var(--c,#cbd5e1);background:#fff;border-radius:12px;padding:4px 8px 6px;position:relative}
+.fgrp>.fgl{position:absolute;top:-9px;right:10px;background:#fff;padding:0 6px;font-size:11px;font-weight:800;color:var(--c,#64748b);border-radius:6px}
+.fgrp{padding-top:10px;margin-top:6px}
 .cov-seg{font-size:11px;padding:2px 8px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;color:#374151;cursor:pointer}
 .cov-seg.on{background:#0f766e;border-color:#0f766e;color:#fff}
 .cov-badge{font-size:10px;padding:0 6px;border-radius:999px;font-weight:700;white-space:nowrap}
@@ -2278,6 +2415,8 @@ function renderVendorsList(){
             stance:(appState.officeStance[stanceKey]||{}).stance||''};
     });
 
+    const sendKept=sendModeOn() ? sendRows(appState.orders) : null, sendLive=sendKept && new Set(sendKept.map(o=>o.vendor));
+    sendModeBarSync(sendKept);
     // ======== أساس مشترك: بحث + مرسل/متبقي + حالة المكتب — يُطبَّق مرة وحدة، مو تفاعلي مثل الخمسة تحت ========
     const s=document.getElementById('vendorSearch').value.toLowerCase();
     let baseVendors=allVendors;
@@ -2305,7 +2444,7 @@ function renderVendorsList(){
         }
         if(skip!=='at'){
             if(appState.atFilter && appState.atFilter.size) v=v.filter(x=>appState.atFilter.has(x.atLvl));
-            if(appState.atOnlyMode) v=v.filter(x=>x.atLvl==='all-at' || x.atLvl==='some-at');
+            if(sendLive) v=v.filter(x=>sendLive.has(x.name)); // وضع الإرسال: مكتب ما بيه ولا مادة تنرسل يختفي
         }
         return v;
     }
@@ -2429,7 +2568,7 @@ function renderVendorsList(){
             // تعارض حقيقي: مندوبان بأرقام مختلفة يدّعون نفس المكتب. نعرض الأرجح + شارة ⚠️ للحسم،
             // بدل ما نخفي الرقم (السلوك القديم كان يطبع "بدون رقم" ويخلي المكتب معطّلاً للأبد).
             const cfBadge=v.repConflict?`<span class="rep-conflict" title="${escapeHtml(v.repConflict.length+' مندوبين يدّعون هذا المكتب — اضغط للحسم')}" onclick="event.stopPropagation();showRepConflict(${JSON.stringify(v.name).replace(/"/g,'&quot;')})">⚠️ ${v.repConflict.length}</span>`:'';
-            repLine=`<div class="vendor-rep-line"><i class="fas fa-user" style="font-size:8px"></i><span class="rep-name">${escapeHtml(v.rep.name||'—')}</span> • ${phoneTxt}${cfBadge}</div>`;
+            repLine=`<div class="vendor-rep-line"><i class="fas fa-user" style="font-size:8px"></i><span class="rep-name">${escapeHtml(v.rep.name||'—')}</span> • ${phoneTxt}${cfBadge}<span title="فكّ ربط المندوب عن هذا المكتب (المندوب نفسه يبقى بقائمة المندوبين)" onclick="event.stopPropagation();unlinkRepFromOffice(${JSON.stringify(v.name).replace(/"/g,'&quot;')})" style="cursor:pointer;color:#dc2626;font-weight:800;margin-inline-start:8px;padding:0 4px">✕</span></div>`;
         } else {
             repLine='<div class="vendor-rep-line"><span class="no-phone"><i class="fas fa-user-slash" style="font-size:9px"></i> بدون مندوب</span></div>';
         }
@@ -2472,6 +2611,26 @@ function renderVendorsList(){
     // ======== تحديث العداد دائماً بعد كل عرض ========
     updateQueueCounter();
 }
+
+// فكّ ربط المندوب عن مكتب من تبويب المكاتب نفسه (2026-10-10). يشيل الاسم الحرفي **وكل صيغه**
+// (الكانونية والمطبَّعة) من كل المندوبين — وإلا مندوب قديم ماسك صيغة ثانية لنفس المكتب يرجع يطلع
+// بعد الفكّ. المندوب نفسه يبقى بقائمة المندوبين (ممكن عنده مكاتب ثانية).
+function unlinkRepFromOffice(name){
+    const m=matchRepForOffice(name);
+    if(!m.rep){ showToast('هذا المكتب أصلاً بدون مندوب'); return; }
+    const who=[...new Set(m.candidates.map(r=>`${r.name||'—'} (${r.phone||'بدون رقم'})`))].join('\n• ');
+    if(!confirm(`فكّ ربط المندوب عن مكتب "${name}"؟\n• ${who}\n\nالمكتب يصير «بدون مندوب». المندوب نفسه يبقى بقائمة المندوبين.`)) return;
+    const canon=resolveOffice(name), key=_smNorm(canon);
+    const same=v=>v===name || resolveOffice(v)===canon || (!!key && _smNorm(resolveOffice(v))===key);
+    appState.representatives.forEach(r=>{ if(r.vendorNames) r.vendorNames=r.vendorNames.filter(v=>!same(v)); });
+    bumpRepIndex();
+    computeOtherVendors(appState.orders);
+    renderVendorsList();
+    renderRepsTable();
+    autoSave();
+    showToast(`✅ انفكّ ربط المندوب عن ${name}`);
+}
+window.unlinkRepFromOffice=unlinkRepFromOffice;
 
 function deleteVendor(name){
     const cnt=appState.orders.filter(o=>o.vendor===name).length;
@@ -2580,11 +2739,81 @@ function updateSortIndicators(prefix,field,dir){
     if(field){ const el=document.getElementById(`${prefix}sort-${field}`); if(el) el.textContent=dir===1?'↑':'↓'; }
 }
 
+// ======================== وضع الإرسال (2026-10-06) ========================
+// المصدر الوحيد لـ«شنو ينرسل». الصفوف تبقى بـappState.orders (المقارنة والأرشيف والفيندور الشامل يحتاجونها) —
+// وكل مسار يبني رسالة/صورة/PDF/طابور ياخذ مواده من sendRows() أو يمر بـfilterItems(). لا تكتب شرط الوضع بمكان ثاني.
+// بُعدان: at (الفحص @) و ov (مكاتب أخرى). cheap = مواد المراجعة (⛔ ≥ العتبة + فرق كبير) ما تروح للمكتب الأغلى · dear = عكسه بالضبط
+// (للإرسال بعد المراجعة بلا تكرار). Fail-closed: cheap/dear والنت ما محمَّل ← كل مادة بيها مكاتب أخرى موقوفة.
+const SEND_OV_NAMES={none:'بلا مكاتب أخرى', cheap:'بيها مكاتب (الأرخص)', dear:'بيها مكاتب (المؤجّلة)'};
+function sendMode(){ const m=appState.sendMode; return (m && m.at && m.ov && typeof m.at==='object') ? m : (appState.sendMode={at:{at:true,noat:true},ov:{none:true,cheap:true,dear:true}}); }
+function sendAtAll(){ const a=sendMode().at; return a.at && a.noat; }
+function sendOvAll(){ const o=sendMode().ov; return o.none && o.cheap && o.dear; }
+function sendModeOn(){ return !sendAtAll() || !sendOvAll(); }
+function sendAtLabel(){ const a=sendMode().at; return sendAtAll() ? '' : (a.at ? '@ فقط' : 'غير المفحوص فقط'); }
+function sendOvLabel(){ const o=sendMode().ov; return sendOvAll() ? '' : Object.keys(SEND_OV_NAMES).filter(k=>o[k]).map(k=>SEND_OV_NAMES[k]).join(' + '); }
+function sendModeLabel(){ return [sendAtLabel(), sendOvLabel()].filter(Boolean).join(' + '); }
+function sendHeldAt(o){
+    const a=sendMode().at; if(a.at && a.noat) return '';
+    const isAt=String(o.itemName||'').includes('@');
+    return isAt ? (a.at ? '' : 'مفحوصة @') : (a.noat ? '' : 'غير مفحوصة');
+}
+// يفترض gvNetSync() انّادت (sendRows/filterItems/globalFilteredItems يسوونها) — وإلا gvNetClass يقرا كاش قديم
+// الصنف = «بلا مكاتب أخرى» · «بيها مكاتب»: الأرخص (هذا المكتب أرخص/مساوي) أو المؤجّلة (أغلى = مواد ⛔ المراجعة). تنرسل المادة إذا صنفها معلَّم.
+function sendHeldOv(o){
+    const v=sendMode().ov; if(v.none && v.cheap && v.dear) return '';
+    if(!o.hasOtherVendors) return v.none ? '' : 'بلا مكاتب أخرى';
+    if(v.cheap && v.dear) return '';
+    if(!v.cheap && !v.dear) return 'بيها مكاتب أخرى';
+    if(!gvNetRows() || !window.npNetFor) return 'أسعار النت ما محمّلة';
+    const k=gvNetClass(o, gvNetThr()), dear=k==='warn'||k==='odd';
+    if(v.cheap) return dear ? 'أرخص عند '+gvOffShort(gvNetInfo(o).best.office) : '';
+    return dear ? '' : 'مو من المؤجّلة';
+}
+// keepOv = خلّي صفوف بُعد «مكاتب أخرى» ظاهرة (الفيندور الشامل يعرضها بشارة) — بُعد الفحص ينطبّق دائماً
+function sendHeld(o,keepOv){ return sendHeldAt(o) || (keepOv ? '' : sendHeldOv(o)); }
+function sendRows(rows){ if(!sendModeOn()) return rows; gvNetSync(); return rows.filter(o=>!sendHeld(o)); }
+// شارة الفيندور الشامل: ⏸ على الصف الموقوف دائماً · 📤 على أخوه المرسَل بس بفلتر «مواد المراجعة»
+function sendBadge(item, showSent){
+    if(sendOvAll()) return '';
+    const why=sendHeldOv(item);
+    if(!why && !showSent) return '';
+    return `<div class="mt-1"><span class="cov-badge" style="background:${why?'#e0e7ff':'#dcfce7'};color:${why?'#3730a3':'#166534'};white-space:normal" title="وضع الإرسال بتبويب المكاتب: ${escapeHtml(sendOvLabel())}">${why ? '⏸ ما تنرسل — '+escapeHtml(why) : '📤 تنرسل'}</span></div>`;
+}
+// سطر الحالة تحت القائمتين بتبويب المكاتب — kept = ناتج sendRows(appState.orders) أو null إذا الوضع «الكل»
+function sendModeBarSync(kept){
+    const bar=document.getElementById('sendModeBar'), hint=document.getElementById('sendModeHint'); if(!bar||!hint) return;
+    const m=sendMode(), on=!!kept;
+    document.querySelectorAll('input[data-sm]').forEach(cb=>{ const [g,k]=cb.dataset.sm.split(':'); cb.checked=!!m[g][k]; });
+    bar.style.borderColor=on ? '#4f46e5' : '#16a34a'; bar.style.background=on ? '#eef2ff' : '#fff';
+    const v=m.ov, noNet=(v.cheap!==v.dear) && !gvNetRows();
+    hint.classList.toggle('hidden', !on);
+    hint.style.color=noNet ? '#b91c1c' : '#3730a3';
+    if(on) hint.textContent=(noNet ? '💲 أسعار النت ما محمّلة — المواد اللي بيها مكاتب أخرى موقوفة · ' : '')
+        +`⏸ ${appState.orders.length-kept.length} من ${appState.orders.length} مادة ما تنرسل`+(!sendOvAll() ? ' — «🔍 مواد المراجعة» بالفيندور الشامل' : '');
+}
+// علامة صح: آخر علامة بالمجموعة ما تنشال (وإلا ما ينرسل شي). «الأرخص» أو «المؤجّلة» لحالها (مو الثنتين) تحتاج أسعار النت:
+// ننتظر تحميلها، وإذا بعدها فارغة نرجّع المجموعة كلها معلَّمة (ما نخلي وضع يوقف كل شي بصمت)
+async function sendModeToggle(cb){
+    const [g,k]=cb.dataset.sm.split(':'), grp=sendMode()[g];
+    grp[k]=cb.checked;
+    if(!Object.values(grp).some(Boolean)){ grp[k]=true; }
+    if(g==='ov' && grp.cheap!==grp.dear && !gvNetRows()){
+        try{ if(window.npBonusReady) await window.npBonusReady(); }catch(e){ console.warn('send mode net load failed', e); }
+        if(!gvNetRows()){ alert('💲 أسعار النت ما مزامَنة — «الأرخص» أو «المؤجّلة» لحالها تحتاجها حتى يعرف المكتب الأرخص.\nسوّي ⚡ مزامنة من تبويب «البونصات» أول.'); grp.cheap=grp.dear=true; }
+    }
+    renderVendorsList();
+    if(appState.selectedVendor) renderItemsTable(appState.orders.filter(o=>o.vendor===appState.selectedVendor));
+    if(typeof updateQueueCounter==='function') updateQueueCounter();
+    renderGlobalView();
+}
+window.sendRows=sendRows; window.sendHeld=sendHeld; window.sendModeToggle=sendModeToggle;
+
 // ======================== FILTER + RENDER ITEMS ========================
 function filterItems(items,filters){
+    if(sendModeOn()) gvNetSync();
     let f=items.filter(item=>{
-        // فلتر "إرسال @ فقط" (Global) — يطبق على كل العروض
-        if(appState.atOnlyMode && !String(item.itemName||'').includes('@')) return false;
+        // وضع الإرسال — يطبق على كل العروض (الفيندور الشامل يمرّر keepOv)
+        if(sendHeld(item, filters.keepOv)) return false;
         if(filters.search&&!item.itemName.toLowerCase().includes(filters.search.toLowerCase())) return false;
         if(filters.reqCompare){
             if(filters.reqCompare==='check'){ if(!item.isCheck) return false; }
@@ -2661,11 +2890,305 @@ window.deleteItem=deleteItemById;
 // ======================== GLOBAL VIEW ========================
 // قائمة جدول الفيندور الشامل بعد كل فلاتره (بحث · كمية · شركة · حصة · مكاتب أخرى · FAKE · الچبس) —
 // مصدر واحد للشاشة والطباعة (gvExportPDF) حتى ما يطلع الـPDF غير اللي ظاهر.
+// ===== مقارنة سعر النت بين «مكاتب أخرى» (2026-10-06) — عرض وتحذير فقط، ما تغيّر أي كمية.
+// السعر الأول = أحدث شراء لمكتب السطر · السعر الثاني = أرخص سعر بين المكاتب الأخرى لنفس المادة بالطلبية (مجمّعة بروابط المكاتب).
+// الفرق = (الأول − الثاني) ÷ الأول، والعتبة يحددها المستخدم من هنا (gv_net_thr) — مو عمود «Net -10%» مال الإكسل.
+const GV_NET_THR_KEY='gv_net_thr', GV_NET_STALE_MS=183*864e5, GV_NET_ODD=0.7;
+// سعر أرخص من أغلى سعر بالمقارنة بأكثر من 90% = مجاني/تعويض، مو سعر شراء (قرار مصطفى 2026-10-06) — يطلع من المقارنة كلها
+const GV_NET_FREE=0.9;
+function gvNetThr(){
+    let v=10;
+    try{ const s=localStorage.getItem(GV_NET_THR_KEY); if(s!==null && s!=='' && isFinite(+s)) v=+s; }catch(_){}
+    return Math.min(100, Math.max(0, v));
+}
+const gvNetRows=()=>(window.__npState && window.__npState.rows) || null;
+const gvNetLit=_pcLit;
+const gvNetTight=s=>String(s||'').replace(/[@&]+/g,' ').toUpperCase().replace(/[^A-Z0-9؀-ۿ]/g,'');
+const gvOffShort=s=>String(s||'').replace(/[@&#]+/g,' ').split(/[\/\\]| - |\.\.|ــ/)[0].trim() || String(s||'').trim();
+const gvNetFmt=n=>Math.round(n).toLocaleString('en-US');
+// يُنادى مرة ببداية كل فلترة/رسم: يصفّر الكاش إذا تغيّرت صفوف النت أو **محتوى** روابط المكاتب أو الطلبية
+let _gvNetCache=null;
+const gvNetVKey=v=>_smNorm(resolveOffice(v));
+function gvNetSync(){
+    const rows=gvNetRows(), links=JSON.stringify(appState.officeLinks||[]), orders=appState.orders, c=_gvNetCache;
+    if(c && c.rows===rows && c.links===links && c.orders===orders && c.n===orders.length) return;
+    // المكاتب الأخرى للمقارنة تنحسب هنا من الطلبية الحالية وبالروابط الحالية (نفس تجميع computeOtherVendors) — بلا ما تنلمس
+    // حقول العرض otherVendors/hasOtherVendors: ذيچ يحدّثها applyExcludeFilter بشروطه، وإعادة حسابها من هنا تغيّر عمود تبويب المكاتب.
+    // sib = مواد بالطلبية أسماؤها تتطابق بعد شيل الرموز («X» و«X@») — المطابقة الواسعة ما تنوثق بيها لهذني
+    const byItem=new Map(), sib=new Map();
+    orders.forEach(o=>{
+        let vm=byItem.get(o.itemName); if(!vm) byItem.set(o.itemName, vm=new Map());
+        const vk=gvNetVKey(o.vendor); if(!vm.has(vk)) vm.set(vk, o.vendor);
+        const k=gvNetTight(o.itemName); let s=sib.get(k); if(!s) sib.set(k, s=new Set()); s.add(String(o.itemName).replace(/\s+/g,' ').trim().toUpperCase());
+    });
+    _gvNetCache={rows, links, orders, n:orders.length, byItem, sib, map:new Map()};
+}
+// سعر مكتب معيّن من صفوف المادة. _smNorm يقطع بعد «/» فمكتبان مختلفان ممكن ينهارون لنفس المفتاح
+// («مذخر امواج الساحل/ايهاب» و«مكتب امواج الساحل/ليث»): عند التصادم ناخذ المطابق حرفياً بس، وإلا ملتبس بلا سعر.
+function gvNetPick(rows, vendor){
+    const k=_smNorm(resolveOffice(vendor));
+    let c=rows.filter(r=>_smNorm(resolveOffice(r.vendor))===k);
+    if(!c.length) return null;
+    const seen=new Map(); let clash=false;
+    c.forEach(r=>{ const n=_smNorm(r.vendor), l=gvNetLit(r.vendor); if(seen.has(n) && seen.get(n)!==l) clash=true; else seen.set(n,l); });
+    if(clash){ const lit=gvNetLit(vendor); c=c.filter(r=>gvNetLit(r.vendor)===lit); if(!c.length) return {ambig:true}; }
+    const r=c.reduce((a,b)=>String(b.date)>String(a.date) ? b : a);
+    return {net:r.net, date:r.date, vendor:r.vendor};
+}
+// مقارنة (مادة، مكتب) ويه باقي مكاتب المادة بالطلبية الحالية — تقبل زوج مو بالطلبية (سطر ملغى سعرياً باللوحة).
+// تفترض gvNetSync() انّادت والنت مزامَن.
+function gvNetCompute(itemName, vendor){
+    const c=_gvNetCache, rows=window.npNetFor(itemName)||[], myKey=gvNetVKey(vendor);
+    const otherNames=Array.from(c.byItem.get(itemName)||[]).filter(([k])=>k!==myKey).map(([,name])=>name);
+    const info={mine:null, best:null, diff:null, amb:'', via:rows.via, all:rows, nOther:otherNames.length};
+    if(rows.ambig || (rows.via!=='exact' && (c.sib.get(gvNetTight(itemName))||{size:0}).size>1)){ info.amb='اسم المادة يطابق أكثر من مادة — ما انقارنت'; info.all=[]; }
+    else if(rows.length){
+        let mine=gvNetPick(rows, vendor);
+        if(mine && mine.ambig){ info.amb='اسم المكتب يطابق أكثر من مكتب بملف النت'; mine=null; }
+        const others=[];
+        otherNames.forEach(v=>{
+            const p=gvNetPick(rows, v);
+            if(!p) return;
+            if(p.ambig){ info.amb=info.amb||('اسم «'+gvOffShort(v)+'» يطابق أكثر من مكتب بملف النت'); return; }
+            others.push(Object.assign({office:v}, p));
+        });
+        // المرجع = أغلى سعر بين مكاتب المقارنة (السطر + الأخرى) — مو كل ملف النت، حتى سعر خربان عند مكتب برّا الطلبية ما يطيّح الباقي
+        const ref=Math.max(0, mine ? mine.net : 0, ...others.map(p=>p.net)), isFree=p=>ref>0 && (ref-p.net)/ref>GV_NET_FREE+1e-9;
+        info.ref=ref;
+        const cheapest=a=>a.reduce((m,p)=>(!m || p.net<m.net) ? p : m, null);
+        if(mine && isFree(mine)) info.mineFree=mine; else info.mine=mine;
+        info.best=cheapest(others.filter(p=>!isFree(p)));
+        if(!info.best) info.bestFree=cheapest(others.filter(isFree));
+        if(info.mine && info.best) info.diff=(info.mine.net-info.best.net)/info.mine.net;
+    }
+    return info;
+}
+// null = النت ما مزامَن
+function gvNetInfo(item){
+    const c=_gvNetCache;
+    if(!c || !c.rows || !window.npNetFor) return null;
+    let info=c.map.get(item);
+    if(!info) c.map.set(item, info=gvNetCompute(item.itemName, item.vendor));
+    return info;
+}
+// warn = أرخص عند غيره بفرق ≥ العتبة · cheaper = أرخص بفرق أقل · best = هذا الأرخص · nocmp = بيها مكاتب أخرى وما تنقارن · '' = ما يخصها
+// odd = فرق ≥ 70% — غالباً سعر مدخول غلط أو عبوة مختلفة (22,223 مقابل 15)، فما ينحسب ويه ⛔ ولا بعدّاده
+function gvNetClass(item, thr){ return gvNetClassOf(gvNetInfo(item), thr); }
+function gvNetClassOf(i, thr){
+    if(!i || !i.nOther) return '';
+    if(i.diff==null) return 'nocmp';
+    if(i.diff<=0) return 'best';
+    if(i.diff>=GV_NET_ODD) return 'odd';
+    return i.diff*100>=thr-1e-9 ? 'warn' : 'cheaper';
+}
+function gvNetBadge(item, thr){
+    const k=gvNetClass(item, thr), i=gvNetInfo(item);
+    if(!k) return '';
+    const b=(txt,fg,bg,title)=>`<div class="mt-1"><span class="cov-badge" style="background:${bg};color:${fg};white-space:normal" title="${escapeHtml(title||'')}">${txt}</span></div>`;
+    if(k==='nocmp') return i.amb ? b('⚠️ '+escapeHtml(i.amb), '#92400e', '#fef3c7') : '';
+    if(k==='best') return b('✓ الأرخص', '#166534', '#dcfce7', 'سعر هذا المكتب أقل أو يساوي كل المكاتب الأخرى اللي إلها سعر');
+    const pct=Math.floor(i.diff*1000)/10, to=escapeHtml(gvOffShort(i.best.office));
+    if(k==='odd') return b(`⚠️ فرق كبير ${pct}% عن ${to} — تأكد من السعر`, '#92400e', '#fef3c7', 'فرق بهالحجم غالباً سعر مدخول غلط أو عبوة مختلفة');
+    if(k==='warn') return b(`⛔ لا تقطع من ${escapeHtml(gvOffShort(item.vendor))} — اقطع من ${to} (أرخص ${pct}%)`, '#b91c1c', '#fee2e2');
+    return b(`أرخص عند ${to} بـ${pct}%`, '#64748b', '#f1f5f9', 'الفرق أقل من العتبة');
+}
+// خليتا «السعر الأول» و«السعر الثاني» — التلميح يسرد كل مكاتب ملف النت للمادة، حتى اللي مو بالطلبية
+function gvNetCells(item){
+    const i=gvNetInfo(item), dash='<td class="p-2 text-center text-gray-300">—</td>';
+    if(!i) return dash+dash;
+    const tip=escapeHtml(i.all.length
+        ? 'كل مكاتب ملف النت لهالمادة'+(i.via!=='exact' ? ' (← '+String(i.all[0].name).trim()+')' : '')+':\n'
+            +i.all.slice().sort((a,b)=>a.net-b.net).map(r=>`${i.ref>0 && (i.ref-r.net)/i.ref>GV_NET_FREE+1e-9 ? '🎁 ' : ''}${gvNetFmt(r.net)} — ${String(r.vendor).trim()} (${r.date||'؟'})`).join('\n')
+        : (i.amb||'ماكو شراء بهالاسم بملف النت'));
+    const cell=(p, name, free)=>{
+        if(!p && free) return `<td class="p-2 text-[10px] text-center text-gray-400" title="${tip}" style="max-width:150px"><span style="white-space:nowrap">🎁 <s>${gvNetFmt(free.net)}</s></span>`
+            +`<div>${name ? escapeHtml(name)+' · ' : ''}مجاني/تعويض — ما انحسب</div></td>`;
+        if(!p) return `<td class="p-2 text-center text-gray-300" title="${tip}">—</td>`;
+        const old=p.date && (Date.now()-Date.parse(p.date))>GV_NET_STALE_MS;
+        return `<td class="p-2 text-xs text-center" title="${tip}" style="max-width:150px${old?';color:#9ca3af':''}"><b style="white-space:nowrap">${gvNetFmt(p.net)}</b>`
+            +`<div class="text-[10px] ${old?'':'text-gray-500'}">${name ? escapeHtml(name)+' · ' : ''}${old?'🕓 ':''}${escapeHtml(p.date||'')}</div></td>`;
+    };
+    return cell(i.mine, '', i.mineFree)+cell(i.best, gvOffShort((i.best||i.bestFree||{}).office), i.bestFree);
+}
+// صفوف النت تتحمّل من المخزن بلا انتظار — الرسم الأول فوري، وهذا يعيده إذا وصلت/تغيّرت والتبويب بعده مفتوح
+function gvNetEnsure(){
+    if(!window.npBonusReady) return;
+    const before=gvNetRows();
+    window.npBonusReady().then(()=>{
+        const t=document.getElementById('globalTab');
+        if(gvNetRows()!==before && t && t.offsetParent!==null) renderGlobalView();
+    }).catch(e=>console.warn('gv net load failed', e));
+}
+
+// ===== لوحة «فرق الأسعار» (2026-10-06) — تسرد سطور ⛔ وتلغي المادة من المكتب الأغلى (appState.priceCancel، شوف pcBuildIndex).
+// الكميات ما تنلمس. السطر الملغى يبقى باللوحة بسعره الحالي وزر ↩ — هي المكان الوحيد اللي يعرض الإلغاءات ويرجّعها.
+let _gvPcSkip=new Set(), _gvPcShown=[], _gvPcWired=false; // _gvPcSkip = مكاتب «لا تلمسها» لهالفتحة بس (مفتاح gvNetVKey)
+let _gvPcView='all'; // all | warn (التحذيرات بس) | held (المؤجّلة بس — للمراجعة بعد الإرسال) · الطباعة تتبع العرض
+const gvPcPct=d=>d==null ? '—' : d<0 ? `أرخص ${Math.trunc(-d*1000)/10}%` : (Math.trunc(d*1000)/10)+'%';
+const gvPcMoney=n=>n>0 ? gvNetFmt(n) : '—';
+function gvPcRows(){
+    gvNetSync();
+    const thr=gvNetThr(), ok=!!gvNetRows(), act=[], can=[];
+    if(ok) appState.orders.forEach(o=>{
+        if(gvNetClass(o,thr)!=='warn') return;
+        const i=gvNetInfo(o);
+        act.push({item:o.itemName, qty:o.requiredQty, vendor:o.vendor, p1:i.mine.net, alt:i.best.office, p2:i.best.net, diff:i.diff});
+    });
+    act.sort((a,b)=>String(a.vendor).localeCompare(String(b.vendor),'ar') || b.diff-a.diff);
+    const list=appState.priceCancel||[];
+    if(list.length){
+        const raw=appState.ordersRaw||[], byKey=new Map(), lits=new Map();
+        raw.forEach(o=>{
+            const vk=_smNorm(o.vendor), k=_matNorm(o.itemName)+'|'+vk;
+            let a=byKey.get(k); if(!a) byKey.set(k, a=[]); a.push(o);
+            let s=lits.get(vk); if(!s) lits.set(vk, s=new Set()); s.add(_pcLit(o.vendor));
+        });
+        list.forEach((e,idx)=>{
+            const vk=_smNorm(e.vendor), same=byKey.get(_matNorm(e.material)+'|'+vk)||[];
+            const row=same.find(o=>(lits.get(vk)||{size:0}).size<=1 || _pcLit(o.vendor)===_pcLit(e.vendor));
+            let note='', cur=null;
+            if(!same.length) note='المادة مو بالطلبية الحالية عند هذا المكتب';
+            else if(!row) note='⚠️ ما انطبق — اسم المكتب تغيّر';
+            else if(ok){ cur=gvNetCompute(row.itemName, row.vendor); if(cur.diff!=null && cur.diff<=0) note='⚠️ ما عاد أغلى — رجّعه؟'; }
+            const live=!!(cur && cur.mine && cur.best);
+            can.push({idx, item:row ? row.itemName : e.material, vendor:row ? row.vendor : e.vendor, qty:row ? row.requiredQty : '—',
+                p1:live ? cur.mine.net : e.p1, alt:live ? cur.best.office : e.alt, p2:live ? cur.best.net : e.p2,
+                diff:live ? cur.diff : (e.p1>0 ? (e.p1-e.p2)/e.p1 : null), note});
+        });
+    }
+    return {act, can, ok, thr};
+}
+function gvPcRender(){
+    const body=document.getElementById('gvPcBody'); if(!body) return;
+    const {act, can, ok, thr}=gvPcRows(), esc=escapeHtml;
+    const offs=new Map();
+    act.forEach(r=>{ const k=gvNetVKey(r.vendor); let g=offs.get(k); if(!g) offs.set(k, g={name:r.vendor, n:0}); g.n++; });
+    const shown=_gvPcShown=_gvPcView==='held' ? [] : act.filter(r=>!_gvPcSkip.has(gvNetVKey(r.vendor)));
+    const canShown=_gvPcView==='warn' ? [] : can;
+    const seg=(v,label)=>`<button type="button" data-pc="view" data-v="${v}" class="ios-btn text-xs px-3 py-1 font-bold" style="background:${_gvPcView===v?'#0369a1':'#f3f4f6'};color:${_gvPcView===v?'#fff':'#374151'}">${label}</button>`;
+    const btn=(pc,label,bg,fg,dis)=>`<button type="button" data-pc="${pc}" class="ios-btn text-xs px-3 py-2 font-bold" style="background:${bg};color:${fg}${dis?';opacity:.4;pointer-events:none':''}">${label}</button>`;
+    const chips=Array.from(offs).map(([k,g])=>{ const off=_gvPcSkip.has(k);
+        return `<span style="display:inline-flex;align-items:center;gap:6px;background:${off?'#f3f4f6':'#fee2e2'};border:1px solid ${off?'#e5e7eb':'#fecaca'};border-radius:14px;padding:3px 10px;font-size:12px;font-weight:700;margin:2px;${off?'opacity:.55;text-decoration:line-through':''}">`
+            +`${esc(gvOffShort(g.name))} <b>${g.n}</b><span data-pc="skip" data-k="${esc(k)}" style="cursor:pointer;text-decoration:none" title="${off?'رجّع هذا المكتب للّوحة':'لا تلمس هذا المكتب — صفوفه تطلع من اللوحة بلا إلغاء'}">${off?'↺':'✕'}</span></span>`; }).join('');
+    const td='class="p-2 border border-gray-200"';
+    const rowsAct=shown.map((r,i)=>`<tr>
+        <td ${td} style="text-align:center;color:#9ca3af">${i+1}</td><td ${td}>${esc(r.item)}</td><td ${td} style="text-align:center;font-weight:700">${esc(String(r.qty??''))}</td>
+        <td ${td}>${esc(gvOffShort(r.vendor))} <b style="color:#b91c1c;white-space:nowrap">${gvPcMoney(r.p1)}</b></td>
+        <td ${td}>${esc(gvOffShort(r.alt))} <b style="color:#166534;white-space:nowrap">${gvPcMoney(r.p2)}</b></td>
+        <td ${td} style="text-align:center;font-weight:700;color:#b91c1c">${gvPcPct(r.diff)}</td>
+        <td ${td} style="text-align:center"><button type="button" data-pc="cancel" data-i="${i}" class="ios-btn text-xs px-2 py-1 font-bold" style="background:#fee2e2;color:#b91c1c" title="أجّل المادة من ${esc(gvOffShort(r.vendor))} — ما تنرسل له لحد ما ترجّعها">✕ أجّل</button></td></tr>`).join('');
+    const rowsCan=canShown.map((r,i)=>`<tr style="background:#f9fafb;color:#9ca3af">
+        <td ${td} style="text-align:center">${shown.length+i+1}</td><td ${td}><s>${esc(r.item)}</s>${r.note ? `<div style="font-size:10px;font-weight:700;color:#b45309">${esc(r.note)}</div>` : ''}</td><td ${td} style="text-align:center">${esc(String(r.qty??''))}</td>
+        <td ${td}><s>${esc(gvOffShort(r.vendor))}</s> <span style="white-space:nowrap">${gvPcMoney(r.p1)}</span> <span style="font-size:10px;font-weight:700">⏸ مؤجّلة</span></td>
+        <td ${td}>${esc(gvOffShort(r.alt))} <span style="white-space:nowrap">${gvPcMoney(r.p2)}</span></td>
+        <td ${td} style="text-align:center">${gvPcPct(r.diff)}</td>
+        <td ${td} style="text-align:center"><button type="button" data-pc="restore" data-idx="${r.idx}" class="ios-btn text-xs px-2 py-1 font-bold" style="background:#dcfce7;color:#166534" title="رجّع المادة لطلبية ${esc(gvOffShort(r.vendor))}">↩ رجّع</button></td></tr>`).join('');
+    body.innerHTML=(ok ? '' : '<div class="text-sm font-bold mb-2" style="color:#b45309">💲 أسعار النت ما مزامَنة — ماكو تحذيرات تنعرض. سوّي ⚡ مزامنة أول.</div>')
+        +(sendMode().ov.cheap && !sendMode().ov.dear ? '<div class="text-xs font-bold mb-2 rounded-lg p-2" style="background:#eef2ff;color:#3730a3">⏸ وضع الإرسال «الأرخص فقط» شغّال بتبويب المكاتب — التحذيرات تحت أصلاً ما تنرسل للمكتب الأغلى طول ما الوضع شغّال. «✕ أجّل» يخليها مؤجّلة دائماً حتى لو رجّعت الوضع «الكل».</div>' : '')
+        +`<div class="flex flex-wrap items-center gap-2 mb-2">${btn('all',`⏸ خلّي الأرخص بس — أجّل الظاهر (${shown.length})`,'#fee2e2','#b91c1c',!shown.length)}${btn('restoreAll',`↩ رجّع الكل (${can.length})`,'#dcfce7','#166534',!can.length)}${btn('print','🖨️ اطبع الظاهر','rgba(194,65,12,0.1)','#c2410c',!shown.length && !canShown.length)}
+            <span class="text-xs text-gray-500 font-bold">العتبة ${thr}% · ${act.length} تحذير · ${can.length} مؤجّلة</span></div>
+            <div class="flex flex-wrap items-center gap-1 mb-2"><span class="text-xs font-bold text-gray-500">اعرض:</span> ${seg('all','الكل')}${seg('warn',`⛔ التحذيرات (${act.length})`)}${seg('held',`⏸ المؤجّلة (${can.length})`)}</div>`
+        +(chips && _gvPcView!=='held' ? `<div class="mb-2"><span class="text-xs font-bold text-gray-500">المكاتب الأغلى:</span> ${chips}</div>` : '')
+        +((rowsAct||rowsCan) ? `<div class="overflow-auto rounded-xl border" style="max-height:56vh"><table class="w-full text-xs border-collapse">
+            <thead class="bg-gray-100 sticky top-0"><tr><th ${td} style="width:36px">#</th><th ${td}>المادة</th><th ${td}>الكمية</th><th ${td}>المكتب الأغلى · سعره</th><th ${td}>المكتب الأرخص · سعره</th><th ${td}>الفرق</th><th ${td}></th></tr></thead>
+            <tbody>${rowsAct}${rowsCan}</tbody></table></div>`
+          : (_gvPcView==='held' ? '<div class="text-sm text-gray-400 p-4 text-center">ماكو مواد مؤجّلة</div>'
+             : ok ? '<div class="text-sm text-gray-400 p-4 text-center">ماكو مواد أرخص عند مكتب ثاني بهالعتبة ✓</div>' : ''));
+}
+// نفس تسلسل quickExclude: حفظ ← إعادة فلترة الطلبية ← إعادة رسم كل اللي يقرا appState.orders
+function gvPcAfter(){
+    saveToStorage();
+    applyExcludeFilter();
+    renderVendorsList();
+    if(appState.selectedVendor) renderItemsTable(appState.orders.filter(o=>o.vendor===appState.selectedVendor));
+    if(typeof updateQueueCounter==='function') updateQueueCounter();
+    renderGlobalView();
+    gvPcRender();
+}
+function gvPcCancel(rows){
+    const now=new Date().toISOString(), have=new Set((appState.priceCancel||[]).map(e=>_matNorm(e.material)+'|'+_smNorm(e.vendor)+'|'+_pcLit(e.vendor)));
+    if(!Array.isArray(appState.priceCancel)) appState.priceCancel=[];
+    rows.forEach(r=>{
+        const k=_matNorm(r.item)+'|'+_smNorm(r.vendor)+'|'+_pcLit(r.vendor);
+        if(have.has(k)) return;
+        have.add(k); appState.priceCancel.push({material:r.item, vendor:r.vendor, alt:r.alt, p1:r.p1, p2:r.p2, addedAt:now});
+    });
+    gvPcAfter();
+}
+function gvPcClick(e){
+    const b=e.target.closest('[data-pc]'); if(!b) return;
+    const a=b.dataset.pc;
+    if(a==='view'){ _gvPcView=b.dataset.v; gvPcRender(); }
+    else if(a==='skip'){ const k=b.dataset.k; if(_gvPcSkip.has(k)) _gvPcSkip.delete(k); else _gvPcSkip.add(k); gvPcRender(); }
+    else if(a==='cancel'){ const r=_gvPcShown[+b.dataset.i]; if(r) gvPcCancel([r]); }
+    else if(a==='all'){ const rows=_gvPcShown.slice(); if(rows.length && confirm(`تأجيل ${rows.length} مادة من مكاتبها الأغلى؟\nتبقى بالطلبية عند المكتب الأرخص بس، وما تنرسل للمكاتب الأغلى لحد ما ترجّعها من «⏸ المؤجّلة». الكميات ما تتغيّر.`)) gvPcCancel(rows); }
+    else if(a==='restore'){ appState.priceCancel.splice(+b.dataset.idx,1); gvPcAfter(); }
+    else if(a==='restoreAll'){ const n=(appState.priceCancel||[]).length; if(n && confirm(`ترجيع ${n} مادة مؤجّلة لمكاتبها؟`)){ appState.priceCancel=[]; gvPcAfter(); } }
+    else if(a==='print') gvPcPrint();
+}
+window.gvPcOpen=function(){
+    const m=document.getElementById('gvPcModal'); if(!m) return;
+    if(!_gvPcWired){ m.addEventListener('click', gvPcClick); _gvPcWired=true; }
+    _gvPcSkip=new Set(); _gvPcView='all';
+    m.classList.remove('hidden');
+    gvPcRender();
+    if(!gvNetRows() && window.npBonusReady) window.npBonusReady().then(()=>{ if(gvNetRows() && !m.classList.contains('hidden')){ renderGlobalView(); gvPcRender(); } }).catch(e=>console.warn('gv net load failed', e));
+};
+// طباعة اللي ظاهر باللوحة بالمولّد المشترك dtPdfGrouped — مجموعة لكل مكتب أغلى، وآخر مجموعة للملغاة
+async function gvPcPrint(){
+    const rowsNow=gvPcRows(), thr=rowsNow.thr, shown=_gvPcShown, can=_gvPcView==='warn' ? [] : rowsNow.can; // الطباعة تتبع «اعرض»
+    if(!shown.length && !can.length){ alert('⚠️ ماكو شي ينطبع'); return; }
+    try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(_){}
+    const cell=(r,i,withOffice)=>({v:{ n:String(i+1), item:String(r.item)+(withOffice ? '   ←  '+gvOffShort(r.vendor) : ''), qty:String(r.qty??'—'),
+        p1:gvPcMoney(r.p1), alt:gvOffShort(r.alt), p2:gvPcMoney(r.p2), diff:gvPcPct(r.diff) }});
+    const byV=new Map();
+    shown.forEach(r=>{ let a=byV.get(r.vendor); if(!a) byV.set(r.vendor, a=[]); a.push(r); });
+    const groups=Array.from(byV).map(([v,rows])=>[`${v}  —  ${rows.length} مادة أرخص عند مكتب ثاني`, rows.map((r,i)=>cell(r,i))]);
+    if(can.length) groups.push([`مؤجّلة من المكتب الأغلى  —  ${can.length} مادة`, can.map((r,i)=>cell(r,i,true))]);
+    showToast('⏳ جاري تجهيز PDF...',true);
+    try{ await window.dtPdfGrouped({
+        title:'Mansoor Pharmacy Report — فرق الأسعار بين المكاتب',
+        note:`عتبة الفرق ${thr}% · ${shown.length} تحذير · ${can.length} مؤجّلة`, searchKeys:['item','alt'],
+        cols:[
+            {key:'n',    label:'#',               w:10, align:'center', maxLines:1},
+            {key:'item', label:'المادة',           w:104, align:'left', maxLines:2},
+            {key:'qty',  label:'الكمية',           w:20, align:'center', maxLines:1},
+            {key:'p1',   label:'سعر المكتب',       w:26, align:'center', maxLines:1},
+            {key:'alt',  label:'المكتب الأرخص',    w:72, align:'right', maxLines:2, rtl:true},
+            {key:'p2',   label:'سعر الأرخص',       w:26, align:'center', maxLines:1},
+            {key:'diff', label:'الفرق',            w:20, align:'center', maxLines:1},
+        ],
+        groups, fileName:'فرق_الاسعار_بين_المكاتب', print:true
+    }); }catch(e){ showToast('❌ فشل توليد PDF'); alert('❌ فشل توليد PDF: '+(e&&e.message||e)); return; }
+    showToast('🖨️ الورقة جاهزة — نافذة الطباعة تفتح');
+}
+// شارة بالجدول الرئيسي على سطر المكتب الأرخص: المادة ملغاة من مكتب أغلى
+function gvPcBadge(item){
+    const list=appState.priceCancel||[];
+    if(!list.length) return '';
+    const m=_matNorm(item.itemName), vk=gvNetVKey(item.vendor);
+    const from=list.filter(e=>_matNorm(e.material)===m && gvNetVKey(e.alt)===vk).map(e=>gvOffShort(e.vendor));
+    return from.length ? `<div class="mt-1"><span class="cov-badge" style="background:#f1f5f9;color:#64748b;white-space:normal" title="أجّلتها من لوحة فرق الأسعار — ترجع من نفس اللوحة">⏸ مؤجّلة من ${escapeHtml(from.join(' ، '))}</span></div>` : '';
+}
+
 function globalFilteredItems(){
+    gvNetSync();
     let all=[...appState.orders];
     const f=appState.globalFilters;
-    all=filterItems(all,{search:f.item,reqCompare:f.reqCompare,reqValue:f.reqValue,company:f.company,share:f.share,otherVendors:f.other,fake:f.fake,sortField:f.sortField,sortDir:f.sortDir});
+    // keepOv: صفوف وضع الإرسال (بُعد «مكاتب أخرى») تبقى ظاهرة هنا بشارة ⏸ — بُعد الفحص يبقى يخفي مثل قبل
+    all=filterItems(all,{keepOv:true,search:f.item,reqCompare:f.reqCompare,reqValue:f.reqValue,company:f.company,share:f.share,otherVendors:f.other,fake:f.fake,sortField:f.sortField,sortDir:f.sortDir});
     all=all.filter(item=>!f.vendor||item.vendor.toLowerCase().includes(f.vendor.toLowerCase()));
+    // 🔍 مواد المراجعة: كل صفوف المادة اللي بيها صف موقوف بوضع الإرسال — المادة تنحسب على الطلبية كلها (مو المفلتر) حتى يطلع أخوها المرسَل وياها
+    if(f.net==='review'){
+        const held=new Set(appState.orders.filter(o=>!sendHeldAt(o) && sendHeldOv(o)).map(o=>o.itemName));
+        all=all.filter(o=>held.has(o.itemName));
+        if(!f.sortField) all.sort((a,b)=>String(a.itemName).localeCompare(String(b.itemName)) || String(a.vendor).localeCompare(String(b.vendor),'ar'));
+    }
+    // فلتر فرق سعر النت — يتجاهَل إذا النت ما مزامَن (وإلا يفرّغ الجدول والطباعة بلا سبب ظاهر)
+    else if(f.net && gvNetRows()){
+        const thr=gvNetThr();
+        all=all.filter(o=>{ const k=gvNetClass(o,thr); const dear=k==='warn'||k==='cheaper'||k==='odd'; return f.net==='any' ? dear : f.net==='hideDear' ? !dear : k===f.net; });
+    }
     // Apply global kanban chip filter
     if(typeof globalKanbanFilter === 'function') all=globalKanbanFilter(all);
     return all;
@@ -2678,6 +3201,14 @@ function renderGlobalView(){
     if(appState.globalPage>totalPages) appState.globalPage=Math.max(1,totalPages);
     const start=(appState.globalPage-1)*appState.pageSize;
     const pageItems=all.slice(start,start+appState.pageSize);
+    const netThr=gvNetThr(), netOk=!!gvNetRows(), netSel=document.getElementById('globalNetFilter'), netHint=document.getElementById('globalNetHint');
+    if(netSel) netSel.disabled=!netOk;
+    // عدد المؤجّلة ظاهر على الزر — حتى مواد مؤجّلة من دورة سابقة ما تبقى شغّالة وما أحد منتبه
+    const pcBtn=document.getElementById('gvPcBtn'), pcN=(appState.priceCancel||[]).length;
+    if(pcBtn) pcBtn.textContent='⛔ لوحة فرق الأسعار'+(pcN ? ` · ⏸ ${pcN} مؤجّلة` : '');
+    if(netHint) netHint.textContent=netOk
+        ? `⛔ ${appState.orders.reduce((n,o)=>n+(gvNetClass(o,netThr)==='warn'?1:0),0)} سطر أرخص عند مكتب ثاني (≥ ${netThr}%)`
+        : '💲 أسعار النت ما مزامَنة — السعران فارغان';
     const tbody=document.getElementById('globalTableBody');
     tbody.innerHTML=pageItems.map((item,idx)=>{
         let cls='';
@@ -2687,9 +3218,10 @@ function renderGlobalView(){
         return `<tr class="${cls}">
             <td class="p-2 text-xs">${escapeHtml(item.vendor)}</td>
             <td class="p-2 text-gray-400">${start+idx+1}</td>
-            <td class="p-2">${escapeHtml(item.itemName)}${covBadge(item)}</td>
+            <td class="p-2">${escapeHtml(item.itemName)}${covBadge(item)}${gvNetBadge(item,netThr)}${gvPcBadge(item)}${sendBadge(item, appState.globalFilters.net==='review')}</td>
             <td contenteditable="true" class="editable-qty p-1 bg-yellow-50 text-center font-bold" data-id="${item.id}" onblur="updateGlobalQty(this)">${escapeHtml(item.requiredQty)}</td>
             <td class="p-2 text-xs text-gray-500">G1:${Math.round(item.currentGap1)} G2:${Math.round(item.currentGap2)}</td>
+            ${gvNetCells(item)}
             <td class="p-2 text-xs">${escapeHtml(item.otherVendors||'—')}</td>
             <td class="p-2 text-center">${item.share>0?`<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">${item.share}</span>`:'—'}</td>
             <td class="p-2 text-xs">${escapeHtml(item.company)}</td>
@@ -2768,8 +3300,10 @@ function gvPdfNote(head){
     if(f.share) tags.push(f.share==='yes'?'بيها حصة':'بلا حصة');
     if(f.other) tags.push(f.other==='yes'?'بيها مكاتب أخرى':'بلا مكاتب أخرى');
     if(f.fake) tags.push(f.fake==='yes'?'FAKE بس':'بلا FAKE');
+    if(f.net==='review') tags.push('مواد المراجعة ('+(sendOvLabel()||'الوضع: الكل')+')');
+    else if(f.net && gvNetRows()) tags.push({warn:`أرخص عند غيره ≥ ${gvNetThr()}%`, any:'أرخص عند غيره', odd:'فرق سعر كبير', hideDear:'بلا المكاتب الأغلى', best:'هذا الأرخص', nocmp:'بلا سعر للمقارنة'}[f.net]);
     if(typeof globalKanbanState!=='undefined' && globalKanbanState.active!=='all') tags.push('چبس: '+globalKanbanState.active);
-    if(appState.atOnlyMode) tags.push('@ فقط');
+    if(!sendAtAll()) tags.push(sendAtLabel()); // الطباعة تتبع الجدول: بُعد الفحص بس (keepOv)
     if(p.covOn) tags.push(`تغطية ≤ ${p.covMaxAt}/${p.covMaxNo}`);
     if(p.tgtOn) tags.push(`هدف ${p.tgtAt}/${p.tgtNo}`);
     let note=head+(tags.length?' · '+tags.join(' · '):'');
@@ -2835,12 +3369,51 @@ async function gvExportItemsPDF(){
 }
 window.gvExportItemsPDF=gvExportItemsPDF;
 
+// طباعة أسعار النت للمفلتر (2026-10-06): سطر لكل (مادة × مكتب)، مرتّب بالمادة ثم الأرخص أولاً — مكاتب نفس المادة تجي تحت بعض
+// وأول سطر بيها هو الأرخص. ويه فلتر «اخفِ المكاتب الأغلى» تصير الورقة سطر واحد لكل مادة = أرخص مكتب وسعره.
+async function gvExportPricesPDF(){
+    if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
+    const all=globalFilteredItems();
+    if(!all.length){ alert('⚠️ ما أكو مواد بالفلاتر الحالية'); return; }
+    if(!gvNetRows()){ alert('💲 أسعار النت ما مزامَنة — سوّي ⚡ مزامنة أول.'); return; }
+    const thr=gvNetThr(), price=p=>p ? p.net : Infinity;
+    const rows=all.map(o=>({o, i:gvNetInfo(o)})).sort((a,b)=>String(a.o.itemName).localeCompare(String(b.o.itemName),'en',{sensitivity:'base'}) || price(a.i.mine)-price(b.i.mine));
+    const estPages=Math.ceil(rows.length/16), big=estPages>60;
+    try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(_){}
+    const cells=rows.map(({o,i},n)=>{
+        const k=gvNetClassOf(i,thr);
+        return { v:{ n:String(n+1), item:String(o.itemName||''), qty:String(o.requiredQty??'—'), office:String(o.vendor||''),
+                p1:i.mine ? gvNetFmt(i.mine.net) : (i.mineFree ? 'مجاني' : '—'),
+                alt:i.best ? `${gvOffShort(i.best.office)}  ${gvNetFmt(i.best.net)}` : (i.nOther ? '—' : 'مكتب واحد'),
+                diff:i.diff==null ? '—' : (i.diff<=0 ? '✓ الأرخص' : '+'+gvPcPct(i.diff)) },
+            bg:k==='best' ? '#dcfce7' : (k==='warn'||k==='odd') ? '#fee2e2' : '#ffffff' };
+    });
+    showToast('⏳ جاري تجهيز PDF...',true);
+    try{ await window.dtPdfGrouped({
+        title:'Mansoor Pharmacy Report — الفيندور الشامل (أسعار النت)',
+        note:gvPdfNote(`${rows.length} سطر · ${new Set(all.map(o=>o.itemName)).size} مادة · عتبة ${thr}%`), dpr:big?1.5:2.2, quality:big?0.8:0.92, searchKeys:['item','office'],
+        onProgress:pg=>showToast(`⏳ PDF: صفحة ${pg} من ~${estPages}`,true),
+        cols:[
+            {key:'n',     label:'#',                 w:10, align:'center', maxLines:1},
+            {key:'item',  label:'المادة',             w:88, align:'left', maxLines:2},
+            {key:'qty',   label:'الكمية',             w:18, align:'center', maxLines:1},
+            {key:'office',label:'المكتب',             w:62, align:'right', maxLines:2, rtl:true},
+            {key:'p1',    label:'سعر النت',           w:24, align:'center', maxLines:1},
+            {key:'alt',   label:'أرخص مكتب ثاني',     w:58, align:'right', maxLines:2, rtl:true},
+            {key:'diff',  label:'الفرق',              w:23, align:'center', maxLines:1},
+        ],
+        groups:[['أسعار النت — أخضر = الأرخص · أحمر = أرخص عند غيره', cells]],
+        fileName:'الفيندور_الشامل_اسعار_النت', print:true
+    }); }catch(e){ showToast('❌ فشل توليد PDF'); alert('❌ فشل توليد PDF: '+(e&&e.message||e)); return; }
+    showToast('🖨️ الورقة جاهزة — نافذة الطباعة تفتح');
+}
+window.gvExportPricesPDF=gvExportPricesPDF;
+
 // ======================== MESSAGE GENERATION ========================
 function generateMessage(){
     const orders=appState.orders.filter(o=>o.vendor===appState.selectedVendor);
-    let filtered=filterItems(orders,appState.itemFilters);
-    // فلتر "إرسال @ فقط" — يحتفظ فقط بالمواد المفحوصة
-    if(appState.atOnlyMode) filtered=filtered.filter(it=>String(it.itemName||'').includes('@'));
+    const filtered=filterItems(orders,appState.itemFilters); // وضع الإرسال ينطبّق داخل filterItems
+    if(!filtered.length) return '';
     const header=`\u200E*طلبية مذخر أدوية المنصور*`;
     const vendorLine=`\u200E*${appState.selectedVendor}*`;
     const date=`\u200E${document.getElementById('orderDateInput').value}`;
@@ -2966,6 +3539,7 @@ function sendAction(type){
         return;
     }
     const msg=generateMessage();
+    if(!msg){ showToast(sendModeOn() ? '⚠️ لا توجد مواد تنرسل بوضع الإرسال الحالي ('+sendModeLabel()+')' : 'لا توجد مواد'); return; }
     if(type==='copy'){ copyText(msg)?showToast('✅ تم النسخ'):alert('تعذر النسخ'); markSent(); }
     else if(type==='whatsapp'){
         const stKey=_smNorm(resolveOffice(appState.selectedVendor));
@@ -3129,9 +3703,8 @@ function clearAllQueue(){
 function generateMessageFor(vendorName){
     let orders=appState.orders.filter(o=>o.vendor===vendorName);
     if(!orders.length) return '';
-    // فلتر "إرسال @ فقط" — يحتفظ فقط بالمواد المفحوصة
-    if(appState.atOnlyMode) orders=orders.filter(o=>String(o.itemName||'').includes('@'));
-    if(!orders.length) return ''; // لا يوجد مواد مفحوصة لهذا المكتب
+    orders=sendRows(orders);
+    if(!orders.length) return ''; // ماكو مادة تنرسل لهذا المكتب بوضع الإرسال الحالي
     // ترتيب افتراضي: المواد غير Check أولاً
     const items=[...orders].sort((a,b)=>a.isCheck===b.isCheck?0:a.isCheck?1:-1);
     const date=document.getElementById('orderDateInput').value||new Date().toISOString().slice(0,10);
@@ -3175,8 +3748,7 @@ window.generateStanceFollowupFor=generateStanceFollowupFor;
 async function buildImagesForVendor(vendorName){
     let orders=appState.orders.filter(o=>o.vendor===vendorName);
     if(!orders.length) return [];
-    // فلتر "إرسال @ فقط" — يحتفظ فقط بالمواد المفحوصة
-    if(appState.atOnlyMode) orders=orders.filter(o=>String(o.itemName||'').includes('@'));
+    orders=sendRows(orders);
     if(!orders.length) return [];
     // نفس ترتيب renderItemsTable الافتراضي (غير Check أولاً)
     const items=[...orders].sort((a,b)=>a.isCheck===b.isCheck?0:a.isCheck?1:-1);
@@ -3250,12 +3822,44 @@ async function prepareSubfolder(parentHandle,name,clearFirst=true){
     return sub;
 }
 
+// ---- رسالة بعد الصور (2026-10-09) ----
+// نص واحد لكل مكاتب الطابور، ينرسل من main.py بعد الصور (حقل afterText بكل عنصر). التعديل والتفعيل من شاشة
+// «رسائل المتابعة» (أول صف، ينحفظ بزر 💾). بـlocalStorage بمفتاح مستقل (مو appState) حتى ما يمسّه
+// الحفظ التلقائي/الاسترجاع. الصح مطفي = الحقل ما ينكتب أصلاً، والنص يبقى محفوظ.
+const Q_AFTER_KEY='mansoor_q_after_msg', Q_AFTER_DEFAULT='⚠️ *تنبيه مهم*\nاستلام المواد قبل الساعة 2 ظهراً حصراً.';
+let _qAfter=null;
+function qAfterLoad(){
+    if(_qAfter) return _qAfter;
+    try{ const s=JSON.parse(localStorage.getItem(Q_AFTER_KEY)||'null'); if(s && typeof s.text==='string') return (_qAfter={on:!!s.on, text:s.text}); }catch(_){}
+    return (_qAfter={on:false, text:Q_AFTER_DEFAULT});
+}
+function qAfterStore(s){
+    _qAfter={on:!!s.on, text:String(s.text||'')};
+    try{ localStorage.setItem(Q_AFTER_KEY, JSON.stringify(_qAfter)); }catch(_){ showToast('⚠️ الرسالة الإضافية ما انحفظت بالمتصفح — تبقى لهذي الجلسة بس'); }
+}
+// النص اللي يدخل الطابور ('' = ما تنرسل)
+function qAfterForQueue(){ const s=qAfterLoad(); return s.on ? s.text.trim() : ''; }
+// سطر الحالة بنافذة الإرسال التلقائي — قراءة بس
+function qAfterSync(){
+    const el=document.getElementById('qAfterNote'); if(!el) return;
+    const t=qAfterForQueue();
+    el.textContent=t ? '✉️ رسالة إضافية بعد الصور — مفعّلة، تنرسل لكل مكتب:\n'+t+'\n(تعديلها أو إلغاؤها من زر «رسائل المتابعة» فوق)' : '✉️ رسالة إضافية بعد الصور: مطفية (تفعّلها من زر «رسائل المتابعة» فوق)';
+    el.style.color=t ? '#166534' : '#6b7280'; el.style.borderColor=t ? '#16a34a' : '#d1d5db'; el.style.background=t ? '#f0fdf4' : '#f9fafb';
+}
+function qAfterSet(text){ const tx=document.getElementById('stAfterText'); if(tx) tx.value=(text==null ? Q_AFTER_DEFAULT : text); } // null = النص الافتراضي · ينحفظ بزر 💾
+window.qAfterSet=qAfterSet; window.qAfterForQueue=qAfterForQueue;
+
 // ---- فتح المودال وعرض تقرير المكاتب المحددة ----
 function openQueueReport(){
     if(!appState.queuedVendors.size){ showToast('⚠️ لم تحدد أي مكتب'); return; }
     // تصنيف المحدد: جاهز (عنده رقم) / بدون رقم
     const ready=[]; const noPhone=[];
+    // وضع الإرسال: مكتب محدَّد وكل مواده موقوفة يطلع من الجاهزين هنا (بدل ما يفشل بـ«لا توجد مواد» وقت البناء) — يبقى محدَّد
+    const sendKept=sendModeOn() ? sendRows(appState.orders) : null, sendLive=sendKept && new Set(sendKept.map(o=>o.vendor));
+    let sendSkipped=0;
+    const modeEl=document.getElementById('qSendModeNote');
     appState.queuedVendors.forEach(name=>{
+        if(sendLive && !sendLive.has(name)){ sendSkipped++; return; }
         // ⚠️ المكتب المتعارض (مندوبان بأرقام مختلفة) يدخل الطابور برقم مُرجَّح — لازم يُعلَّم بصراحة،
         // لأنه قبل الإصلاح كان يطلع "بدون رقم" ويُتخطّى، فالآن ينتقل من "متخطّى" إلى "مُرسَل لرقم قد يكون غلط".
         const _m=matchRepForOffice(name);
@@ -3263,6 +3867,10 @@ function openQueueReport(){
         if(rep&&rep.phone) ready.push({name, rep, conflict:(_m.stage.indexOf('/conflict')>=0)?_m.candidates.length:0});
         else noPhone.push(name);
     });
+    if(modeEl){
+        modeEl.classList.toggle('hidden', !sendKept);
+        if(sendKept) modeEl.textContent=`⚠️ وضع الإرسال: ${sendModeLabel()} — ⏸ ${appState.orders.length-sendKept.length} مادة ما تنرسل`+(sendSkipped ? ` · ${sendSkipped} مكتب محدَّد ما بيه مادة تنرسل (انشال من القائمة)` : '');
+    }
     // ملء الإحصائيات
     document.getElementById('qStatTotal').textContent=appState.queuedVendors.size;
     document.getElementById('qStatReady').textContent=ready.length;
@@ -3285,6 +3893,7 @@ function openQueueReport(){
     // حفظ القائمة الجاهزة لاستخدامها بعد التأكيد
     appState._readyQueue=ready;
     appState._noPhoneQueue=noPhone;
+    qAfterSync();
     renderQueueReadyList();
     document.getElementById('queueModal').classList.remove('hidden');
 }
@@ -3377,6 +3986,8 @@ async function processAutoSendQueue(){
         const failed=[];
         const date=document.getElementById('orderDateInput').value||new Date().toISOString().slice(0,10);
         const expiry=document.getElementById('expiryAlertInput').value||'';
+        const afterText=qAfterForQueue();
+        qLog(afterText ? `✉️ رسالة بعد الصور: مفعّلة (${afterText.length} حرف)` : '✉️ رسالة بعد الصور: مطفية');
 
         for(let i=0;i<ready.length;i++){
             const {name,rep}=ready[i];
@@ -3402,6 +4013,7 @@ async function processAutoSendQueue(){
                     repName: rep.name,
                     images: imageNames,
                     text: msg,
+                    ...(afterText ? {afterText} : {}), // ينرسل من main.py بعد الصور
                     status: 'pending',
                     orderDate: date,
                     expiryNote: expiry
@@ -4882,7 +5494,19 @@ function renderStanceMsgList(){
     ensureStanceMsgDefaults();
     const cont=document.getElementById('stanceMsgList');
     if(!cont) return;
-    cont.innerHTML=OFFICE_STANCE_EDITABLE_VALUES.map(v=>{
+    const a=qAfterLoad();
+    // أول صف: الرسالة الإضافية العامة (مو مربوطة بموقف) — تنرسل ويه الطلبية بعد الصور لكل مكاتب الطابور
+    cont.innerHTML=`<div class="rounded-xl p-3" style="border:2px solid #16a34a;background:#f0fdf4">
+            <label class="flex items-center gap-2 text-sm font-bold mb-2 cursor-pointer">
+                <input type="checkbox" id="stAfterOn" ${a.on?'checked':''}>
+                ✉️ رسالة إضافية بعد الصور — لكل المكاتب (تنرسل ويه الطلبية)
+            </label>
+            <textarea id="stAfterText" rows="3" class="w-full p-2 border rounded-lg text-sm font-bold" style="direction:rtl">${escapeHtml(a.text)}</textarea>
+            <div class="flex flex-wrap justify-between items-center gap-2 mt-1 text-xs text-gray-500">
+                <span>شيل الصح = ما تنرسل (النص يبقى). <code>*نص*</code> يطلع عريض بواتساب. اضغط 💾 حفظ بعد التعديل.</span>
+                <span class="flex gap-2"><button type="button" onclick="qAfterSet(null)" class="ios-btn bg-gray-200 text-gray-700 px-2 py-1 text-xs">↺ النص الافتراضي</button><button type="button" onclick="qAfterSet('')" class="ios-btn bg-gray-200 text-gray-700 px-2 py-1 text-xs">🗑 مسح</button></span>
+            </div>
+        </div>`+OFFICE_STANCE_EDITABLE_VALUES.map(v=>{
         const cfg=appState.stanceMsgConfig[v];
         return `<div class="border rounded-xl p-3">
             <label class="flex items-center gap-2 text-sm font-bold mb-2 cursor-pointer">
@@ -4896,6 +5520,8 @@ function renderStanceMsgList(){
 window.renderStanceMsgList=renderStanceMsgList;
 
 function saveStanceMsgsFromModal(){
+    const aOn=document.getElementById('stAfterOn'), aTx=document.getElementById('stAfterText');
+    if(aOn && aTx) qAfterStore({on:aOn.checked, text:aTx.value});
     OFFICE_STANCE_EDITABLE_VALUES.forEach(v=>{
         const chk=document.querySelector(`.stance-msg-enable[data-stmv="${v}"]`);
         const ta=document.querySelector(`textarea[data-stmt="${v}"]`);
@@ -7189,7 +7815,26 @@ async function dtPdfGrouped(cfg){
         y+=3*S;
     }
     flush();
+    // cfg.print اختياري: يفتح نافذة الطابعة مباشرة بدل تنزيل الملف — وإذا المتصفح ما سمح، ينزّل عادي
+    if(cfg.print && dtPdfPrintNow(pdf)) return;
     pdf.save(`${cfg.fileName}_${today}.pdf`);
+}
+// يحمّل الـPDF بإطار مخفي ويفتح عليه نافذة الطباعة (نفس طريقة print-js). true = انطلب الفتح.
+function dtPdfPrintNow(pdf){
+    try{
+        const url=URL.createObjectURL(pdf.output('blob'));
+        const old=document.getElementById('dtPdfPrintFrame'); if(old) old.remove();
+        const f=document.createElement('iframe');
+        f.id='dtPdfPrintFrame';
+        f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+        f.onload=()=>setTimeout(()=>{
+            try{ f.contentWindow.focus(); f.contentWindow.print(); }
+            catch(e){ console.warn('direct print failed — opening the file instead', e); window.open(url,'_blank'); }
+        }, 400);
+        f.src=url;
+        document.body.appendChild(f);
+        return true;
+    }catch(e){ console.warn('direct print unavailable', e); return false; }
 }
 
 // بناء الـpayload منفصل عن الكتابة — حتى ينفحص بلا ما نحتاج نقرة مستخدم لفتح المجلد
@@ -7922,8 +8567,27 @@ async function qsShowStamp(elId, storeKey){
         el.textContent = rec && rec.importedAt ? ('آخر مزامنة: '+fmtDateTime(rec.importedAt)) : 'لم تتم المزامنة بعد';
     }catch(_){ el.textContent='—'; }
 }
+// opts: {statusId, requiredLabel, findSheet(wb)->name|null, onFound(wb,sheetName), [missingMsg(wb), okStatus, okToast]}
+// شغل ⚡ بعد قراءة الملف: يلگى الشيت ← onFound ← سطر الحالة. يرجّع {ok, msg} (msg = نص التوست) — «مزامنة حسب التبويب» تمر من هنا هم
+async function qsRunOnWb(opts, wb){
+    const statusEl=opts.statusId?document.getElementById(opts.statusId):null;
+    try{
+        const sheetName=opts.findSheet(wb);
+        if(!sheetName){
+            const msg=opts.missingMsg ? opts.missingMsg(wb) : '❌ الملف ماكو فيه شيت اسمه '+opts.requiredLabel;
+            if(statusEl) statusEl.textContent=msg;
+            return {ok:false, msg};
+        }
+        await opts.onFound(wb, sheetName);
+        if(statusEl) statusEl.textContent=opts.okStatus||'✅ تمت المزامنة';
+        return {ok:true, msg:opts.okToast||('✅ مزامنة سريعة: '+sheetName)};
+    }catch(e){
+        if(statusEl) statusEl.textContent='❌ خطأ: '+e.message;
+        console.error('quick sync failed', e);
+        return {ok:false, msg:'❌ خطأ بالمزامنة السريعة: '+e.message};
+    }
+}
 function qsPick(opts){
-    // opts: {statusId, requiredLabel, findSheet(wb)->name|null, onFound(wb,sheetName)}
     const input=document.createElement('input');
     input.type='file'; input.accept='.xlsx,.xls,.xlsm'; input.style.display='none';
     input.addEventListener('change', async function(){
@@ -7931,34 +8595,139 @@ function qsPick(opts){
         input.remove();
         if(!file) return;
         const statusEl=opts.statusId?document.getElementById(opts.statusId):null;
+        let wb;
         try{
             if(statusEl) statusEl.textContent='⏳ جاري القراءة...';
             const buf=await file.arrayBuffer();
-            const wb=XLSX.read(buf,{type:'array', cellDates:true, cellNF:false, cellText:false});
-            const sheetName=opts.findSheet(wb);
-            if(!sheetName){
-                const msg='❌ الملف ماكو فيه شيت اسمه '+opts.requiredLabel;
-                if(statusEl) statusEl.textContent=msg;
-                showToast(msg);
-                return;
-            }
-            await opts.onFound(wb, sheetName);
-            if(statusEl) statusEl.textContent='✅ تمت المزامنة';
-            showToast('✅ مزامنة سريعة: '+sheetName);
+            wb=XLSX.read(buf,{type:'array', cellDates:true, cellNF:false, cellText:false});
         }catch(e){
             if(statusEl) statusEl.textContent='❌ خطأ: '+e.message;
             showToast('❌ خطأ بالمزامنة السريعة: '+e.message);
             console.error('quick sync failed', e);
+            return;
         }
+        showToast((await qsRunOnWb(opts, wb)).msg);
     });
     document.body.appendChild(input);
     input.click();
 }
 window.qsPick=qsPick;
+window.qsTabs={};   // مفتاح التبويب ← opts مال زر ⚡ ماله — كل تبويب يسجّل نفسه، و«مزامنة حسب التبويب» تقرا من هنا
 window.qsFindSheet=qsFindSheet;
 window.qsStoreSheet=qsStoreSheet;
 window.qsReadAoaRaw=qsReadAoaRaw;
 window.qsShowStamp=qsShowStamp;
+
+// ===== مزامنة حسب التبويب — نافذة بأسماء التبويبات: الملف ينقرا مرة وحدة، وكل تبويب مؤشَّر يمر بـqsRunOnWb بنفس opts مال زر ⚡ ماله.
+// [مفتاح qsTabs, اسم التبويب, الشيت] بترتيب التنفيذ · مفتاح null = تبويب بلا شيت خاص (ينعرض رمادي) · البونصات قبل أسعار النت لأنها تسحبها وياها
+const TAB_SYNC=[
+    ['offices','🏢 المكاتب','CompareSheet'],
+    [null,'📊 الفيندور الشامل','يتحدّث ويه «المكاتب»'],
+    ['audit','🔍 تدقيق الفواتير','Check'],
+    ['allocated','📦 المواد المخصصة','AllocatedItems'],
+    ['expiry','⏳ المنتهية','Expiry_Materials'],
+    ['mercatoTuffah','🍎 بونص مركاتو تفاح','Analysis_Odoo_vs_Tuffah'],
+    ['mercatoMansoor','🏪 بونص مركاتو منصور','Analysis_Odoo_vs_Mansoor'],
+    ['delivery','📬 متابعة الوصول','DeliveryReportMgmt'],
+    [null,'🔥 وصل وخلص','يتحدّث ويه «متابعة الوصول» + «كشف الرصيد»'],
+    [null,'📊 المرتجعات الشاملة','يتحدّث ويه «متابعة الوصول»'],
+    ['bonus','🎁 البونصات','BX_Sale_Data + Sheet2 — برسالة تأكيد'],
+    ['movement','📋 الحركة والأرصدة','Sheet3'],
+    ['netPrice','💲 أسعار نت مع بونص','NP_Net_Price + NP_Purchase_Log'],
+    ['vstock','📋 كشف الرصيد (زر فوق)','Sheet2 + UpdatedStock_Smart'],
+];
+// مفتاح المخزن اللي ينقرا منه تاريخ آخر مزامنة — من المخزن مباشرة لأن سطور التاريخ بالتبويبات ما تنملي كلها عند الفتح
+const TAB_SYNC_STORE={offices:'CompareSheet', audit:'Check', allocated:'AllocatedItems', expiry:'Expiry Material', mercatoTuffah:'Analysis_Odoo_vs_Tuffah',
+    mercatoMansoor:'Analysis_Odoo_vs_Mansoor', delivery:'DeliveryReportMgmt', bonus:'BX_Sale_Data', movement:'mv_Sheet3', netPrice:'np_Net_Price', vstock:'UpdatedStock_Smart'};
+const TAB_SYNC_SEL_KEY='ph_tabsync_sel';
+function tabSyncSel(){ return Array.from(document.querySelectorAll('#tabSyncList input[data-ts]:checked')).map(c=>c.dataset.ts); }
+function tabSyncCountUpd(){ document.getElementById('tabSyncCount').textContent=tabSyncSel().length; }
+function tabSyncOpen(){
+    let saved=[]; try{ saved=JSON.parse(localStorage.getItem(TAB_SYNC_SEL_KEY)||'[]'); }catch(_){}
+    document.getElementById('tabSyncList').innerHTML=TAB_SYNC.map(([k,label,note])=>{
+        if(!k) return `<div class="flex flex-wrap items-center gap-2 px-2 py-1.5 text-sm text-gray-400"><span style="width:13px;text-align:center">↳</span><span class="font-bold">${label}</span><span class="text-[11px]">${note}</span></div>`;
+        return `<label class="flex flex-wrap items-center gap-2 px-2 py-1.5 text-sm cursor-pointer hover:bg-gray-50 rounded">
+            <input type="checkbox" data-ts="${k}" ${saved.includes(k)?'checked':''} onchange="tabSyncCountUpd()">
+            <span class="font-bold">${label}</span><span class="text-[11px] text-gray-500" dir="auto">${note}</span>
+            ${k==='offices'?'<span class="text-[11px] font-bold" style="color:#b45309">⚠️ يعيد بناء الطلبيات — «تحديد الكل» ما يأشّره</span>':''}
+            <span data-ts-stamp="${k}" class="text-[10px] text-gray-400"></span>
+            <span data-ts-res="${k}" class="text-[11px] font-bold" style="margin-inline-start:auto"></span></label>`;
+    }).join('');
+    document.getElementById('tabSyncStatus').textContent='';
+    tabSyncCountUpd();
+    document.getElementById('tabSyncModal').classList.remove('hidden');
+    tabSyncStamps();
+}
+async function tabSyncStamps(){
+    let all={}; try{ all=await window.__excelStore.getAll(); }catch(_){ return; }
+    document.querySelectorAll('#tabSyncList [data-ts-stamp]').forEach(el=>{
+        const rec=all[TAB_SYNC_STORE[el.dataset.tsStamp]];
+        el.textContent=rec && rec.importedAt ? 'آخر مزامنة: '+fmtDateTime(rec.importedAt) : 'لم تتم المزامنة بعد';
+    });
+}
+// «المكاتب» تعيد بناء الطلبيات من CompareSheet — ما تتأشّر إلا باليد، وما تنحفظ ويه آخر اختيار
+function tabSyncSelectAll(on){
+    document.querySelectorAll('#tabSyncList input[data-ts]').forEach(c=>{ c.checked=on && c.dataset.ts!=='offices'; });
+    tabSyncCountUpd();
+}
+// يرجّع [{key, ok, msg}] — كل تبويب لحاله: فشل واحد ما يوقف الباقين وما يرجّع اللي انكتب قبله
+async function tabSyncRun(wb, sel){
+    const st=document.getElementById('tabSyncStatus'), out=[];
+    const setRes=(k,txt,color)=>{ const el=document.querySelector('[data-ts-res="'+k+'"]'); if(el){ el.textContent=txt; el.style.color=color; } };
+    try{ localStorage.setItem(TAB_SYNC_SEL_KEY, JSON.stringify(sel.filter(k=>k!=='offices'))); }catch(_){}
+    const todo=TAB_SYNC.filter(t=>t[0] && sel.includes(t[0]));
+    todo.forEach(t=>setRes(t[0],'⏳','#6b7280'));
+    let netDone=false;
+    for(const [k,label] of todo){
+        if(st) st.textContent='⏳ '+label+' ...';
+        await new Promise(r=>setTimeout(r,30));   // يخلي السطر ينرسم قبل الشغل الثقيل
+        let r;
+        if(k==='bonus'){
+            // مسار خاص: دمج بالنطاق ورسالة تأكيد — ask:true يبقيها (بلاها = مسار الصندوق الصامت)
+            const a={wb, mode:'replace', ask:true};
+            const ok=await window.qsSyncBonus(a);
+            const txt=(document.getElementById('qsBonusStatus')||{}).textContent||'';
+            r=a.cancelled ? {ok:false, skip:true, msg:'⚪ أُلغي — بلا تغيير'} : {ok:ok===true, msg:txt||(ok===true?'✅ تمت المزامنة':'❌ ما كملت')};
+            netDone=!!a.netDone;
+        }
+        else if(k==='netPrice' && netDone) r={ok:true, msg:'✅ انسحبت ويه البونصات'};
+        else if(!qsTabs[k]) r={ok:false, msg:'❌ التبويب ما مسجَّل للمزامنة'};
+        else r=await qsRunOnWb(qsTabs[k], wb);
+        out.push({key:k, ok:r.ok, msg:r.msg});
+        setRes(k, r.msg, r.ok?'#15803d':(r.skip?'#6b7280':'#b91c1c'));
+    }
+    const okN=out.filter(x=>x.ok).length;
+    tabSyncStamps();
+    if(st) st.textContent='انتهت: '+okN+' من '+out.length+' تبويب تزامن'+(okN<out.length?' — شوف السطور اللي ما كملت':'');
+    showToast((okN===out.length?'✅':'⚠️')+' مزامنة حسب التبويب: '+okN+' من '+out.length);
+    return out;
+}
+function tabSyncPickFile(){
+    const sel=tabSyncSel();
+    if(!sel.length){ showToast('⚠️ أشّر تبويب واحد على الأقل'); return; }
+    const input=document.createElement('input');
+    input.type='file'; input.accept='.xlsx,.xls,.xlsm'; input.style.display='none';
+    input.addEventListener('change', async function(){
+        const file=input.files && input.files[0];
+        input.remove();
+        if(!file) return;
+        const st=document.getElementById('tabSyncStatus'), btn=document.getElementById('tabSyncRunBtn');
+        btn.disabled=true;
+        try{
+            st.textContent='⏳ جاري قراءة '+file.name+' ...';
+            await new Promise(r=>setTimeout(r,50));
+            const wb=XLSX.read(await file.arrayBuffer(),{type:'array', cellDates:true, cellNF:false, cellText:false});
+            await tabSyncRun(wb, sel);
+        }catch(e){
+            st.textContent='❌ خطأ: '+e.message;
+            showToast('❌ مزامنة حسب التبويب: '+e.message);
+            console.error('tab sync failed', e);
+        }finally{ btn.disabled=false; }
+    });
+    document.body.appendChild(input);
+    input.click();
+}
+Object.assign(window, { tabSyncOpen, tabSyncSelectAll, tabSyncCountUpd, tabSyncPickFile, tabSyncRun, qsRunOnWb });
 
 window.onload=async()=>{
     await loadFromStorage();
@@ -8009,6 +8778,8 @@ window.onload=async()=>{
     document.getElementById('globalShareFilter').addEventListener('change',e=>{ appState.globalFilters.share=e.target.value; renderGlobalView(); });
     document.getElementById('globalOtherFilter').addEventListener('change',e=>{ appState.globalFilters.other=e.target.value; renderGlobalView(); });
     document.getElementById('globalFakeFilter').addEventListener('change',e=>{ appState.globalFilters.fake=e.target.value; appState.globalPage=1; renderGlobalView(); });
+    document.getElementById('globalNetFilter').addEventListener('change',e=>{ appState.globalFilters.net=e.target.value; appState.globalPage=1; renderGlobalView(); });
+    (el=>{ el.value=gvNetThr(); el.addEventListener('input',()=>{ try{ localStorage.setItem(GV_NET_THR_KEY, el.value); }catch(_){} appState.globalPage=1; renderGlobalView(); }); el.addEventListener('change',()=>{ el.value=gvNetThr(); }); })(document.getElementById('globalNetThr'));
     document.getElementById('globalPrev').addEventListener('click',()=>{ if(appState.globalPage>1) appState.globalPage--; renderGlobalView(); });
     document.getElementById('globalNext').addEventListener('click',()=>{ appState.globalPage++; renderGlobalView(); });
 
@@ -8028,7 +8799,7 @@ window.onload=async()=>{
         document.getElementById('bonusTab').style.display=tab==='bonus'?'block':'none';
         document.getElementById('movementTab').style.display=tab==='movement'?'block':'none';
         document.getElementById('netPriceTab').style.display=tab==='netPrice'?'block':'none';
-        if(tab==='global') renderGlobalView();
+        if(tab==='global'){ renderGlobalView(); gvNetEnsure(); }
         if(tab==='audit') renderAudit();
         if(tab==='allocated') renderAllocated();
         if(tab==='expiry') renderExpiry();
@@ -8269,21 +9040,7 @@ window.onload=async()=>{
             renderVendorsList();
         });
     });
-    // ======== Toggle: إرسال المفحوصة @ فقط ========
-    const atOnlyEl=document.getElementById('atOnlyToggle');
-    if(atOnlyEl){
-        atOnlyEl.checked=appState.atOnlyMode||false;
-        atOnlyEl.addEventListener('change',()=>{
-            appState.atOnlyMode=atOnlyEl.checked;
-            // أعد رسم قائمة المكاتب (لإخفاء المكاتب 0 @ عند التفعيل)
-            renderVendorsList();
-            // وأعد عرض المواد لو في مكتب مختار
-            if(appState.selectedVendor){
-                const orders=appState.orders.filter(o=>o.vendor===appState.selectedVendor);
-                renderItemsTable(orders);
-            }
-        });
-    }
+    // وضع الإرسال (علامات صح) — الربط بـonchange على كل علامة، والمنطق بـsendModeToggle
     document.getElementById('qCancelBtn').onclick=()=>document.getElementById('queueModal').classList.add('hidden');
     document.getElementById('queueCloseBtn').onclick=()=>{
         if(appState.isBuildingQueue){ if(!confirm('البناء قيد التشغيل — هل تريد الإغلاق؟')) return; }
@@ -8376,6 +9133,7 @@ window.onload=async()=>{
         if(!payload.localStorage) throw new Error('الملف فارغ');
         // مسح localStorage الحالي وكتابة الجديد — كل مفتاح لحاله (بلا ما فشل مفتاح وحد يوقف البقية)
         if(autoSaveTimer) clearTimeout(autoSaveTimer);
+        _restoring=true; // من هنا لإعادة التحميل: لا حفظ ولا بانر «تبويب قديم» بهذا التبويب
         localStorage.clear();
         // عصر جديد فوراً (مو عصر الملف — ذاك مال الجهاز الرافع): من هاللحظة كل حفظ من ذاكرة قديمة ينرفض
         localStorage.setItem(DATA_EPOCH_KEY, Date.now()+'-'+Math.random().toString(36).slice(2));
@@ -9048,7 +9806,7 @@ window.onload=async()=>{
             await new Promise(r=>setTimeout(r,10));
 
             let vendorOrders=appState.orders.filter(o=>o.vendor===vendorName);
-            if(appState.atOnlyMode) vendorOrders=vendorOrders.filter(o=>String(o.itemName||'').includes('@'));
+            vendorOrders=sendRows(vendorOrders);
             if(!vendorOrders.length) continue;
             const hasCheck=vendorOrders.some(i=>i.isCheck);
 
@@ -9095,7 +9853,7 @@ window.onload=async()=>{
             showToast(`📄 ${vi+1}/${vendors.length}: ${vendorName}`,true);
             await new Promise(r=>setTimeout(r,10));
             let vendorOrders=appState.orders.filter(o=>o.vendor===vendorName);
-            if(appState.atOnlyMode) vendorOrders=vendorOrders.filter(o=>String(o.itemName||'').includes('@'));
+            vendorOrders=sendRows(vendorOrders);
             if(!vendorOrders.length) continue;
             const hasCheck=vendorOrders.some(i=>i.isCheck);
             const chunks=[];
@@ -10966,8 +11724,8 @@ window.onload=async()=>{
     // نسخة الـ restore العامة فوق تمسح الكل وتحمّل من dump — راح يستورد ph_audit تلقائياً.
 
     // ---- offices (CompareSheet) ----
-    window.qsSyncOffices=function(){
-        qsPick({
+    window.qsSyncOffices=function(){ qsPick(qsTabs.offices); };
+    qsTabs.offices={
             statusId:'qsOfficesStatus', requiredLabel:'CompareSheet',
             findSheet: wb=>qsFindSheet(wb,'comparesheet'),
             onFound: async (wb, sheetName)=>{
@@ -10979,12 +11737,11 @@ window.onload=async()=>{
                 renderVendorsList();
                 await qsShowStamp('qsOfficesStamp','CompareSheet');
             }
-        });
     };
 
     // ---- audit (Check → auditState، منفصل عن checkGetData المستخدم بـ delivery) ----
-    window.qsSyncAudit=function(){
-        qsPick({
+    window.qsSyncAudit=function(){ qsPick(qsTabs.audit); };
+    qsTabs.audit={
             statusId:'qsAuditStatus', requiredLabel:'Check',
             findSheet: wb=>qsFindSheet(wb,'check'),
             onFound: async (wb, sheetName)=>{
@@ -11006,14 +11763,13 @@ window.onload=async()=>{
                 await renderAudit();
                 await qsShowStamp('qsAuditStamp','Check');
             }
-        });
     };
 
     // ---- allocated / expiry / smart: موحّدة أدناه بنفس نمط qsPick (كانت أزرار "استيراد" منفصلة، وحّدنا التسمية والطريقة) ----
 
     // ---- delivery tracking (متابعة الوصول — DeliveryReportMgmt sheet from the Excel macro) ----
-    window.qsSyncDeliveryTracking=function(){
-        qsPick({
+    window.qsSyncDeliveryTracking=function(){ qsPick(qsTabs.delivery); };
+    qsTabs.delivery={
             statusId:'qsDtStatus', requiredLabel:'DeliveryReportMgmt',
             findSheet: wb=>qsFindSheet(wb,'deliveryreportmgmt'),
             onFound: async (wb, sheetName)=>{
@@ -11024,16 +11780,16 @@ window.onload=async()=>{
                 await renderDeliveryTracking();
                 renderVendorsList();   // تبويب المكاتب يقرا حالته من نفس الشيت — لازم ينعاد رسمه بعد المزامنة
             }
-        });
     };
 
     // ---- مركاتو تفاح / منصور ----
-    window.qsSyncMercato=function(type){
+    window.qsSyncMercato=function(type){ qsPick(qsTabs[type==='tuffah' ? 'mercatoTuffah' : 'mercatoMansoor']); };
+    const qsMercatoOpts=function(type){
         const sheetLabel = type==='tuffah' ? 'analysis_odoo_vs_tuffah' : 'analysis_odoo_vs_mansoor';
         const displayName = type==='tuffah' ? 'Analysis_Odoo_vs_Tuffah' : 'Analysis_Odoo_vs_Mansoor';
         const statusId = type==='tuffah' ? 'qsMtStatus' : 'qsMmStatus';
         const stampId = type==='tuffah' ? 'qsMtStamp' : 'qsMmStamp';
-        qsPick({
+        return {
             statusId, requiredLabel:displayName,
             findSheet: wb=>qsFindSheet(wb, sheetLabel),
             onFound: async (wb, sheetName)=>{
@@ -11042,45 +11798,23 @@ window.onload=async()=>{
                 await window.mercatoLoadFromSync(type);
                 await qsShowStamp(stampId, sheetName);
             }
-        });
+        };
     };
+    qsTabs.mercatoTuffah=qsMercatoOpts('tuffah');
+    qsTabs.mercatoMansoor=qsMercatoOpts('mansoor');
 
     // ---- كشف رصيد (Sheet2 + UpdatedStock_Smart مع بعض) ----
-    window.qsSyncVendorStock=function(){
-        const input=document.createElement('input');
-        input.type='file'; input.accept='.xlsx,.xls,.xlsm'; input.style.display='none';
-        input.addEventListener('change', async function(){
-            const file=input.files && input.files[0]; input.remove();
-            if(!file) return;
-            const statusEl=document.getElementById('qsVstockStatus');
-            try{
-                if(statusEl) statusEl.textContent='⏳ جاري القراءة...';
-                const buf=await file.arrayBuffer();
-                const wb=XLSX.read(buf,{type:'array', cellDates:true, cellNF:false, cellText:false});
-                const sheet2Name=qsFindSheet(wb,'sheet2');
-                const stockName=qsFindSheet(wb,'updatedstock_smart');
-                const missing=[];
-                if(!sheet2Name) missing.push('Sheet2');
-                if(!stockName) missing.push('UpdatedStock_Smart');
-                if(missing.length){
-                    const msg='❌ الملف ناقصه: '+missing.join(' و ');
-                    if(statusEl) statusEl.textContent=msg;
-                    showToast(msg);
-                    return;
-                }
-                await qsStoreSheet('Sheet2', qsReadAoaRaw(wb, sheet2Name));
-                await qsStoreSheet('UpdatedStock_Smart', qsReadAoaRaw(wb, stockName));
-                if(statusEl) statusEl.textContent='✅ تمت مزامنة Sheet2 + UpdatedStock_Smart';
-                showToast('✅ تمت مزامنة كشف الرصيد');
-                await qsShowStamp('qsVstockStamp','UpdatedStock_Smart');
-            }catch(e){
-                if(statusEl) statusEl.textContent='❌ خطأ: '+e.message;
-                showToast('❌ خطأ: '+e.message);
-                console.error('quick sync vendor stock failed', e);
-            }
-        });
-        document.body.appendChild(input);
-        input.click();
+    window.qsSyncVendorStock=function(){ qsPick(qsTabs.vstock); };
+    qsTabs.vstock={
+        statusId:'qsVstockStatus',
+        findSheet: wb=>(qsFindSheet(wb,'sheet2') && qsFindSheet(wb,'updatedstock_smart')) ? 'Sheet2 + UpdatedStock_Smart' : null,
+        missingMsg: wb=>'❌ الملف ناقصه: '+[['sheet2','Sheet2'],['updatedstock_smart','UpdatedStock_Smart']].filter(p=>!qsFindSheet(wb,p[0])).map(p=>p[1]).join(' و '),
+        okStatus:'✅ تمت مزامنة Sheet2 + UpdatedStock_Smart', okToast:'✅ تمت مزامنة كشف الرصيد',
+        onFound: async wb=>{
+            await qsStoreSheet('Sheet2', qsReadAoaRaw(wb, qsFindSheet(wb,'sheet2')));
+            await qsStoreSheet('UpdatedStock_Smart', qsReadAoaRaw(wb, qsFindSheet(wb,'updatedstock_smart')));
+            await qsShowStamp('qsVstockStamp','UpdatedStock_Smart');
+        }
     };
 
     // ================================================================
@@ -11089,17 +11823,18 @@ window.onload=async()=>{
     //  tab UI yet. See BONUS-TAB-DESIGN.md section 5a for the merge rule.
     // ================================================================
     // auto={file,mode} = من صندوق المزامنة: بلا نافذة اختيار ملف وبلا رسالة تأكيد · يرجّع true إذا كملت كلها (البونصات، وأسعار النت إذا موجودة بالملف)
+    // auto={wb,mode,ask:true} = من «مزامنة حسب التبويب»: ملف مقروء جاهز، **ورسالة التأكيد تبقى**. يرجّع بيه auto.cancelled / auto.netDone
     window.qsSyncBonus=function(auto){
         const input=document.createElement('input');
         input.type='file'; input.accept='.xlsx,.xls,.xlsm'; input.style.display='none';
+        const silent=!!auto && !auto.ask;   // بلا تأكيد = الصندوق بس
         const run=async function(){
             const file=auto ? auto.file : (input.files && input.files[0]); input.remove();
-            if(!file) return;
+            if(!file && !(auto && auto.wb)) return;
             const statusEl=document.getElementById('qsBonusStatus');
             try{
                 if(statusEl) statusEl.textContent='⏳ جاري القراءة...';
-                const buf=await file.arrayBuffer();
-                const wb=XLSX.read(buf,{type:'array', cellDates:true, cellNF:false, cellText:false});
+                const wb=(auto && auto.wb) || XLSX.read(await file.arrayBuffer(),{type:'array', cellDates:true, cellNF:false, cellText:false});
                 const saleName=qsFindSheet(wb,'bx_sale_data');
                 const mapName=qsFindSheet(wb,'sheet2');
                 const missing=[];
@@ -11137,7 +11872,7 @@ window.onload=async()=>{
                 newRows.forEach(r=>{ const d=r[dateCol]; if(d<newFrom) newFrom=d; if(d>newTo) newTo=d; });
                 // بلا رسالة تأكيد ما أحد يشوف المدى — تاريخ مو سنة-شهر-يوم يوسّع مدى الاستبدال ويمسح صفوف ما إلها علاقة
                 const isoDay=/^\d{4}-\d{2}-\d{2}$/;
-                if(auto && !(isoDay.test(newFrom) && isoDay.test(newTo))) throw new Error('تواريخ الملف مو بصيغة سنة-شهر-يوم ('+newFrom+' → '+newTo+') — ما ينستبدل بلا تأكيد');
+                if(silent && !(isoDay.test(newFrom) && isoDay.test(newTo))) throw new Error('تواريخ الملف مو بصيغة سنة-شهر-يوم ('+newFrom+' → '+newTo+') — ما ينستبدل بلا تأكيد');
 
                 const existing=await window.__excelStore.getSheet('BX_Sale_Data');
                 const oldRows=(existing && existing.rows) ? existing.rows : [];
@@ -11190,8 +11925,9 @@ window.onload=async()=>{
                 newRows.forEach(r=>{ String(r[vendCol]||'').split(',').forEach(o=>{ const t=o.trim(); if(t) officeSet.add(t); }); });
                 summary=summary.replace('متابعة', 'المدى الكلي بعد العملية: '+finalFrom+' → '+finalTo+' • مكاتب بالملف: '+officeSet.size+'\n\nمتابعة');
 
-                if(!auto && !confirm(summary)){
+                if(!silent && !confirm(summary)){
                     if(statusEl) statusEl.textContent='⚠️ أُلغي — البيانات القديمة بلا تغيير';
+                    if(auto) auto.cancelled=true;
                     return;
                 }
 
@@ -11203,7 +11939,7 @@ window.onload=async()=>{
                 let netNote='', netOk=true;
                 const hasNp=n=>wb.SheetNames.some(s=>s.trim().toLowerCase()===n);
                 if(window.npIngest && hasNp('np_net_price') && hasNp('np_purchase_log')){
-                    try{ netNote=' • 💲 نت '+(await window.npIngest(wb)).toLocaleString()+' سطر'; }
+                    try{ netNote=' • 💲 نت '+(await window.npIngest(wb)).toLocaleString()+' سطر'; if(auto) auto.netDone=true; }
                     catch(e){ netOk=false; netNote=' • ⚠️ أسعار النت ما انسحبت: '+e.message; console.error('net ingest failed', e); }
                     await bonusNetRefresh();
                     if(window.__bonusPools) bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0);
@@ -11576,11 +12312,14 @@ window.onload=async()=>{
             });
         });
 
+        // نسبة الكارت = أعلى نسبة بونص **ضمن الصفوف المعروضة** (قرار 2026-10-05) — نسبة قديمة من شهر ثاني كانت تطلّع المستحق والمقارنة غلط.
+        // مادة بلا أي بونص بالمدى ترجع لأعلى نسبة بكل البيانات المخزونة (pctOld) حتى ما يصير مستحقها صفر، وتنعلَّم بالكارت.
         const globalPct=window.__bonusGlobalPct||{};
         const poolList=Object.values(poolsMap).map(p=>{
+            const inRange=p.rows.reduce((m,r)=>(!r.isOffice && r.qty>0 && r.bonus>0) ? Math.max(m, r.bonus/r.qty) : m, 0);
             // مصدر وحيد للحساب = bonusRecalcPool، بدل تكرار الصيغة هنا (التكرار كان يخلي الصيغتين تنحرفان)
             const pool={product:p.product, rows:p.rows, sales:0, bonus:0, preTaken:0, preTakenBy:[],
-                        pct:globalPct[p.product]||0, maxAllowed:0, maxOverride:null, salesOverride:null,
+                        pct:inRange||globalPct[p.product]||0, pctOld:!inRange && globalPct[p.product]>0, maxAllowed:0, maxOverride:null, salesOverride:null,
                         over:false, expanded:false, enabled:true};
             bonusRecalcPool(pool);
             // المادة اللي مستحقها صفر تنولد غير مؤشَّرة تلقائياً — الباقي كله مؤشَّر
@@ -11772,7 +12511,7 @@ window.onload=async()=>{
                 <input type="number" value="${p.sales}" min="0" class="ios-input text-sm font-black text-center" style="width:72px;padding:2px" title="تعديل يدوي — يغيّر المستحق تلقائياً (إلا لو المستحق نفسه معدَّل يدوياً)" data-bonus-sales-input data-pidx="${pidx}">
             </div>
             <div class="bg-gray-50 rounded-lg p-2">
-                <div class="text-gray-500">النسبة</div>
+                <div class="text-gray-500">النسبة${p.pctOld?' <span style="color:#b45309" title="ماكو بونص مصروف ضمن المدى المعروض — هذي أعلى نسبة من فترة ثانية">· من خارج المدى</span>':''}</div>
                 <div class="flex items-center justify-center gap-1">
                     <input type="number" value="${(p.pct*100).toFixed(0)}" min="0" max="100" class="ios-input text-sm font-black text-center" style="width:56px;padding:2px" data-bonus-pct-input data-pidx="${pidx}">
                     <span class="text-sm font-black">%</span>
@@ -12094,7 +12833,7 @@ window.onload=async()=>{
                 if(!pool) return;
                 bonusPushUndo();
                 const pctVal=Math.max(0, parseFloat(pctInp.value)||0);
-                pool.pct=pctVal/100;
+                pool.pct=pctVal/100; pool.pctOld=false;
                 pool.maxOverride=null; // تعديل النسبة يرجّع الحساب التلقائي
                 bonusRecalcPool(pool);
                 bonusRenderPools(window.__bonusPools, window.__bonusPools.reduce((s,p)=>s+p.rows.length,0));
@@ -12183,16 +12922,17 @@ window.onload=async()=>{
     }
 
     // ===== مقارنة بونص المكاتب (💲 أسعار نت) ويه نسبة الكارت — شارة لكل مكتب اشترينا منه المادة، بلا إخفاء أي واحد.
-    // النسبة = البونص ÷ المدفوع (10+3 = 30%). «بونص فقط» (مقدماً / فاتورة صفرية) ينعرض بس خارج المقارنة. السماحية نفس NP_TOL بـModule71.
+    // النسبة = بونص نفس يوم الشراء ÷ المدفوع (10+3 = 30%). فاتورة بونص منفصلة بعد الشراء (sep) **متجاهَلة بكل الحسابات** (قرار 2026-10-05):
+    // الحكم على الشراء الحقيقي بس، وكميتها تنذكر ملاحظة رمادية لا غير. «مقدماً» (adv) = بونص من مكتب ما إله أي شراء مدفوع للمادة. السماحية نفس NP_TOL بـModule71.
     const BONUS_NET_TOL=0.005;
     const BONUS_NET_V={ match:['✓ مطابق','#166534','#dcfce7'], less:['⬇ واصل أقل','#b45309','#fef3c7'], more:['⬆ واصل أكثر','#1d4ed8','#dbeafe'],
-        none:['✗ واصل بلا بونص','#b91c1c','#fee2e2'], adv:['🎁 بونص مقدماً','#475569','#f1f5f9'], nopurch:['بلا شراء','#64748b','#f8fafc'],
+        none:['✗ واصل بلا بونص','#b91c1c','#fee2e2'], sec:['↪ مصدر ثانوي','#6d28d9','#ede9fe'], adv:['🎁 بونص فقط','#475569','#f1f5f9'], nopurch:['بلا شراء','#64748b','#f8fafc'],
         nopct:['• واصل بونص','#475569','#f1f5f9'] };
     function bonusNetVerdict(o, pct){
         if(o.type==='advance') return 'adv';
         if(o.type==='nopurch') return 'nopurch';
         const v=o.vpct||0;
-        if(v<=0) return 'none';
+        if(v<=0) return o.sec ? 'sec' : 'none';
         // كارت نسبته 0% (ما انصرف منه بونص) ما عنده مرجع — «أكثر من 0%» حكم مضلّل
         if(!(pct>0)) return 'nopct';
         return Math.abs(v-pct)<=BONUS_NET_TOL ? 'match' : (v<pct ? 'less' : 'more');
@@ -12200,8 +12940,55 @@ window.onload=async()=>{
     // null = أسعار النت ما انزامنت · [] = المادة ما إلها شراء بيها
     function bonusNetOffices(product){
         const a=window.__bonusNet && window.npOfficesFor ? window.npOfficesFor(product) : null;
-        return a ? a.slice().sort((x,y)=>(x.pharm-y.pharm) || String(y.date).localeCompare(String(x.date))) : null;
+        if(!a) return null;
+        const list=a.slice().sort((x,y)=>(x.pharm-y.pharm) || String(y.date).localeCompare(String(x.date)));
+        // «مصدر ثانوي» (قرار 2026-10-06) = مكتب بلا بونص لمادة بونصها واصل ويه الشراء من مكتب ثاني (مو صيدلية) — مثل الركن الطبي مقابل النسق.
+        // ينحسب هنا من كل مكاتب المادة قبل أي فلتر مكاتب، وعلى نُسخ حتى ما ينلمس كاش npOfficesFor.
+        // التلقائي يتصحّح باليد: زر جنب اسم المكتب بالكارت يگلب «ثانوي ↔ غير واصل» وينحفظ (bonusSecOv) — اليدوي يغلب التلقائي.
+        const main=list.find(o=>!o.pharm && o.type!=='advance' && o.type!=='nopurch' && (o.vpct||0)>0), ov=bonusSecOv();
+        return list.map(o=>{
+            if((o.vpct||0)>0 || o.type==='advance' || o.type==='nopurch') return o;
+            const key=bonusSecKey(o), m=ov[key];
+            return Object.assign({}, o, {secKey:key, secMan:!!m, sec:m ? m==='sec' : !!main, secFrom:main||null});
+        });
     }
+    // مكاتب مخفية باختيار المستخدم (طلب 2026-10-06): تختفي من طباعة المكاتب ومن شارات الكارتات بس — الحسابات وعدّ الحالات ما يتغيّرون.
+    // تنأشَّر من قائمة المكاتب بنافذة «طباعة المكاتب». المفتاح بلا @/& مثل bonusSecKey.
+    const BONUS_OFF_HIDE_KEY='bonus_off_hidden_v1';
+    let bonusOffHidCache=null;
+    function bonusOffHid(){
+        if(!bonusOffHidCache){ try{ bonusOffHidCache=new Set(JSON.parse(localStorage.getItem(BONUS_OFF_HIDE_KEY)||'[]')); }catch(_){ bonusOffHidCache=new Set(); } }
+        return bonusOffHidCache;
+    }
+    const bonusOffIsHid=v=>bonusOffHid().has(bonusPriceKey(v, true));
+    function bonusOffHidSet(v, hide){
+        const s=bonusOffHid(), k=bonusPriceKey(v, true);
+        if(hide) s.add(k); else s.delete(k);
+        try{ localStorage.setItem(BONUS_OFF_HIDE_KEY, JSON.stringify(Array.from(s))); }catch(_){}
+    }
+    const BONUS_SEC_OV_KEY='bonus_sec_override_v1', BONUS_SEC_HIDE_KEY='bonus_sec_hide_v1';
+    // المفتاح بلا @/& وبلا فرق مسافات: اسم المكتب يتغيّر بين المزامنات (لاحقة && تجي وتروح) — المفتاح الحرفي يضيّع التأشير المحفوظ
+    const bonusSecKey=o=>bonusPriceKey(o.name, true)+'|'+bonusPriceKey(o.vendor, true);
+    let bonusSecOvCache=null;
+    function bonusSecOv(){
+        if(!bonusSecOvCache){ try{ bonusSecOvCache=JSON.parse(localStorage.getItem(BONUS_SEC_OV_KEY)||'{}')||{}; }catch(_){ bonusSecOvCache={}; } }
+        return bonusSecOvCache;
+    }
+    const bonusSecHidden=()=>{ try{ return localStorage.getItem(BONUS_SEC_HIDE_KEY)==='1'; }catch(_){ return false; } };
+    const bonusSecRerender=()=>{ if(window.__bonusPools) bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0); };
+    // to = 'sec' | 'none' | '' (يرجّع التلقائي)
+    window.bonusSecSet=function(key, to){
+        const ov=bonusSecOv();
+        if(to) ov[key]=to; else delete ov[key];
+        try{ localStorage.setItem(BONUS_SEC_OV_KEY, JSON.stringify(ov)); }catch(_){}
+        bonusSecRerender();
+    };
+    window.bonusSecHideToggle=function(){
+        try{ localStorage.setItem(BONUS_SEC_HIDE_KEY, bonusSecHidden() ? '0' : '1'); }catch(_){}
+        bonusSecRerender();
+    };
+    // اسم المكتب بلا ملاحظاته («م النسق العلمي/ لايوجد خصم - مقاصة…» ← «م النسق العلمي») — للخانات الضيقة بالطباعة
+    const bonusOffShort=s=>String(s||'').split(/[\/\\]| - |\.\.|ــ/)[0].trim() || String(s||'').trim();
     function bonusNetHtml(p){
         const list=bonusNetOffices(p.product);
         if(!list) return '';
@@ -12211,19 +12998,27 @@ window.onload=async()=>{
         const head='<span class="text-[11px] font-bold text-gray-500" style="white-space:nowrap">💲 بونص المكاتب:</span>'
             +(via.length ? `<span class="text-[10px] text-gray-400">(← ${bonusEsc(via.join(' | '))})</span>` : '');
         if(!list.length) return `<div class="flex flex-wrap items-center gap-1 mt-2">${head}<span class="text-[11px] text-gray-400">ماكو شراء بهالاسم بملف النت${window.__bonusNet.from ? ' (الملف يبدي من '+bonusEsc(window.__bonusNet.from)+')' : ''}</span></div>`;
+        const hideSec=bonusSecHidden(); let nHid=0, nOffHid=0;
         return `<div class="flex flex-wrap items-center gap-1 mt-2">${head}`+list.map(o=>{
             const k=bonusNetVerdict(o, p.pct), v=BONUS_NET_V[k];
+            if(bonusOffIsHid(o.vendor)){ nOffHid++; return ''; }
+            if(hideSec && k==='sec'){ nHid++; return ''; }
             let t=`<b>${v[0]}</b>`;
-            if(k==='adv') t+=` ${(o.adv||0).toLocaleString()} ق — خارج المقارنة`;
-            else if(k==='less' || k==='more') t+=` (${pc(o.vpct)} مقابل ${pc(p.pct)})`;
+            if(k==='adv') t+=` ${(o.adv||0).toLocaleString()} ق بلا أي شراء — خارج الحساب`;            else if(k==='less' || k==='more') t+=` (${pc(o.vpct)} مقابل ${pc(p.pct)})`;
             else if(k==='nopct') t+=` ${pc(o.vpct)} — اكتب نسبة الكارت للمقارنة`;
+            else if(k==='sec' && o.secFrom) t+=` — البونص من ${bonusEsc(o.secFrom.vendor||'—')} ${bonusEsc(o.secFrom.deal)}`;
+            if(o.secMan) t+=' ✋';
             t+=` · ${o.pharm?'<span style="opacity:.7">[صيدلية]</span> ':''}${bonusEsc(o.vendor||'—')}`;
-            if(k==='match' || k==='less' || k==='more' || k==='nopct') t+=` · ${bonusEsc(o.deal)}${k==='match'?' ('+pc(o.vpct)+')':''} · ${o.type==='late'?'وصل متأخر':'ويه الشراء'}`;
+            if(k==='match' || k==='less' || k==='more' || k==='nopct') t+=` · ${bonusEsc(o.deal)}${k==='match'?' ('+pc(o.vpct)+')':''} · ويه الشراء`;
             if(o.date) t+=` · ${bonusEsc(o.date)}`;
-            if(k!=='adv' && o.adv>0) t+=` · <b>+ مقدماً ${o.adv.toLocaleString()} ق</b>`;
+            // فواتير البونص فقط (قبل الشراء adv أو بعده sep) — ملاحظة للعلم، ما تدخل بأي حساب
+            if(k!=='adv' && (o.adv>0 || o.sep>0)) t+=` · <span style="opacity:.7">(فاتورة بونص فقط ${((o.adv||0)+(o.sep||0)).toLocaleString()} ق — خارج الحساب)</span>`;
             if(o.prev) t+=` · سابقاً ${bonusEsc(o.prev.deal)} (${bonusEsc(o.prev.date)})`;
+            // تصحيح يدوي للثانوي: يگلب الحالة وينحفظ · على سطر مؤشَّر باليد (✋) يرجّعه للتلقائي
+            if(k==='sec' || k==='none') t+=` <button data-sk="${bonusEsc(o.secKey)}" onclick="event.stopPropagation();window.bonusSecSet(this.dataset.sk,'${o.secMan ? '' : (k==='sec' ? 'none' : 'sec')}')" title="${o.secMan ? 'مؤشَّر باليد — اضغط حتى يرجع للتلقائي' : 'تصحيح يدوي — ينحفظ'}" style="background:#fff;color:${v[1]};border:1px solid ${v[1]};border-radius:5px;padding:0 5px;font-size:10px;font-weight:bold;cursor:pointer">${o.secMan ? '↺ تلقائي' : (k==='sec' ? '✗ مو ثانوي' : '↪ ثانوي؟')}</button>`;
             return `<span class="text-[11px]" style="background:${v[2]};color:${v[1]};border-radius:6px;padding:2px 6px;cursor:pointer" title="اضغط لسجل الشراءات كامل" onclick="npOpenLog(${o.i})">${t}</span>`;
-        }).join('')+'</div>';
+        }).join('')+(nHid ? `<span class="text-[10px] text-gray-400">(${nHid} مصدر ثانوي مخفي)</span>` : '')
+            +(nOffHid ? `<span class="text-[10px] text-gray-400">(${nOffHid} مكتب مخفي باختيارك)</span>` : '')+'</div>';
     }
     // عدّ الكارتات حسب حالة مكاتبها — كارت بيه أكثر من مكتب ينعد بكل حالة موجودة بيه
     function bonusNetCountsText(poolList){
@@ -12252,7 +13047,7 @@ window.onload=async()=>{
 
     // ===== فلتر حالة بونص المكاتب — عرض فقط: يخفي الكارتات وما يلمس التأشير ولا الطباعة ولا النسب المكتوبة.
     // كارت بيه أكثر من مكتب يحمل كل حالاتها · «مقدماً» = مكتب مقدماً فقط، أو شراء وياه بونص مقدماً.
-    const BONUS_NET_F=[['adv','🎁 واصل مقدماً'],['more','⬆ واصل زايد'],['less','⬇ واصل ناقص'],['none','✗ غير واصل'],
+    const BONUS_NET_F=[['adv','🎁 بونص فقط'],['more','⬆ واصل زايد'],['less','⬇ واصل ناقص'],['none','✗ غير واصل'],['sec','↪ مصدر ثانوي'],
         ['match','✓ مطابق'],['nopct','• واصل (كارت 0%)'],['nopurch','بلا شراء']];
     function bonusNetKinds(p){
         const ks=new Set();
@@ -12270,6 +13065,7 @@ window.onload=async()=>{
                 const v=BONUS_NET_V[k], on=nf.has(k);
                 return `<button onclick="window.bonusNetFilterToggle('${k}')" class="text-[11px] font-bold" style="border-radius:999px;padding:3px 9px;background:${v[2]};color:${v[1]};border:2px solid ${on?v[1]:'#e5e7eb'};${cnt[k]?'':'opacity:.45'}">${on?'☑ ':''}${l} <b>${(cnt[k]||0).toLocaleString()}</b></button>`;
             }).join('')
+            +`<button onclick="window.bonusSecHideToggle()" class="text-[11px] font-bold" title="يخفي شارات «مصدر ثانوي» من الكارتات ويطفّي كارتها بنافذة طباعة المكاتب" style="border-radius:999px;padding:3px 9px;background:#fff;color:#6d28d9;border:2px dashed #6d28d9">${bonusSecHidden() ? '🙈 المصادر الثانوية: مخفية' : '👁 المصادر الثانوية: ظاهرة'}</button>`
             +(nf.size ? `<button onclick="window.bonusNetFilterToggle('')" class="ios-btn text-xs px-2 py-1">↺ الكل</button>`
                 +`<span class="text-[11px] font-bold" style="color:#7c3aed">معروض ${nShown.toLocaleString()} من ${kinds.length.toLocaleString()} — الطباعة والملخص و«تحديد الكل» يبقون على كل المواد</span>` : '');
     }
@@ -12580,6 +13376,229 @@ window.onload=async()=>{
         const today=new Date().toISOString().slice(0,10);
         pdf.save('BonusReport_'+today+'.pdf');
         showToast('✅ PDF جاهز — '+officeNames.length+' مكتب');
+    };
+
+    // ================================================================
+    //  طباعة المكاتب — موقف بونص كل مكتب (💲 أسعار نت) مقابل نسبة الكارت: صفحة ملخص + جدول تحت اسم كل مكتب.
+    //  المصدر = نفس شارات «بونص المكاتب» بالكارتات (bonusNetOffices + bonusNetVerdict) بلا حساب ثاني.
+    //  تاخذ كل المواد المفلترة (مؤشَّرة أو لا) · الصيدليات المسجّلة كمكتب و«بلا شراء» ما تدخل.
+    // ================================================================
+    // [مفتاح الحكم, الموقف بالجدول, الاسم المختصر بالكارت]
+    const BONUS_OFF_ST=[['match','مطابق','مطابق'],['more','غير مطابق — واصل زايد','واصل زايد'],['less','غير مطابق — واصل ناقص','واصل ناقص'],
+        ['none','غير واصل','غير واصل'],['sec','مصدر ثانوي','مصدر ثانوي'],['adv','بونص فقط — خارج الحساب','بونص فقط'],['nopct','واصل — الكارت بلا نسبة','كارت 0%']];
+    function bonusOfficeReportRows(){
+        const terms=String((document.getElementById('bonusOfficeFilter')||{}).value||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
+        const pc=v=>(Math.round(v*1000)/10)+'%', rows=[];
+        (window.__bonusPools||[]).forEach(p=>{
+            (bonusNetOffices(p.product)||[]).forEach(o=>{
+                const k=bonusNetVerdict(o, p.pct);
+                if(k==='nopurch' || o.pharm || !String(o.vendor||'').trim()) return;
+                if(!bonusOfficeInScope(o.vendor, terms)) return;
+                // فاتورة البونص المنفصلة (o.sep) متجاهَلة: ما تنذكر بالطباعة وما تغيّر الموقف
+                let deal = k==='adv' ? 'بونص فقط '+(o.adv||0).toLocaleString()+' ق'
+                         : k==='none' ? '—'
+                         : k==='sec' ? (o.secFrom ? o.secFrom.deal+' من '+bonusOffShort(o.secFrom.vendor) : 'تأشير يدوي')   // الديل أول: إذا النص أطول من الخانة ينقطع اسم المكتب مو الديل
+                         : o.deal+' ('+pc(o.vpct)+')';
+                rows.push({office:String(o.vendor).trim(), product:p.product, k, deal, card:p.pct>0 ? pc(p.pct) : '—'});
+            });
+        });
+        return rows;
+    }
+    // كارتات العدّ قبل الطباعة — ضغطة على الكارت تشيل حالته من الطباعة أو ترجّعها. يرجّع Set بالحالات المطلوبة، أو null عند الإلغاء
+    function bonusAskOfficeReport(rows){
+        return new Promise(resolve=>{
+            const cnt={}; rows.forEach(r=>{ cnt[r.k]=(cnt[r.k]||0)+1; });
+            const ov=document.createElement('div');
+            ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+            ov.innerHTML=`<div dir="rtl" style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:94vh;overflow:auto;padding:16px;font-family:Tajawal,Arial,sans-serif">
+                <div style="font-weight:bold;font-size:16px;color:#002060">🏢 طباعة المكاتب</div>
+                <div style="font-size:12px;color:#6b7280;margin:4px 0 12px"><span data-info></span><br>اضغط الكارت حتى تشيل حالته من الطباعة أو ترجّعها.</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">${BONUS_OFF_ST.filter(s=>cnt[s[0]]).map(s=>{ const v=BONUS_NET_V[s[0]];
+                    const on=!(s[0]==='sec' && bonusSecHidden());   // «إخفاء المصادر الثانوية» يطفّي كارتها هنا كبداية — ضغطة ترجّعه
+                    return `<button data-k="${s[0]}" data-on="${on?1:0}" style="min-width:92px;${on?'':'opacity:.35;'}background:${v[2]};color:${v[1]};border:2px ${on?'solid':'dashed'} ${v[1]};border-radius:12px;padding:8px 10px;cursor:pointer;font-family:inherit"><div data-n style="font-size:20px;font-weight:900">${cnt[s[0]].toLocaleString()}</div><div style="font-size:12px;font-weight:bold">${s[2]}</div></button>`; }).join('')}</div>
+                <div style="margin-top:12px;border-top:1px solid #e5e7eb;padding-top:10px">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                        <b style="font-size:13px;color:#002060">المكاتب</b>
+                        <input data-offq placeholder="بحث باسم المكتب" style="flex:1;min-width:120px;border:1px solid #d1d5db;border-radius:8px;padding:4px 8px;font-size:12px;font-family:inherit">
+                        <button data-offall="1" style="background:#e0e7ff;color:#002060;border:0;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:bold;cursor:pointer;font-family:inherit">إظهار المعروض</button>
+                        <button data-offall="0" style="background:#f3f4f6;color:#b91c1c;border:0;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:bold;cursor:pointer;font-family:inherit">إخفاء المعروض</button>
+                    </div>
+                    <div data-offlist style="max-height:220px;overflow:auto;margin-top:6px;border:1px solid #e5e7eb;border-radius:8px"></div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:4px">شيل الصح ☑ حتى يختفي المكتب من الطباعة ومن شارات الكارتات — اختيارك ينحفظ للمرات الجاية. (الرقم = عدد مواده)</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:14px">
+                    <button data-act="ok" style="background:#002060;color:#fff;border:0;border-radius:10px;padding:8px 18px;font-weight:bold;font-size:13px;cursor:pointer">طباعة PDF</button>
+                    <button data-act="cancel" style="background:#f3f4f6;color:#b91c1c;border:0;border-radius:10px;padding:8px 18px;font-weight:bold;font-size:13px;cursor:pointer">إلغاء</button>
+                </div></div>`;
+            const close=val=>{ try{ document.body.removeChild(ov); }catch(e){} resolve(val); };
+            // قائمة المكاتب: ☑ ظاهر · بلا صح = مخفي (ينحفظ فوراً). العدّادات فوق تمشي على الظاهر بس
+            const offs=Array.from(new Set(rows.map(r=>r.office))).sort((a,b)=>a.localeCompare(b,'ar')), offN={};
+            rows.forEach(r=>{ offN[r.office]=(offN[r.office]||0)+1; });
+            const listEl=ov.querySelector('[data-offlist]'), qEl=ov.querySelector('[data-offq]');
+            const shown=()=>{ const q=qEl.value.trim().toLowerCase(); return offs.map((o,i)=>i).filter(i=>!q || offs[i].toLowerCase().includes(q)); };
+            const drawCounts=()=>{
+                const vis=rows.filter(r=>!bonusOffIsHid(r.office)), c={}; vis.forEach(r=>{ c[r.k]=(c[r.k]||0)+1; });
+                ov.querySelectorAll('button[data-k]').forEach(b=>{ b.querySelector('[data-n]').textContent=(c[b.dataset.k]||0).toLocaleString(); });
+                const nVis=offs.filter(o=>!bonusOffIsHid(o)).length;
+                ov.querySelector('[data-info]').innerHTML=`<b>${nVis.toLocaleString()}</b> مكتب ظاهر من ${offs.length.toLocaleString()}`+(nVis<offs.length ? ` (<b style="color:#b91c1c">${(offs.length-nVis).toLocaleString()} مخفي</b>)` : '')
+                    +` • <b>${new Set(vis.filter(r=>r.k!=='adv').map(r=>r.product)).size.toLocaleString()}</b> مادة • <b>${vis.length.toLocaleString()}</b> سطر (مادة × مكتب) • أدوية «بونص فقط» (خارج الحساب): <b>${new Set(vis.filter(r=>r.k==='adv').map(r=>r.product)).size.toLocaleString()}</b>`;
+            };
+            const drawList=()=>{ listEl.innerHTML=shown().map(i=>{ const hid=bonusOffIsHid(offs[i]);
+                return `<label style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;border-bottom:1px solid #f3f4f6;cursor:pointer;${hid?'color:#9ca3af;background:#f9fafb':''}"><input type="checkbox" data-offi="${i}" ${hid?'':'checked'}><span style="flex:1">${bonusEsc(offs[i])}</span><span style="color:#6b7280">${offN[offs[i]].toLocaleString()}</span></label>`; }).join('')
+                || '<div style="padding:8px;font-size:12px;color:#9ca3af">ماكو مكتب بهذا الاسم</div>'; };
+            listEl.addEventListener('change', ev=>{ const i=ev.target.dataset && ev.target.dataset.offi; if(i==null) return;
+                bonusOffHidSet(offs[+i], !ev.target.checked); const lab=ev.target.closest('label'); lab.style.color=ev.target.checked?'':'#9ca3af'; lab.style.background=ev.target.checked?'':'#f9fafb'; drawCounts(); });
+            qEl.addEventListener('input', drawList);
+            drawList(); drawCounts();
+            ov.addEventListener('click', ev=>{
+                const allBtn=ev.target.closest && ev.target.closest('button[data-offall]');
+                if(allBtn){ shown().forEach(i=>bonusOffHidSet(offs[i], allBtn.dataset.offall==='0')); drawList(); drawCounts(); return; }
+                const card=ev.target.closest && ev.target.closest('button[data-k]');
+                if(card){ const on=card.dataset.on!=='1'; card.dataset.on=on?'1':'0'; card.style.opacity=on?'1':'.35'; card.style.borderStyle=on?'solid':'dashed'; return; }
+                const act=ev.target.getAttribute && ev.target.getAttribute('data-act');
+                if(act==='ok') return close(new Set(Array.from(ov.querySelectorAll('button[data-k][data-on="1"]')).map(b=>b.dataset.k)));
+                if(act==='cancel' || ev.target===ov) return close(null);
+            });
+            document.body.appendChild(ov);
+        });
+    }
+    window.bonusExportOfficesPDF=async function(){
+        if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
+        if(!window.__bonusNet){ alert('أسعار النت ما مزامَنة — سوّي ⚡ مزامنة سريعة أول (بعد زر «أسعار نت مع بونص» بالإكسل).'); return; }
+        const all=bonusOfficeReportRows();
+        if(!all.length){ alert('ماكو مكاتب للطباعة ضمن الفلتر الحالي.'); return; }
+        const keep=await bonusAskOfficeReport(all);
+        bonusSecRerender();   // المكاتب اللي انخفت/رجعت بالنافذة تنعكس على شارات الكارتات حتى لو انلغت الطباعة
+        if(!keep) return;
+        const rows=all.filter(r=>keep.has(r.k) && !bonusOffIsHid(r.office));
+        if(!rows.length){ alert('كل الحالات أو كل المكاتب مشيولة — ماكو شي ينطبع.'); return; }
+        showToast('⏳ جاري بناء PDF...', true);
+        await new Promise(r=>setTimeout(r,30));
+
+        const S=6, PW=297, PH=210, M=7, TITLE_H=12, FOOT_H=6, OFF_H=10, INFO_H=7, HEAD_H=8, ROW_H=8, LINE_GAP=4.3, SUM_H=7, CARDS_H=24, CW=PW-2*M, R=PW-M;
+        const FONT='Tajawal, Arial, sans-serif', top=M+TITLE_H+2, bottom=PH-M-FOOT_H;
+        const ST=Object.fromEntries(BONUS_OFF_ST.map(s=>[s[0],s]));
+        // الأعمدة تنرسم من اليمين لليسار
+        const COLS=[{k:'n',label:'ت',w:12},{k:'product',label:'اسم المادة',w:128},{k:'deal',label:'بونص المكتب (الديل والنسبة)',w:62},{k:'card',label:'نسبة الكارت',w:26},{k:'st',label:'الموقف',w:55}];
+        const SUMCOLS=[{k:'n',label:'ت',w:10},{k:'office',label:'المكتب',w:91},{k:'tot',label:'المواد',w:22}, ...BONUS_OFF_ST.map(s=>({k:s[0],label:s[2],w:160/BONUS_OFF_ST.length}))];
+
+        const mctx=document.createElement('canvas').getContext('2d'); mctx.font='bold 4.4px '+FONT;
+        const groups={};
+        rows.forEach(r=>{ r.lines=bonusWrapText(mctx, r.product, COLS[1].w-4, 2); r.h=r.lines.length>1 ? ROW_H+LINE_GAP : ROW_H; (groups[r.office]=groups[r.office]||[]).push(r); });
+        const offices=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'ar'));
+        const cntOf=list=>{ const c={}; list.forEach(r=>{ c[r.k]=(c[r.k]||0)+1; }); return c; };
+        offices.forEach(o=>groups[o].sort((a,b)=>String(a.product).localeCompare(String(b.product),'en',{sensitivity:'base',numeric:true})));
+
+        // ── توزيع الصفحات أول (حتى ينعرف عدد الصفحات)، وبعدها الرسم
+        const pages=[]; let pg=null, y=0;
+        const newPage=()=>{ pg={items:[], names:[]}; pages.push(pg); y=top; };
+        // المكاتب أول (ملخص كل مكتب بشريط اسمه)، والملخص العام بآخر التقرير — طلب 2026-10-06
+        // المكتب ينطبع مرتين: مواده الرئيسية، وبعدها شريط ثاني بنفس الاسم بلون بنفسجي لمواده الثانوية (مصدر ثانوي) — طلب 2026-10-06
+        const addBlock=(o, list, sec, gap)=>{
+            if(!list.length) return;
+            const c=cntOf(list), name=o+(sec ? ' — مصدر ثانوي' : '');
+            const cmpN=list.length-(c.adv||0);   // «بونص فقط» ينعرض بس ما ينحسب ويه مواد المقارنة
+            if(!pg || y+OFF_H+HEAD_H+list[0].h>bottom) newPage();
+            pg.items.push({t:'office', y, name, c, cmpN, sec}); pg.names.push(o); y+=OFF_H;
+            pg.items.push({t:'head', y, sec}); y+=HEAD_H;
+            list.forEach((r,i)=>{
+                if(y+r.h>bottom){ newPage(); pg.items.push({t:'office', y, name:name+' (تابع)', c, cmpN, sec}); pg.names.push(o); y+=OFF_H; pg.items.push({t:'head', y, sec}); y+=HEAD_H; }
+                pg.items.push({t:'row', y, r, n:i+1}); y+=r.h;
+            });
+            y+=gap;
+        };
+        offices.forEach(o=>{
+            const secL=groups[o].filter(r=>r.k==='sec');
+            addBlock(o, groups[o].filter(r=>r.k!=='sec'), false, secL.length ? 1.5 : 4);
+            addBlock(o, secL, true, 4);
+        });
+        newPage();
+        pg.items.push({t:'cards', y}); y+=CARDS_H+3;
+        pg.items.push({t:'sumHead', y}); y+=HEAD_H;
+        offices.forEach((o,i)=>{
+            if(y+SUM_H>bottom){ newPage(); pg.items.push({t:'sumHead', y}); y+=HEAD_H; }
+            pg.items.push({t:'sumRow', y, n:i+1, office:o, c:cntOf(groups[o]), tot:groups[o].filter(r=>r.k!=='adv').length}); y+=SUM_H;
+        });
+        if(y+SUM_H>bottom){ newPage(); pg.items.push({t:'sumHead', y}); y+=HEAD_H; }
+        pg.items.push({t:'sumRow', y, n:'', office:'المجموع', c:cntOf(rows), tot:rows.filter(r=>r.k!=='adv').length, total:true});
+
+        const {jsPDF}=window.jspdf;
+        const pdf=new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+        const canvas=document.createElement('canvas'); canvas.width=PW*S; canvas.height=PH*S;
+        const ctx=canvas.getContext('2d');
+        const fit=(t,maxW)=>{ t=String(t==null?'':t); if(ctx.measureText(t).width<=maxW) return t; while(t.length>1 && ctx.measureText(t+'…').width>maxW) t=t.slice(0,-1); return t+'…'; };
+        const txt=(t,x,yy,o)=>{ ctx.direction=o.dir||'rtl'; ctx.textAlign=o.align||'center'; ctx.fillStyle=o.color||'#000000'; ctx.font='bold '+(o.size*S)+'px '+FONT; ctx.fillText(o.max ? fit(t,o.max*S) : String(t), x*S, yy*S); };
+        const box=(x,yy,w,h,fill)=>{ if(fill){ ctx.fillStyle=fill; ctx.fillRect(x*S,yy*S,w*S,h*S); } ctx.strokeStyle='#999999'; ctx.lineWidth=0.25*S; ctx.strokeRect(x*S,yy*S,w*S,h*S); };
+        const eachCol=(cols, fn)=>{ let xr=R; cols.forEach(c=>{ fn(c, xr-c.w); xr-=c.w; }); };
+        const fromV=(document.getElementById('bonusFromDate')||{}).value, toV=(document.getElementById('bonusToDate')||{}).value;
+        const today=new Date().toISOString().slice(0,10);
+        const title='تقرير بونص المكاتب'+((fromV||toV) ? ' — من '+(fromV||'…')+' إلى '+(toV||'…') : '');
+        const nMat=new Set(rows.filter(r=>r.k!=='adv').map(r=>r.product)).size, advMats=new Set(rows.filter(r=>r.k==='adv').map(r=>r.product)).size, allC=cntOf(rows);
+        const arFont=await ensureArabicInvisibleFont(pdf).catch(()=>false);
+
+        for(let pi=0; pi<pages.length; pi++){
+            if(pi%5===0){ showToast('📄 صفحة '+(pi+1)+' من '+pages.length, true); await new Promise(r=>setTimeout(r,10)); }
+            ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.textBaseline='middle';
+            ctx.fillStyle='#002060'; ctx.fillRect(M*S, M*S, CW*S, TITLE_H*S);
+            txt(title, PW/2, M+TITLE_H/2, {size:6, color:'#ffffff'});
+            txt('مذخر أدوية المنصور', R, PH-M-FOOT_H/2+1, {size:3.6, color:'#555555', align:'right'});
+            txt(today, PW/2, PH-M-FOOT_H/2+1, {size:3.6, color:'#555555', dir:'ltr'});
+            txt('صفحة '+(pi+1)+' من '+pages.length, M, PH-M-FOOT_H/2+1, {size:3.6, color:'#555555', align:'left'});
+            pages[pi].items.forEach(it=>{
+                const yy=it.y;
+                if(it.t==='cards'){
+                    const cards=[['عدد المكاتب', offices.length, '#002060', '#e0e7ff'], ['عدد المواد', nMat, '#002060', '#e0e7ff'],
+                        ...BONUS_OFF_ST.map(s=>[s[2], allC[s[0]]||0, BONUS_NET_V[s[0]][1], BONUS_NET_V[s[0]][2]])];
+                    const gap=2, w=(CW-gap*(cards.length-1))/cards.length;
+                    cards.forEach((c,i)=>{ const x=R-(i+1)*w-i*gap; box(x, yy, w, CARDS_H-6, c[3]);
+                        txt(c[1].toLocaleString(), x+w/2, yy+7, {size:7.5, color:c[2], dir:'ltr'}); txt(c[0], x+w/2, yy+14.5, {size:3.8, color:c[2], max:w-2}); });
+                    txt('«بونص فقط» (بونص بلا أي شراء من المكتب) ينعرض وما يدخل بالحساب — عدد أدويته: '+advMats.toLocaleString()+'   •   السطر = مادة × مكتب   •   الصيدليات المسجّلة كمكتب ما داخلة', R, yy+CARDS_H-2.5, {size:3.6, color:'#555555', align:'right'});
+                } else if(it.t==='sumHead'){
+                    eachCol(SUMCOLS, (c,x)=>{ box(x, yy, c.w, HEAD_H, '#4472C4'); txt(c.label, x+c.w/2, yy+HEAD_H/2, {size:3.9, color:'#ffffff', max:c.w-1.5}); });
+                } else if(it.t==='sumRow'){
+                    eachCol(SUMCOLS, (c,x)=>{
+                        const v=BONUS_NET_V[c.k], n=c.k==='tot' ? it.tot : (it.c[c.k]||0);
+                        box(x, yy, c.w, SUM_H, it.total ? '#e5e7eb' : (v && n ? v[2] : null));
+                        if(c.k==='n') txt(it.n, x+c.w/2, yy+SUM_H/2, {size:3.8, dir:'ltr'});
+                        else if(c.k==='office') txt(it.office, x+c.w-2, yy+SUM_H/2, {size:4, align:'right', max:c.w-4});
+                        else txt(n ? n.toLocaleString() : '—', x+c.w/2, yy+SUM_H/2, {size:4, dir:'ltr', color:v && n ? v[1] : (n ? '#000000' : '#9ca3af')});
+                    });
+                } else if(it.t==='office'){
+                    box(M, yy, CW, OFF_H, it.sec ? '#6d28d9' : '#1155CC');
+                    // ملخص المكتب بنفس شريط اسمه (يسار الاسم): عدد المواد + الحالات الموجودة عنده بس (شريط الثانوي: العدد يكفي)
+                    const cells=[['عدد المواد', it.cmpN, '#002060', '#e0e7ff'], ...BONUS_OFF_ST.filter(s=>!it.sec && it.c[s[0]]).map(s=>[s[2], it.c[s[0]], BONUS_NET_V[s[0]][1], BONUS_NET_V[s[0]][2]])];
+                    const lab=cl=>cl[0]+': '+cl[1].toLocaleString(), GAP=1.5;
+                    ctx.font='bold '+(3.8*S)+'px '+FONT;
+                    const ws=cells.map(cl=>ctx.measureText(lab(cl)).width/S+4), tw=ws.reduce((a,b)=>a+b,0)+GAP*(cells.length-1);
+                    let xr=M+2+tw;
+                    cells.forEach((cl,i)=>{ const x=xr-ws[i]; box(x, yy+1.5, ws[i], OFF_H-3, cl[3]); txt(lab(cl), x+ws[i]/2, yy+OFF_H/2, {size:3.8, color:cl[2]}); xr=x-GAP; });
+                    txt(it.name, R-3, yy+OFF_H/2, {size:5.2, color:'#ffffff', align:'right', max:CW-tw-10});
+                } else if(it.t==='head'){
+                    eachCol(COLS, (c,x)=>{ box(x, yy, c.w, HEAD_H, it.sec ? '#8b5cf6' : '#4472C4'); txt(c.label, x+c.w/2, yy+HEAD_H/2, {size:4.2, color:'#ffffff', max:c.w-2}); });
+                } else if(it.t==='row'){
+                    const r=it.r, v=BONUS_NET_V[r.k];
+                    eachCol(COLS, (c,x)=>{
+                        box(x, yy, c.w, r.h, c.k==='st' ? v[2] : (it.n%2 ? null : '#F7F7F7'));
+                        if(c.k==='n') txt(it.n, x+c.w/2, yy+r.h/2, {size:4.2, dir:'ltr'});
+                        else if(c.k==='product'){ let ly=yy+r.h/2-(r.lines.length*LINE_GAP)/2+LINE_GAP/2; r.lines.forEach(l=>{ txt(l, x+2, ly, {size:4.4, dir:'ltr', align:'left'}); ly+=LINE_GAP; }); }
+                        else if(c.k==='deal') txt(r.deal, x+c.w/2, yy+r.h/2, {size:4.2, max:c.w-3, dir:/[؀-ۿ]/.test(r.deal) ? 'rtl' : 'ltr'});   // «10+1 (10%)» ينقلب ترتيبه تحت rtl
+                        else if(c.k==='card') txt(r.card, x+c.w/2, yy+r.h/2, {size:4.2, dir:'ltr'});
+                        else txt(ST[r.k][1], x+c.w/2, yy+r.h/2, {size:4.2, color:v[1], max:c.w-3});
+                    });
+                }
+            });
+            if(pi) pdf.addPage();
+            pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,PW,PH);
+            // طبقة نص مخفية — حتى ينلگى اسم المكتب والمادة بالبحث داخل الـPDF
+            try{
+                if(arFont){ pdf.setFont('NotoNaskhArabic'); pdf.setFontSize(6); pages[pi].names.forEach((nm,i)=>pdf.text(nm, PW-12, 8+i*3, {renderingMode:'invisible'})); }
+                pdf.setFont('helvetica'); pdf.setFontSize(6);
+                pages[pi].items.filter(it=>it.t==='row').forEach((it,i)=>pdf.text(String(it.r.product||''), 12, 20+i*3, {renderingMode:'invisible'}));
+            }catch(e){ console.warn('offices pdf invisible layer failed', e); }
+        }
+        pdf.save('BonusOffices_'+today+'.pdf');
+        showToast('✅ PDF جاهز — '+offices.length+' مكتب • '+rows.length.toLocaleString()+' سطر • '+pages.length+' صفحة');
+        return {offices:offices.length, rows:rows.length, pages:pages.length};
     };
 
     // لف نص عمود اسم المادة على سطرين حد أقصى — يمنع تداخله مع عمود اسم الصيدليه
@@ -13391,7 +14410,7 @@ window.onload=async()=>{
         document.getElementById('vendorStockResultsPanel').classList.remove('hidden');
     }
 
-    // تعديل رقم الرصيد مباشرة بالجدول (للكشف الحالي فقط — يظهر بالـPDF/الصور/الواتساب ويختفي عند التوليد من جديد)
+    // تعديل رقم الرصيد مباشرة بالجدول (للكشف الحالي فقط)
     (function(){
         const resultsEl=document.getElementById('vendorStockResults');
         resultsEl.addEventListener('click', e=>{
@@ -14455,8 +15474,8 @@ window.onload=async()=>{
     document.getElementById('allocPrintBtn').onclick=()=>allocExportPDF().catch(e=>alert('خطأ: '+e.message));
 
     // ===== استيراد Excel مباشر لتبويب المواد المخصصة =====
-    document.getElementById('allocImportBtn').onclick=()=>{
-        qsPick({
+    document.getElementById('allocImportBtn').onclick=()=>qsPick(qsTabs.allocated);
+    qsTabs.allocated={
             statusId:'qsAllocStatus', requiredLabel:'AllocatedItems',
             findSheet: wb=>qsFindSheet(wb,'allocateditems'),
             onFound: async (wb, sheetName)=>{
@@ -14465,7 +15484,6 @@ window.onload=async()=>{
                 await renderAllocated();
                 await qsShowStamp('qsAllocStamp','AllocatedItems');
             }
-        });
     };
     qsShowStamp('qsAllocStamp','AllocatedItems');
 
@@ -15953,8 +16971,8 @@ window.onload=async()=>{
         expRenderTable(list);
         expUpdateSelectionBar();
     };
-    document.getElementById('expImportBtn').onclick=()=>{
-        qsPick({
+    document.getElementById('expImportBtn').onclick=()=>qsPick(qsTabs.expiry);
+    qsTabs.expiry={
             statusId:'qsExpStatus', requiredLabel:'Expiry Material',
             findSheet: wb=>wb.SheetNames.find(n=>EXP_SHEET_NAMES.map(x=>x.toLowerCase()).includes(n.toLowerCase())) || wb.SheetNames.find(n=>/expir/i.test(n)),
             onFound: async (wb, sname)=>{
@@ -15966,7 +16984,6 @@ window.onload=async()=>{
                 await renderExpiry();
                 await qsShowStamp('qsExpStamp','Expiry Material');
             }
-        });
     };
     qsShowStamp('qsExpStamp','Expiry Material');
 
@@ -15996,6 +17013,7 @@ window.onload=async()=>{
         document.getElementById('globalShareFilter').value='';
         document.getElementById('globalOtherFilter').value='';
         document.getElementById('globalFakeFilter').value=''; appState.globalFilters.fake='';
+        document.getElementById('globalNetFilter').value=''; appState.globalFilters.net='';
         appState.globalFilters.vendor=''; appState.globalFilters.item='';
         appState.globalFilters.reqCompare=''; appState.globalFilters.reqValue=null;
         appState.globalFilters.share=''; appState.globalFilters.other='';
@@ -17022,11 +18040,10 @@ document.addEventListener('DOMContentLoaded', function(){
         await mvRender();
         return st.rows.length;
     }
-    function mvSync(){
-        qsPick({ statusId:'mvStatus', requiredLabel:'Sheet3',
+    qsTabs.movement={ statusId:'mvStatus', requiredLabel:'Sheet3',
             findSheet: wb=>wb.SheetNames.find(n=>n.trim().toLowerCase()==='sheet3')||null,
-            onFound: mvIngest });
-    }
+            onFound: mvIngest };
+    function mvSync(){ qsPick(qsTabs.movement); }
 
     const coll=new Intl.Collator('ar');
     function mvSortRows(rows){
@@ -17422,11 +18439,10 @@ document.addEventListener('DOMContentLoaded', function(){
         await npRender();
         return st.rows.length;
     }
-    function npSync(){
-        qsPick({ statusId:'npStatus', requiredLabel:S_MAIN,
+    qsTabs.netPrice={ statusId:'npStatus', requiredLabel:S_MAIN,
             findSheet: wb=>wb.SheetNames.find(n=>n.trim().toLowerCase()===S_MAIN.toLowerCase())||null,
-            onFound: wb=>npIngest(wb) });
-    }
+            onFound: wb=>npIngest(wb) };
+    function npSync(){ qsPick(qsTabs.netPrice); }
 
     // ── الفلترة: skip = مجموعة تتجاهل فلترها — حتى رقم كل زر = المواد اللي تعبر باقي الفلاتر (تفاعلي)
     function npFiltered(skip){
@@ -17720,6 +18736,13 @@ document.addEventListener('DOMContentLoaded', function(){
         st.log.forEach(a=>a.forEach(e=>{ if(e.date && (!from || e.date<from)) from=e.date; }));
         return {importedAt:st.importedAt, count:st.rows.length, from};
     }
+    // نفس NP_Deal بـModule71: مدفوع+بونص مبسّطة بالقاسم المشترك
+    const gcd=(a,b)=>b ? gcd(b, a%b) : a;
+    const dealOf=(paid,b)=>{
+        if(!(b>0)) return 'Regular';
+        if(Number.isInteger(paid) && Number.isInteger(b) && paid>=1){ const g=gcd(paid,b); return (paid/g)+'+'+(b/g); }
+        return paid+'+'+b;
+    };
     function npOfficesFor(product){
         if(!st.rows) return null;
         if(st.bIdxFor!==st.rows){
@@ -17730,15 +18753,50 @@ document.addEventListener('DOMContentLoaded', function(){
             if(r._bo) return r._bo;
             const mine=(st.log.get(r.key)||[]).filter(e=>e.vendor===r.vendor);   // مرتّب من الأحدث
             const adv=mine.reduce((s,e)=>s+(e.purchase ? 0 : (e.same||0)), 0);
+            // «بونص فقط» = فاتورة بونص منفصلة (الإكسل يلصقها بآخر شراء قبلها كـ«متأخر») — خارج المقارنة بقرار 2026-10-05:
+            // النسبة والديل هنا من بونص **نفس يوم الشراء** بس، والمنفصل ينعرض بـsep. تبويب «أسعار نت» يبقى يعرض أرقام الإكسل مثل ما هي.
+            const last=mine.find(e=>e.purchase), paid=last ? last.paid : 0, same=last ? (last.same||0) : 0;
+            const sep=last ? (last.late||0) : (r.type==='late' ? (r.bqty||0) : 0);
+            const vpct=sep>0 ? (paid>0 ? same/paid : 0) : r.vpct;
             // آخر شراء بلا بونص بس شراء أقدم من نفس المكتب كان بيه — ينذكر حتى ما تضيع المعلومة
-            const prev=r.type==='none' ? mine.find(e=>e.purchase && e.paid>0 && ((e.same||0)+(e.late||0))>0) : null;
-            return r._bo={ i:r.i, name:r.name, vendor:r.vendor, date:r.date, deal:r.deal, vpct:r.vpct, type:r.type, nPurch:r.nPurch,
+            const prev=(r.type==='none' || r.type==='late') ? mine.find(e=>e!==last && e.purchase && e.paid>0 && (e.same||0)>0) : null;
+            return r._bo={ i:r.i, name:r.name, vendor:r.vendor, date:r.date, deal:sep>0 ? dealOf(paid, same) : r.deal, vpct, sep, type:r.type, nPurch:r.nPurch,
                 adv:r.type==='advance' ? (r.bqty||adv) : adv,
-                prev:prev ? {deal:prev.deal, date:prev.date} : null, pharm:/^(ص|صيدلية)\s/.test(r.vendor) };
+                prev:prev ? {deal:dealOf(prev.paid, prev.same), date:prev.date} : null, pharm:/^(ص|صيدلية)\s/.test(r.vendor) };
         });
     }
 
-    Object.assign(window, { npBonusReady, npOfficesFor, npRender, npSync, npIngest, npSetFilter, npSearch, npToggle, npClearFilters, npPanel, npPanelSearch, npPick,
+    // أسعار النت لمادة حسب المكتب — للفيندور الشامل (مقارنة «مكاتب أخرى»، 2026-10-06). null = النت ما مزامَن.
+    // المطابقة بثلاث مراحل وخروج مبكر، الأضيق أولاً: الاسم بالضبط ← بلا @/& ← بلا أي رمز/فراغ («X =» و«X=»).
+    // المرحلة الواسعة تنقبل بس إذا مفتاحها يقابل اسم واحد بالملف — «X» و«X@» مادتان بسعرين، فمفتاح يجمع اسمين = ambig بلا سعر.
+    const netTight=s=>bonusKey(s).replace(/[^A-Z0-9؀-ۿ]/g,'');
+    function npNetFor(product){
+        if(!st.rows) return null;
+        if(st.nIdxFor!==st.rows){
+            st.nIdx=new Map(); st.nLoose=new Map(); st.nTight=new Map(); st.nIdxFor=st.rows;
+            const add=(m,k,v)=>{ let s=m.get(k); if(!s) m.set(k, s=new Set()); s.add(v); };
+            // الفهارس تشمل كل الأسماء حتى اللي بلا سعر (بونص مقدماً) — «X@» بلا سعر بالملف لازم يمنع «X@» بالطلبية من أخذ سعر «X»
+            st.rows.forEach(r=>{
+                let a=st.nIdx.get(r.key); if(!a) st.nIdx.set(r.key, a=[]);
+                if(r.net>0) a.push(r);
+                add(st.nLoose, bonusKey(r.name), r.key); add(st.nTight, netTight(r.name), r.key);
+            });
+        }
+        let key=keyOf(product), via='exact', ambig=false;
+        if(!st.nIdx.has(key)){
+            key=null;
+            for(const [m,k,v] of [[st.nLoose, bonusKey(product), 'loose'], [st.nTight, netTight(product), 'tight']]){
+                const s=m.get(k); if(!s) continue;
+                if(s.size===1){ key=s.values().next().value; via=v; } else ambig=true;
+                break;
+            }
+        }
+        const out=(key ? st.nIdx.get(key) : []).map(r=>({vendor:r.vendor, net:r.net, date:r.date, deal:r.deal, name:r.name}));
+        out.via=via; out.ambig=ambig;
+        return out;
+    }
+
+    Object.assign(window, { npBonusReady, npOfficesFor, npNetFor, npRender, npSync, npIngest, npSetFilter, npSearch, npToggle, npClearFilters, npPanel, npPanelSearch, npPick,
         npPanelClear, npSort, npSortDefault, npPage, npToggleRow, npTogglePage, npSelectAll, npSelectFiltered, npClearSel,
         npOpenLog, npCloseLog, npExportExcel, npExportPDF });
     window.__npState=st;
@@ -18309,7 +19367,6 @@ document.addEventListener('DOMContentLoaded', function(){
             </div>
             <div class="flex gap-2 flex-wrap items-center">
                 <button onclick="qsSyncDeliveryTracking()" class="ios-btn text-white px-3 py-2 text-xs" style="background:linear-gradient(135deg,#0f766e,#0369a1)" title="اختر ملف Excel — يدوّر عن شيت DeliveryReportMgmt تلقائياً ويستبدل بياناته"><i class="fas fa-bolt ml-1"></i>⚡ مزامنة سريعة</button>
-                <button id="officeLinkBtn" class="ios-btn text-white px-3 py-2 text-xs" style="background:#0369a1" title="نفس المكتب اجه باسمين؟ اربطهم هنا"><i class="fas fa-link ml-1"></i> روابط المكاتب</button>
                 <button id="manualArchiveBtn" class="ios-btn bg-gradient-to-r from-[#0369a1] to-[#0284c7] text-white px-3 py-2 text-xs" title="يحفظ المكاتب اللي ما وصل منها ولا صنف (من متابعة الوصول) — اضغطه بعد آخر مزامنة للطلبية القديمة وقبل الطلبية الجديدة. يصير مرجع «نفس القديمة» وتاريخ رسائل المتابعة"><i class="fas fa-camera ml-1"></i> 📸 أرشف الآن</button>
                 <span id="qsDtStatus" class="text-[10px] text-gray-400"></span>
                 <span id="qsDtStamp" class="text-[10px] text-gray-400">لم تتم المزامنة بعد</span>
@@ -18811,6 +19868,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     <button onclick="window.bonusUndo()" class="ios-btn text-xs px-3 py-2" title="يرجع آخر تعديل (تأشير/إضافة/تغيير نسبة)">↶ تراجع</button>
                     <button onclick="window.bonusResetAll()" class="ios-btn text-xs px-3 py-2" style="color:#b91c1c" title="يلغي كل التعديلات ويرجع البيانات كما هي بالمزامنة">🔄 استعادة الأصل</button>
                     <button onclick="window.bonusExportPDF()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#002060" title="يطبع كل الصفوف المؤشَّرة صح (بونص ≥ 1) — صفحة لكل مكتب، نفس تخطيط طباعة الإكسل"><i class="fas fa-file-pdf ml-1"></i> PDF</button>
+                    <button onclick="window.bonusExportOfficesPDF()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#0f766e" title="موقف بونص كل مكتب مقابل نسبة الكارت — ملخص بالأعداد، وتحت اسم كل مكتب جدول مواده"><i class="fas fa-building ml-1"></i> طباعة المكاتب</button>
                 </div>
                 <div id="bonusResultCount" class="text-xs text-gray-500 mt-2"></div>
                 <div id="bonusNetFilterBar" class="hidden flex items-center gap-1 flex-wrap mt-2 pt-2 border-t"></div>
