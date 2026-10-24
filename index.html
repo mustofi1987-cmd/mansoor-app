@@ -10700,7 +10700,9 @@ window.onload=async()=>{
         // ⛔ معطّل بنسخة اللابتوب (v8.html) بقرار المستخدم 2026-09-01: اللابتوب محدَّث دائماً
         // لأنه مكان التعديل نفسه، فالبانر كان يبلّغ عن كوميت المستخدم هو اللي رفعه للتو.
         // يبقى فعّالاً بـindex.html — هناك ينفع فعلاً (الموبايل يحتاج يعرف إنه لازم يعيد التحميل).
-        return;
+        // index.html صار نسخة حرفية من v8 (sync.py mobile)، فالـreturn الثابت أطفاه بالموبايل هم. الفرق صار بطريقة الفتح (2026-10-24):
+        // اللابتوب يفتح الملف file:// ← مطفي · الموبايل من GitHub Pages (https) ← شغّال.
+        if(location.protocol==='file:') return;
         const LS_KEY='ph_last_seen_app_sha';
         const API_URL='https://api.github.com/repos/mustofi1987-cmd/mansoor-app/commits/main';
         fetch(API_URL,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{
