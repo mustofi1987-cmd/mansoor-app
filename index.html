@@ -1836,6 +1836,7 @@ async function loadFromStorage(){
         try{ appState.sentLedger=JSON.parse(localStorage.getItem('ph_sent_ledger')||'{}')||{}; }catch(_){ appState.sentLedger={}; }
         appState.officeStance=JSON.parse(localStorage.getItem('ph_office_stance')||'{}');
         appState.stanceMsgConfig=JSON.parse(localStorage.getItem('ph_stance_msgs')||'{}');
+        migrateOfficeStances(appState.officeStance, appState.stanceMsgConfig);   // دمج المواقف 2026-10-26 (يشتغل بكل تحميل/استرجاع)
         ensureStanceMsgDefaults();
         computeOtherVendors(appState.orders);
         // لقطة الحالة المحمّلة (بعد تهجير المندوبين والافتراضيات) — حتى أول حفظ دوري ما ينحسب «تغيير»
@@ -2179,8 +2180,27 @@ function findLatestArchiveEntryFor(officeKey, allSnapshots){
     // كان ينقارن بطلبية قبل دورتين ويطلع «نفس القديمة» غلط.
     const active=archiveGetActive(all);
     if(!active) return null;
-    const rows=(active.orders||[]).filter(o=>_smNorm(resolveOffice(o.vendor))===officeKey);
-    return rows.length ? {snap:active, oldNames:new Set(rows.map(o=>_matNorm(o.itemName)))} : null;
+    // فهرس مخزَّن: مكتب → أسماء موادّه باللقطة النشطة. قبل كان كل مكتب يمر على كل أسطر الأرشيف (317×5700 مع
+    // resolveOffice لكل سطر) بكل رسم للقائمة — هذا كان أغلب «تصفين» تبويب المكاتب (قياس 2026-10-26).
+    // يتبنى من جديد إذا تبدّلت اللقطة أو روابط المكاتب (_officeGroupMap يرجّع خريطة جديدة عند أي تغيير).
+    const oldNames=archiveOfficeIndex(active).get(officeKey);
+    return oldNames && oldNames.size ? {snap:active, oldNames} : null;
+}
+let _archIdxCache={key:null, groups:null, linksLen:-1, map:null};
+function archiveOfficeIndex(snap){
+    const links=appState.officeLinks||[], groups=links.length ? _officeGroupMap() : null;
+    // المفتاح = هوية اللقطة (archiveGetAll يقرا من التخزين كل مرة فالكائن يتبدّل — الهوية لحالها ما تكفي)
+    const key=snap.snapshot_id ? snap.snapshot_id+'|'+(snap.orders||[]).length : snap;
+    const c=_archIdxCache;
+    if(c.map && c.key===key && c.groups===groups && c.linksLen===links.length) return c.map;
+    const map=new Map();
+    (snap.orders||[]).forEach(o=>{
+        const k=_smNorm(resolveOffice(o.vendor));
+        if(!map.has(k)) map.set(k,new Set());
+        map.get(k).add(_matNorm(o.itemName));
+    });
+    _archIdxCache={key, groups, linksLen:links.length, map};
+    return map;
 }
 window.findLatestArchiveEntryFor=findLatestArchiveEntryFor;
 
@@ -2787,12 +2807,15 @@ function doImport(rows){
 function invalidateStancesOnArrivalChange(){
     if(_restoring || dataEpochStale() || !(dtState.data||[]).length) return;
     const stances=appState.officeStance||{}, map=officeArrivalMap();
-    let changed=false;
+    let changed=false, cleared=0;
     Object.keys(stances).forEach(k=>{
         const st=stances[k]; if(!st) return;
         const cur=map.get(k);
         if(cur===undefined) return;
-        // الموقف سجل رد المندوب؛ تغيّر وصول الإكسل يحدّث الختم فقط.
+        // صار واصل → الموقف ينمسح (قرار مصطفى 2026-10-26؛ يعكس جزء من 49f0447). المواقف للغير واصل بس،
+        // فبلا شرط الختم القديم — حتى المكاتب اللي الكود القديم ختمها «واصل» وخلّى موقفها (مراجعة Codex). النص يبقى.
+        if(st.stance && officeArrived(cur)){ st.stance=''; cleared++; changed=true; }
+        // غير هذا: تغيّر وصول الإكسل يحدّث الختم فقط
         if(st.arrivalSrc!=='dt' || st.arrivalStateAtSet!==cur){
             st.arrivalStateAtSet=cur;
             st.arrivalSrc='dt';
@@ -2800,6 +2823,7 @@ function invalidateStancesOnArrivalChange(){
         }
     });
     if(changed) saveToStorage();
+    if(cleared && typeof showToast==='function') showToast(`✅ انمسح موقف ${cleared} مكتب صار واصل`);
 }
 window.invalidateStancesOnArrivalChange=invalidateStancesOnArrivalChange;
 
@@ -2816,6 +2840,7 @@ window.officeStanceBucket=officeStanceBucket;
 
 // ======================== VENDORS LIST ========================
 function renderVendorsList(){
+    const __t0=performance.now();   // window.__vendorsRenderMs = مدة آخر رسم للقائمة (قياس السرعة 2026-10-26)
     dtSyncStanceActive();
     const cont=document.getElementById('vendorsListContainer');
     const vendorsMap=new Map();
@@ -3050,11 +3075,11 @@ function renderVendorsList(){
                     <span onclick="event.stopPropagation();showOfficeArchiveDiff(${JSON.stringify(v.name).replace(/"/g,'&quot;')})" title="قارن مواد هذا المكتب مع الأرشيف — يوضّح ليش صار التصنيف هيك" style="cursor:pointer;color:#9ca3af;font-size:10px"><i class="fas fa-magnifying-glass"></i></span>
                     ${v.classification==='same_no_add'?`<span style="font-size:9px;background:#f59e0b;color:#fff;border-radius:10px;padding:1px 6px;font-weight:700" title="مقارنة مع: ${escapeHtml(v.matchedArchiveLabel)}">نفس القديمة</span>`:''}
                     ${v.classification==='same_plus_add'?`<span style="font-size:9px;background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 6px;font-weight:700" title="مقارنة مع: ${escapeHtml(v.matchedArchiveLabel)}">نفس القديمة+إضافة</span>`:''}
-                    ${v.stance?`<span style="font-size:9px;background:#e5e7eb;color:#374151;border-radius:10px;padding:1px 6px;font-weight:700">${OFFICE_STANCE_LABEL[v.stance]||v.stance}</span>`:''}
+                    ${v.stance&&!stanceBoxAllowed(v.status)?`<span style="font-size:9px;background:#e5e7eb;color:#374151;border-radius:10px;padding:1px 6px;font-weight:700">${OFFICE_STANCE_LABEL[v.stance]||v.stance}</span>`:''}
                 </div>
                 ${v.classification!=='normal'&&v.matchedArchiveLabel?`<div class="text-[10px] mt-0.5" style="color:#6b7280"><i class="fas fa-code-compare" style="font-size:8px"></i> مقارنة مع: ${escapeHtml(v.matchedArchiveLabel)}</div>`:''}
                 ${repLine}
-                <div class="mt-1">${window.dtStanceSelectHTML?window.dtStanceSelectHTML(v.name):''}</div>
+                ${stanceBoxAllowed(v.status)?`<div class="mt-1">${dtStanceCompactHTML(v.name)}</div>`:''}
             </div>
             <div class="flex items-center gap-1.5 mr-2 flex-shrink-0">
                 <span class="text-xs bg-gray-100 px-2 py-0.5 rounded-full">${v.count}</span>
@@ -3079,6 +3104,7 @@ function renderVendorsList(){
 
     // ======== تحديث العداد دائماً بعد كل عرض ========
     updateQueueCounter();
+    window.__vendorsRenderMs=Math.round(performance.now()-__t0);
 }
 
 // فكّ ربط المندوب عن مكتب من تبويب المكاتب نفسه (2026-10-10). يشيل الاسم الحرفي **وكل صيغه**
@@ -4317,6 +4343,11 @@ function qAfterStore(s){
 }
 // النص اللي يدخل الطابور ('' = ما تنرسل)
 function qAfterForQueue(){ const s=qAfterLoad(); return s.on ? s.text.trim() : ''; }
+// يعبّي متغيرات الرسالة لكل مكتب (طلب مصطفى 2026-10-26): {office} اسم المكتب · {count} عدد الأصناف اللي تنرسل
+// · {date} تاريخ آخر طلبية مؤرشفة لهذا المكتب (نفس تاريخ رسائل المتابعة)، وإذا ماكو أرشيف تاريخ الطلبية الحالية.
+function qAfterFill(text, v){
+    return String(text||'').replace(/\{office\}/g, v.office||'').replace(/\{count\}/g, String(v.count==null?'':v.count)).replace(/\{date\}/g, v.date||'');
+}
 // سطر الحالة بنافذة الإرسال التلقائي — قراءة بس
 function qAfterSync(){
     const el=document.getElementById('qAfterNote'); if(!el) return;
@@ -4484,6 +4515,12 @@ async function processAutoSendQueue(){
                 qLog(`  ✓ ${blobs.length} صورة محفوظة`);
 
                 const msg=generateMessageFor(name);
+                let after='';
+                if(afterText){
+                    const arch=findLatestArchiveEntryFor(_smNorm(resolveOffice(name)));
+                    const lastDate=(arch&&arch.snap&&(arch.snap.orderDate||arch.snap.date))||date;
+                    after=qAfterFill(afterText, {office:name, count:sendRows(appState.orders.filter(o=>o.vendor===name)).length, date:lastDate});
+                }
                 queueData.push({
                     office: name,
                     phone: rep.phone.replace(/\+/g,''), // بدون + للـ wa.me
@@ -4491,7 +4528,7 @@ async function processAutoSendQueue(){
                     repName: rep.name,
                     images: imageNames,
                     text: msg,
-                    ...(afterText ? {afterText} : {}), // ينرسل من main.py بعد الصور
+                    ...(after ? {afterText:after} : {}), // ينرسل من main.py بعد الصور — متغيراته معبّاة لهذا المكتب
                     status: 'pending',
                     orderDate: date,
                     expiryNote: expiry
@@ -5893,8 +5930,27 @@ function computeArchivableOfficesFromDT(){
 window.computeArchivableOfficesFromDT=computeArchivableOfficesFromDT;
 
 // موقف رد المندوب — 7 قيم ثابتة + نص حر لـ"سبب آخر"
-const OFFICE_STANCE_VALUES=['no_answer','expiry_near','no_phone','not_available','coming_soon','no_sales','debt_block','other','reply_arrived','reply_not_arrived','all_expiry'];
-const OFFICE_STANCE_LABEL={no_answer:'لا يوجد جواب', expiry_near:'إكسباير قريب', no_phone:'الرقم غير متوفر', not_available:'المواد غير متوفرة', coming_soon:'راح توصل قريباً', no_sales:'ماكو مبيعات', debt_block:'بلوك تسديد ديون', other:'أخرى', reply_arrived:'واصل', reply_not_arrived:'غير واصل', all_expiry:'كلها اكسباير'};
+// 8 مواقف (قرار مصطفى 2026-10-26): «كلها اكسباير»=«إكسباير قريب»، «ماكو مبيعات»=«التجهيز متوقف»،
+// «واصل/غير واصل» انشالت — المواقف للمكاتب غير الواصلة بس، والواصل ما يظهر. migrateOfficeStances يحوّل المخزَّن.
+const OFFICE_STANCE_VALUES=['no_answer','expiry_near','no_phone','not_available','coming_soon','debt_block','supply_stopped','other'];
+const OFFICE_STANCE_LABEL={no_answer:'لا يوجد جواب', expiry_near:'إكسباير قريب', no_phone:'الرقم غير متوفر', not_available:'المواد غير متوفرة', coming_soon:'راح توصل قريباً', debt_block:'بلوك تسديد ديون', supply_stopped:'التجهيز متوقف', other:'أخرى'};
+const OFFICE_STANCE_MERGED={all_expiry:'expiry_near', no_sales:'supply_stopped', reply_arrived:'', reply_not_arrived:''};
+// يحوّل المواقف المدموجة/المشالة بالمخزَّن. النص (note) يبقى. إذا مصطفى كان مطفّي رسالة متابعة الموقف القديم
+// ومكتب كان عليه → تنطفي للموقف الجديد هم (الأأمن). يرجّع عدد المكاتب المتحوّلة. دالة صافية (tests).
+function migrateOfficeStances(stances, msgCfg){
+    let n=0;
+    Object.keys(stances||{}).forEach(k=>{
+        const st=stances[k]; if(!st||!Object.prototype.hasOwnProperty.call(OFFICE_STANCE_MERGED,st.stance)) return;
+        st.stance=OFFICE_STANCE_MERGED[st.stance]; n++;
+    });
+    // إعداد رسائل المتابعة: ينتقل مرة وحدة بغض النظر عن وجود مكاتب، وبعدها ينشال (حتى ما يرجع يطفّي كل تحميل — Codex).
+    // بس إطفاء «ماكو مبيعات» ينتقل؛ all_expiry كان مطفي افتراضياً (مو اختيار مصطفى) فما ينطفي «إكسباير قريب».
+    if(msgCfg){
+        if(msgCfg.no_sales && msgCfg.no_sales.enabled===false) msgCfg.supply_stopped={...(msgCfg.supply_stopped||{}), enabled:false};
+        Object.keys(OFFICE_STANCE_MERGED).forEach(v=>{ delete msgCfg[v]; });
+    }
+    return n;
+}
 function dtGetStance(r){ return (appState.officeStance[_smNorm(resolveOffice(r.office))]||{}).stance||''; }
 
 // ======== حالة وصول المكتب — شيت الديلفري هو المصدر المعتمد الوحيد (قرار المستخدم 2026-08-21) ========
@@ -5968,6 +6024,10 @@ window.dtItemStatus=dtItemStatus;
 // ما يحتاج متابعة موقف مندوب (ماكو طلبية أصلاً نسأل عنها).
 const DT_STANCE_ELIGIBLE_STATUSES=new Set(['Completely Not Arrived']);
 function dtStanceEligible(officeStatus){ return DT_STANCE_ELIGIBLE_STATUSES.has(officeStatus); }
+// خانة الموقف تنعرض بس للمكتب اللي ما وصل (حتى لو وصلته مواد غير مطلوبة — الحالة تنحسب من المطلوب بس).
+// الواصل جزئياً/كلياً و«طلبيته كلها غير مطلوبة» ما يحتاجون موقف ولا مراسلة (مصطفى 2026-10-26).
+// بلا حالة (الديلفري مو محمَّل/المكتب مو بيه) تبقى الخانة — ما نعرف إنه وصل.
+function stanceBoxAllowed(officeStatus){ return !officeArrived(officeStatus) && officeStatus!=='No Items Ordered (Extra Arrivals Only)'; }
 
 // نصوص رسالة المتابعة الافتراضية القابلة للتعديل — {date} = تاريخ الطلبية من آخر أرشيف
 // "بلوك تسديد ديون" مستثناة عمداً — بلا نص متابعة، بوابة تأكيد فقط قبل إرسال الطلبية الأساسية (قرار محسوم، غير قابل للتعديل من هذي الشاشة)
@@ -5978,7 +6038,7 @@ const OFFICE_STANCE_DEFAULT_MSG={
     no_phone:      'نفس الطلبية بتاريخ {date} ولم تصل لغاية اليوم — يرجى بيان الموقف.',
     not_available: 'نفس الطلبية بتاريخ {date}. كلتلي المواد غير متوفرة — هل اجتك؟ لو بعدها غير متوفرة؟',
     coming_soon:   'نفس الطلبية بتاريخ {date}. كلتلي راح توصل قريباً — لغاية اليوم ما وصلت، يرجى بيان الموقف.',
-    no_sales:      'نفس الطلبية بتاريخ {date}. كلتلي ماكو مبيعات للمواد — لغاية اليوم ما وصلت، يرجى بيان الموقف.',
+    supply_stopped:'نفس الطلبية بتاريخ {date}. كلتلي التجهيز متوقف — رجع التجهيز؟ يرجى بيان الموقف.',
     other:         'هذه الطلبية هي نفس الطلبية بتاريخ {date} ولم تصل لغاية اليوم — يرجى بيان الموقف.'
 };
 // يملأ appState.stanceMsgConfig بأي موقف ناقص بالإعدادات المخزَّنة (نص افتراضي + مفعّل) — آمن يُنادى أكثر من مرة
@@ -5991,10 +6051,9 @@ function ensureStanceMsgDefaults(){
         OFFICE_STANCE_LABEL[v]=cfg.label;
     });
     OFFICE_STANCE_EDITABLE_VALUES.forEach(v=>{
-        if(!appState.stanceMsgConfig[v]) appState.stanceMsgConfig[v]={
-            text:OFFICE_STANCE_DEFAULT_MSG[v]||'بخصوص طلبية {date}، يرجى تحديث الموقف.',
-            enabled: !['reply_arrived','reply_not_arrived','all_expiry'].includes(v)
-        };
+        const cfg=appState.stanceMsgConfig[v];
+        if(!cfg) appState.stanceMsgConfig[v]={ text:OFFICE_STANCE_DEFAULT_MSG[v]||'بخصوص طلبية {date}، يرجى تحديث الموقف.', enabled:true };
+        else if(typeof cfg.text!=='string') cfg.text=OFFICE_STANCE_DEFAULT_MSG[v]||'بخصوص طلبية {date}، يرجى تحديث الموقف.';   // من migrateOfficeStances (enabled بس)
     });
 }
 window.ensureStanceMsgDefaults=ensureStanceMsgDefaults;
@@ -6013,7 +6072,9 @@ function renderStanceMsgList(){
             </label>
             <textarea id="stAfterText" rows="3" class="w-full p-2 border rounded-lg text-sm font-bold" style="direction:rtl">${escapeHtml(a.text)}</textarea>
             <div class="flex flex-wrap justify-between items-center gap-2 mt-1 text-xs text-gray-500">
-                <span>شيل الصح = ما تنرسل (النص يبقى). <code>*نص*</code> يطلع عريض بواتساب. اضغط 💾 حفظ بعد التعديل.</span>
+                <span>شيل الصح = ما تنرسل (النص يبقى). <code>*نص*</code> يطلع عريض بواتساب. اضغط 💾 حفظ بعد التعديل.<br>
+                يتعبّى لكل مكتب: <code>{office}</code> اسم المكتب · <code>{count}</code> عدد الأصناف · <code>{date}</code> تاريخ آخر طلبية مؤرشفة (أو تاريخ الطلبية الحالية).<br>
+                مثال: <code>رسلت طلبية {office} ({count} صنف) بتاريخ {date} وما وصل أي شي — يرجى بيان الموقف.</code></span>
                 <span class="flex gap-2"><button type="button" onclick="qAfterSet(null)" class="ios-btn bg-gray-200 text-gray-700 px-2 py-1 text-xs">↺ النص الافتراضي</button><button type="button" onclick="qAfterSet('')" class="ios-btn bg-gray-200 text-gray-700 px-2 py-1 text-xs">🗑 مسح</button></span>
             </div>
         </div>`+OFFICE_STANCE_EDITABLE_VALUES.map(v=>{
@@ -6589,7 +6650,7 @@ function dtRenderSidebar(){
         } else {
             repLine='<div class="vendor-rep-line"><span class="no-phone"><i class="fas fa-user-slash" style="font-size:9px"></i> بدون مندوب</span></div>';
         }
-        const stanceLine = `<div class="mt-1" onclick="event.stopPropagation()">${dtStanceSelectHTML(o.office)}</div>`;
+        const stanceLine = stanceBoxAllowed(o.officeStatus) ? `<div class="mt-1" onclick="event.stopPropagation()">${dtStanceCompactHTML(o.office)}</div>` : '';
         return `<div class="dt-office-row vendor-item p-2.5 flex items-start gap-2 cursor-pointer text-sm ${isSel?'selected':''}" data-office="${escAttr(o.office)}">
             <input type="checkbox" class="dt-office-check mt-1" ${checked} onclick="event.stopPropagation()" title="تحديد للطباعة/واتساب">
             <span class="vendor-num">${i+1}</span>
@@ -6817,7 +6878,7 @@ function dtNormalizeReply(text){
 }
 function inferOfficeReplyStances(text){
     const t=dtNormalizeReply(text), found=[];
-    if(/اكسباير(?:ي)?|منتهي|قريب(?:ه)?\s+(?:ال)?انتهاء|\b(?:expiry|exp)\b/.test(t)) found.push('all_expiry');
+    if(/اكسباير(?:ي)?|منتهي|قريب(?:ه)?\s+(?:ال)?انتهاء|\b(?:expiry|exp)\b/.test(t)) found.push('expiry_near');
     if(/غير\s+(?:متوفر|موجود)|ناف[ذد]|خالص|ما\s*متوفر|ماكو/.test(t)) found.push('not_available');
     return found;
 }
@@ -6885,12 +6946,37 @@ function dtChooseOfficeStance(select){
     setOfficeStance(office,value);
 }
 window.dtSaveOfficeReply=dtSaveOfficeReply;
+// زر «🗑 مسح النص» (طلب مصطفى 2026-10-26): يفرّغ نص الرد ويحفظه بنفس مسار الكتابة اليدوية — الموقف ما يتغيّر
+function dtClearOfficeReply(btn){
+    const ta=btn&&btn.closest('[data-stance-office]')&&btn.closest('[data-stance-office]').querySelector('textarea');
+    if(!ta||!ta.value.trim()) return;
+    if(!confirm('يمسح نص الرد لهذا المكتب؟ الموقف يبقى.')) return;
+    ta.value='';
+    dtSaveOfficeReply(ta);
+}
+window.dtClearOfficeReply=dtClearOfficeReply;
 window.dtChooseOfficeStance=dtChooseOfficeStance;
 window.dtStanceSelectHTML=dtStanceSelectHTML;
 window.inferOfficeReplyStances=inferOfficeReplyStances;
 window.addEventListener('pagehide',()=>{
     if(autoSaveTimer) saveToStorage();
 });
+
+// خانة الموقف المطوية بالقوائم (طلب مصطفى 2026-10-26): اسم الموقف بس (+📝 إذا أكو نص رد)، وتنفتح بضغطة.
+// قبل: قائمة + مربع نص + اقتراحات لكل مكتب = ~300 مربع بكل رسم للقائمة.
+function dtStanceCompactHTML(office){
+    const cur=dtGetStance({office}), note=dtReplyText(office);
+    const lbl=cur ? (OFFICE_STANCE_LABEL[cur]||cur) : '＋ موقف';
+    const style=cur ? (cur==='debt_block' ? 'background:#fee2e2;color:#b91c1c;border-color:#fca5a5' : 'background:#fff7ed;color:#c2410c;border-color:#fdba74') : 'background:#f9fafb;color:#6b7280;border-color:#e5e7eb';
+    return `<button type="button" class="text-[11px] font-bold rounded-full border px-2 py-0.5" style="${style}" data-stance-compact="${escapeHtml(office)}"
+        title="${escapeHtml(note ? 'نص الرد: '+note.slice(0,200) : 'اضغط لتحديد الموقف')}" onclick="event.stopPropagation();dtStanceExpand(this)">${escapeHtml(lbl)}${note?' 📝':''} ▾</button>`;
+}
+function dtStanceExpand(btn){
+    const office=btn&&btn.dataset.stanceCompact; if(office==null) return;
+    const wrap=document.createElement('div'); wrap.innerHTML=dtStanceSelectHTML(office);
+    btn.replaceWith(wrap.firstElementChild);
+}
+window.dtStanceExpand=dtStanceExpand;
 
 function dtStanceSelectHTML(office){
     const cur=dtGetStance({office}), reply=dtReplyText(office);
@@ -6904,6 +6990,7 @@ function dtStanceSelectHTML(office){
         <label class="block text-xs mt-1">نص الرد
             <textarea dir="auto" rows="2" class="w-full border rounded p-1 text-xs" oninput="dtSaveOfficeReply(this)">${escapeHtml(reply)}</textarea>
         </label>
+        <button type="button" class="ios-btn text-[10px] px-2 py-0.5 mt-0.5" title="يمسح نص الرد المحفوظ — الموقف يبقى" onclick="dtClearOfficeReply(this)">🗑 مسح النص</button>
         <div data-reply-suggestions class="flex flex-wrap gap-1">${dtReplySuggestionsHTML(reply)}</div>
         <div class="text-[10px] text-gray-400">الموقف حسب الرد؛ حالة الوصول من الإكسل.</div>
     </div>`;
@@ -6934,24 +7021,81 @@ window.setOfficeStance=setOfficeStance;
 //     ثم يطلق mansoor-replies:// ← check_replies.bat يفحص هذي المكاتب بس (الواصل ما يحتاج تدقيق رد).
 // (2) replImport*: يقرا replies.json، يعرض معاينة، وما يكتب موقف إلا بعد التطبيق — ولمكاتب «Completely Not Arrived» فقط.
 const REPL_NOT_ARRIVED='Completely Not Arrived';
-const REPL_STATUS_STANCE={ 'لم يرد':'no_answer', 'كسباير':'expiry_near', 'الرقم مو على واتساب':'no_phone', 'مبيعات':'no_sales', 'تأجيل':'other', 'نافذة':'other', 'رد آخر':'other', 'بلوك':'debt_block' };
+const REPL_STATUS_STANCE={ 'لم يرد':'no_answer', 'كسباير':'expiry_near', 'الرقم مو على واتساب':'no_phone', 'مبيعات':'supply_stopped','تأجيل':'other', 'نافذة':'not_available', 'رد آخر':'other', 'بلوك':'debt_block' };
 const REPL_STALE_MS=24*3600*1000;
-// تصنيف من نص الرد نفسه (قرار المستخدم 2026-10-20، مبني على 40 رد حقيقي كانت كلها «رد آخر»): أول قاعدة تطابق تغلب.
-// «تم/تمام/اوك» ما تنحسب «راح توصل» عمداً — ممكن تعني «وصلت الرسالة» بس. يشتغل على replies.json القديم بلا إعادة فحص.
-const REPL_TEXT_RULES=[
-    ['debt_block',['تسديد','مسدد','فلوس','ديون','حساب','بلوك','block','متوقف']],
-    ['expiry_near',['كسباير','اكسباير','expire','منتهي']],
-    ['coming_soon',['ادز','حدز','اكصلك','اوصلك','يوصلك','توصلك','بالطريق','باجر','باچر','اجهز','نجهز']],
-    ['not_available',['نافذ','نافد','نفاذ','نفاد','غير متوفر','مو متوفر','ما متوفر','ماكو مواد','خلصان','out of stock']],
-    ['no_sales',['ماكو مبيعات','مافي مبيعات','ما تنباع','ما تتباع','مو تنباع','ما تباع','مبيعات ضعيفة','راكدة','كاسدة','ما عليها طلب','no sales']]
-];
-function replSuggest(e){
-    const base=REPL_STATUS_STANCE[e.status]||'';
-    const t=String(e.reply||'').toLowerCase();
-    if(!t||!['رد آخر','نافذة','تأجيل','كسباير','بلوك','مبيعات'].includes(e.status)) return base;
-    for(const [st,kws] of REPL_TEXT_RULES) if(kws.some(k=>t.includes(k))) return st;
-    if(t.includes('بس')&&t.includes('عندي')) return 'not_available';   // «بس ستيمول عندي»
-    return base;
+// replAnalyze — يقرا الرد كامل (كل فقاعة لحالها، قرار مصطفى 2026-10-25: «حتى نستفاد من كلشي»):
+// يشيل ضوضاء واتساب، يطابق كل القواعد مو أول وحدة، المجاملة («تمام/تم/اوك») ما تصير موقف، وإذا المندوب عنده
+// أكثر من مكتب والفقاعة تسمّي مكتب واحد — تنحسب له بس. المواقف المتشابهة تروح لموقف موجود («التسديد متوقف»=بلوك،
+// «المواد نافذة»=غير متوفرة)؛ الوحيد الجديد «التجهيز متوقف». دالة صافية — tests/repl_suggest.test.js.
+function replAnalyze(e, office, offices){
+    const N=s=>dtNormalizeReply(s);
+    // الترتيب = الأولوية لو الرد ذكر أكثر من موقف (والتعارض يخلّي الصف يدوي بكل الأحوال)
+    const RULES=[
+        ['debt_block',['ماكو تسديد','تسديد ماكو','ما مسدد','مو مسدد','ممسدد','موعد تسديد','على تسديد','تسديد متوقف','التسديد متوقف','ديون','بلوك','block']],
+        // «ماكو مبيعات» = «التجهيز متوقف» (دمج 2026-10-26)
+        ['supply_stopped',['التجهيز متوقف','متوقف التجهيز','تجهيز متوقف','متوقف البيع','البيع متوقف','ميجهزوا','ميجهزون','ما يجهزون','ما يجهزوا','لا يجهز',
+            'ماكو مبيعات','مافي مبيعات','ما تنباع','ما تتباع','مو تنباع','ما تباع','مبيعات ضعيفة','راكدة','كاسدة','ما عليها طلب','no sales']],
+        ['expiry_near',['كسباير','اكسباير','expire','منتهي']],
+        ['not_available',['نافذ','نافد','نفاذ','نفاد','غير متوفر','مو متوفر','ما متوفر','ماكو مواد','خلصان','ولا وحده','out of stock']],
+        ['coming_soon',['ادز','حدز','اكصلك','اوصلك','يوصلك','توصلك','بالطريق','باجر','باچر','اجهز','نجهز']]
+    ];
+    // كلام عن الخصم أو عن بلوك انرفع/تسديد تم — مو بلوك (البلوك صار يتأشّر تلقائي، قرار مصطفى 2026-10-25)
+    const NOT_DEBT=['خصم تسديد','خصم عند التسديد','خصم التسديد','البلوك انرفع','انرفع البلوك','رفعوا البلوك','انشال البلوك','شالوا البلوك','فك البلوك','فكو البلوك','تم التسديد','سددنا','سددت'];
+    const NOISE=/picture-in-picture mode|forwarded|play voice message|you deleted this message|(?:missed\s+)?(?:voice|video)\s+call|accepted on another device|click to call back|\d+\s*pages?•[^\s]*|\S+\.(?:pdf|xlsx?|docx?|jpe?g|png)\b/gi;
+    const ACK=['وعليكم السلام','عليكم السلام','السلام عليكم','صباح الخير','مساء الخير','ان شاء الله','انشاء الله','انشالله','احسن بعد','الله يحفظك','يا هلا',
+        'تمام','تم','اوك','ok','okay','حاضر','عيوني','تدلل','تامر','دكتور','دكتوري','حبي','حبيبي','شلونك','اشلونك','هلا','اهلا','بالضبط','سهله','حياك','شكرا','مشكور','تحياتي','العطره','شباب'];
+    const PRICE=['سعر','اسعار','بونص','خصم','دولار'];
+    const base=REPL_STATUS_STANCE[e&&e.status]||'';
+    const raw=Array.isArray(e&&e.messages)&&e.messages.length ? e.messages : String((e&&e.reply)||'').split(' / ');
+    // سطور الفقاعة الواحدة تبقى سطور (قائمة مواد مثلاً) — بس السطر الفاضي ينشال
+    const all=raw.map(b=>String(b||'').replace(NOISE,' ').split('\n').map(l=>l.replace(/[ \t]+/g,' ').trim()).filter(Boolean).join('\n')).filter(Boolean);
+    // أي مكتب تسمّيه الفقاعة؟ كلمات مميِّزة من اسم المكتب ما موجودة باسم مكتب ثاني لنفس المندوب
+    const GENERIC=new Set(['مكتب','مذخر','ادويه','العلمي','لدعايه','الادويه','للدعايه','الدوائيه','الدوائي','فارما','خصم','بدون','مقاصه','مع','المبيعات','والمستلزمات','ص','م','ش','ت','الطبي','الطبيه']);
+    const words=s=>N(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    const sibs=(offices||[]).filter(o=>o&&o!==office);
+    const keyWords=o=>{ const other=new Set(sibs.concat(office).filter(x=>x!==o).flatMap(words)); return words(o).filter(w=>w.length>=3&&!GENERIC.has(w)&&!/^\d+$/.test(w)&&!other.has(w)); };
+    const multi=sibs.length>0;
+    const mine=multi?keyWords(office):[], theirs=multi?sibs.map(keyWords):[];
+    let attributed=!multi, bubbles=all;
+    if(multi){
+        const tagged=all.map(b=>{ const ws=new Set(words(b)); return {b, me:mine.some(w=>ws.has(w)), other:theirs.some(k=>k.some(w=>ws.has(w)))}; });
+        const own=tagged.filter(t=>t.me);
+        attributed=own.length>0;
+        bubbles=tagged.filter(t=>t.me||!t.other).map(t=>t.b);   // فقاعة تخص مكتب ثاني ما تنحسب لهذا
+    }
+    const found=[], reasons=[];
+    bubbles.forEach(b=>{
+        let t=N(b);
+        NOT_DEBT.forEach(x=>{ t=t.split(N(x)).join(' '); });
+        // نفي قبل الكلمة بكلمة أو كلمتين («مو نافذة»، «ما راح ادزها») يلغي المطابقة — إلا إذا الكلمة نفسها بيها نفي («مو متوفر»)
+        const NEG=/(^|\s)(ما|مو|لا|مراح|ماراح|ماكو|مافي|بدون)\s+(\S+\s+)?$/, SELF_NEG=/^(ما|مو|لا|غير|ماكو|مافي|مراح)\s/;
+        const hit=k=>{ const nk=N(k); let i=t.indexOf(nk);
+            while(i>=0){ if(SELF_NEG.test(nk)||!NEG.test(t.slice(0,i))) return true; i=t.indexOf(nk,i+1); }
+            return false; };
+        RULES.forEach(([st,kws])=>{ const k=kws.find(hit); if(k&&!found.includes(st)){ found.push(st); reasons.push(k); } });
+        // «بس ستيمول عندي» = بس هذي متوفرة، الباقي لا
+        if(/(^|\s)بس\s.*\sعندي(\s|$)/.test(t) && !found.includes('not_available')){ found.push('not_available'); reasons.push('بس … عندي'); }
+    });
+    // «ميجهزوا… ٤ قوائم» = التجهيز متوقف بسبب القوائم = بلوك (مصطفى 2026-10-26). «قوائم/فواتير» لحالها مو بلوك (Codex).
+    const si=found.indexOf('supply_stopped');
+    const paidOrLifted=bubbles.some(b=>NOT_DEBT.some(x=>N(b).includes(N(x))));   // «فواتير تم التسديد» مو بلوك (Codex)
+    if(si>=0 && !found.includes('debt_block') && !paidOrLifted && bubbles.some(b=>/قوائم|فواتير/.test(N(b)))){ found[si]='debt_block'; reasons[si]+=' + قوائم'; }
+    const di=found.indexOf('debt_block'), si2=found.indexOf('supply_stopped');
+    if(di>=0 && si2>=0){ found.splice(si2,1); reasons.splice(si2,1); }   // التجهيز وقف بسبب الدين — مو تعارض
+    // ترتيب الموقف وكلمته سوا — قبل كان found يترتّب لحاله و«ليش» تطلع كلمة موقف ثاني
+    const pairs=found.map((st,i)=>[st,reasons[i]]).sort((a,b)=>RULES.findIndex(r=>r[0]===a[0])-RULES.findIndex(r=>r[0]===b[0]));
+    found.length=0; reasons.length=0; pairs.forEach(([st,k])=>{ found.push(st); reasons.push(k); });
+    const reasonOf=st=>reasons[found.indexOf(st)]||'';
+    const isAck=b=>{ let t=' '+N(b).replace(/[^\p{L}\p{N}\s]+/gu,' ')+' '; ACK.map(N).sort((a,b)=>b.length-a.length).forEach(a=>{ t=t.split(' '+a+' ').join(' ').split(' '+a+' ').join(' '); }); return t.trim().length<2; };
+    const tags=[];
+    if(bubbles.some(b=>PRICE.some(p=>N(b).includes(p)))) tags.push('أسعار/خصم');
+    (e&&e.flags||[]).forEach(f=>{ if(f==='voice') tags.push('رسالة صوتية'); if(f==='call') tags.push('مكالمة'); if(f==='old_order_quote') tags.push('⚠️ يقتبس طلبية أقدم — تأكد'); });
+    let kind, stance;
+    if(found.length){ kind='stance'; stance=found[0]; }
+    else if(!all.length){ kind=String((e&&e.reply)||'').trim()?'noise':'empty'; stance=kind==='noise'?'':base; }
+    else if(bubbles.every(isAck)){ kind='ack'; stance=''; }
+    else { kind='unknown'; stance=base&&base!=='no_answer'?base:'other'; }   // نص ما نعرف موقفه → «أخرى» مقترحة بس ما تتأشّر
+    return {bubbles, stance, found, reason:reasonOf(stance), also:found.slice(1), kind, conflict:found.length>1, attributed, tags};
 }
 let _replRows=[];
 async function replRunCheck(ev){
@@ -6997,8 +7141,10 @@ async function replRunCheck(ev){
     if(!confirm(`راح يفحص ${nPhones} رقم مندوب (${targets.length} مكتب).\nالوقت التقريبي: ${Math.ceil(nPhones*23/60)} دقيقة.\n\n${breakdown}\n\nواتساب ديسكتوب لازم يكون مفتوح، ولا تلمس الماوس والكيبورد لحد ما يخلص.\nابدأ؟`)) return false;
     const payload=JSON.stringify({generatedAt:new Date().toISOString(), version:2, targets, totalVendors:vendors.length, noPhone, arrived:arrivedN, notArrived:naN, unknownStatus:unknownN, conflict},null,2);
     const sum=`${targets.length} مكتب للفحص (${breakdown})`;
+    // نيّة صريحة (op:check) — الريبلي يقرا أحدث نيّة: فحص لو تقرير، وطلب تقرير قديم ما يقدر يسرق ضغطة الفحص
+    const intent=JSON.stringify({op:'check', id:'check-'+Date.now(), createdAt:new Date().toISOString()});
     if(folder){
-        try{ await writeFileInFolder(folder,'reply_targets.json',payload); }
+        try{ await writeFileInFolder(folder,'reply_targets.json',payload); await writeFileInFolder(folder,'replies_intent.json',intent); }
         catch(e){ alert('⚠️ فشلت كتابة reply_targets.json: '+(e&&e.message||e)); return false; }
         showToast(`📨 ${sum} → كُتب بمجلد «${folder.name}» — أشغّل فحص الردود…`);
         replWatchProgress(folder, Date.now());
@@ -7006,6 +7152,9 @@ async function replRunCheck(ev){
         const a=document.createElement('a');
         a.href=URL.createObjectURL(new Blob([payload],{type:'application/json'})); a.download='reply_targets.json';
         document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+        const b=document.createElement('a');
+        b.href=URL.createObjectURL(new Blob([intent],{type:'application/json'})); b.download='replies_intent.json';
+        setTimeout(()=>{ document.body.appendChild(b); b.click(); b.remove(); setTimeout(()=>URL.revokeObjectURL(b.href),5000); }, 400);
         showToast(`📨 ${sum} → نزل reply_targets.json لمجلد التنزيلات — أشغّل فحص الردود. بعد ما يخلص: «📥 استيراد ردود واتساب» واختر replies.json`);
     }
     // ثواني قليلة حتى ينتهي التنزيل قبل ما يبدأ الريبلي يدوّر على الملف
@@ -7091,6 +7240,9 @@ function replImportParse(txt){
     let arr; try{ arr=JSON.parse(txt.replace(/^﻿/,'')); }catch(_){ sum.textContent='❌ الملف مو JSON صالح'; return; }
     if(!Array.isArray(arr)){ sum.textContent='❌ الصيغة غير متوقعة (المفروض قائمة نتائج من replies.json)'; return; }
     if(!(dtState.data||[]).length){ sum.textContent='⚠️ شيت الديلفري غير محمَّل — الاستيراد موقوف (بدونه الموقف ينمسح بصمت عند التحميل). حمّله أول وأعد الفتح.'; return; }
+    // آخر ردود مستوردة تبقى بالتطبيق (تبويب «دراسة موقف الطلبيات» يقراها بعد التحديث) — الاستيراد الجاي بس يبدّلها
+    // (قرار مصطفى 2026-10-25). نفس المفتاح يكتبه استيراد ذاك التبويب.
+    if(!_restoring){ try{ localStorage.setItem('ph_last_replies', JSON.stringify({importedAt:new Date().toISOString(), list:arr})); }catch(_){} }
     const now=Date.now(), byKey=new Map(); let noOffice=0;
     arr.forEach(r=>{
         if(!r||!Array.isArray(r.offices)) return;
@@ -7108,11 +7260,23 @@ function replImportParse(txt){
         const arrival=officeArrivalMap().get(g.key)||'';
         const eligible=arrival===REPL_NOT_ARRIVED;
         const cur=(appState.officeStance[g.key]||{}).stance||'';
-        const sugg=replSuggest(e);
+        const a=replAnalyze(e, g.office, e.offices);
+        const sugg=a.stance;
         const stale=!(ageMs<=REPL_STALE_MS);
         const sameAsCur=!!sugg&&sugg===cur;
-        const checked=eligible&&!!sugg&&sugg!=='debt_block'&&!conflict&&!stale&&!sameAsCur&&!cur;
-        return {key:g.key,office:g.office,rep:e.rep||'',phone:e.phone||'',status:e.status||'',reply:e.reply||'',checkedAt:e.checkedAt||'',ageMs,arrival,eligible,cur,sugg,conflict,statuses:[...new Set(es.map(x=>x.status))],stale,checked};
+        // الحواجز القديمة كلها باقية؛ فوقها: موقف مفهوم من النص (مو مجاملة/ضوضاء/«أخرى»)، بلا تعارض بين الفقاعات،
+        // ولمندوب عنده أكثر من مكتب — الرد لازم يسمّي هذا المكتب. غير هذا = اقتراح يدوي بلا تأشير.
+        // «empty» = ماكو نص (لم يرد / الرقم مو على واتساب): الحالة تخص كل مكاتب الرقم، بس «أخرى» ما تتأشّر أبداً.
+        // رد يقتبس طلبية أقدم = يدوي (ممكن يخص الطلبية القديمة مو هاي).
+        const textOk=!(e.flags||[]).includes('old_order_quote') && sugg!=='other'
+            && ((a.kind==='stance'&&!a.conflict&&a.attributed) || a.kind==='empty');
+        // بلوك صار يتأشّر تلقائي مثل غيره (قرار مصطفى 2026-10-25) — بعد تشديد قواعده (نفي، «انرفع البلوك»، خصم التسديد)
+        const checked=eligible&&!!sugg&&!conflict&&!stale&&!sameAsCur&&!cur&&textOk;
+        // مواد هذا المكتب المذكورة بالرد (عرض بس): أول كلمة ≥4 أحرف من اسم المادة كاملةً بنص الرد
+        const replyWords=new Set(a.bubbles.join(' ').toLowerCase().split(/[^\p{L}\p{N}]+/u));
+        const items=[...new Set((dtState.data||[]).filter(x=>_smNorm(resolveOffice(x.office))===g.key).map(x=>String(x.item||'').trim()))]
+            .filter(it=>{ const w=(it.toLowerCase().split(/[^\p{L}\p{N}]+/u).find(w=>w.length>=4)||''); return w&&replyWords.has(w); }).slice(0,8);
+        return {key:g.key,office:g.office,rep:e.rep||'',phone:e.phone||'',status:e.status||'',reply:e.reply||'',checkedAt:e.checkedAt||'',ageMs,arrival,eligible,cur,sugg,conflict,statuses:[...new Set(es.map(x=>x.status))],stale,checked,auto:checked,a,items};
     });
     replImportRender(noOffice);
 }
@@ -7123,10 +7287,10 @@ function replImportRender(noOffice){
         const opts=['<option value="">— لا يُكتب —</option>'].concat(OFFICE_STANCE_VALUES.map(v=>`<option value="${v}"${v===r.sugg?' selected':''}>${escapeHtml(OFFICE_STANCE_LABEL[v])}</option>`)).join('');
         return `<tr style="border-top:1px solid #e5e7eb${r.eligible?'':';opacity:.55'}"><td class="p-1 text-center"><input type="checkbox" ${r.checked?'checked':''} ${(!r.eligible||!r.sugg)?'disabled':''} onchange="replRowSet(${i},'chk',this.checked)"></td>`
             +`<td class="p-1 font-bold">${escapeHtml(r.office)}<div class="text-[10px] text-gray-500">${escapeHtml(r.rep)}</div></td>`
-            +`<td class="p-1"><b>${escapeHtml(r.status)}</b><div class="text-[10px] text-gray-600" style="max-width:260px;white-space:pre-wrap">${escapeHtml(String(r.reply).slice(0,160))}</div></td>`
+            +`<td class="p-1"><b>${escapeHtml(r.status)}</b>${replAnalysisHTML(r)}</td>`
             +`<td class="p-1 text-center">${escapeHtml(replAgeText(r.ageMs))}</td>`
             +`<td class="p-1 text-center">${r.cur?escapeHtml(OFFICE_STANCE_LABEL[r.cur]||r.cur):'—'}</td>`
-            +`<td class="p-1"><select class="text-[11px] rounded border p-1" ${r.eligible?'':'disabled'} onchange="replRowSet(${i},'sel',this.value)">${opts}</select></td>`
+            +`<td class="p-1"><select class="text-[11px] rounded border p-1" ${r.eligible?'':'disabled'} onchange="replRowSet(${i},'sel',this.value,this)">${opts}</select></td>`
             +`<td class="p-1 text-[10px]">${stateTxt(r)}</td></tr>`;
     }).join('')+'</tbody></table>';
     replImportSummary(noOffice);
@@ -7138,11 +7302,31 @@ function replImportSummary(noOffice){
     sum.textContent=`${rows.length} مكتب بالملف · مؤهل (غير واصل): ${rows.filter(r=>r.eligible).length} · غير مؤهل: ${rows.filter(r=>!r.eligible).length} · قديم: ${rows.filter(r=>r.stale).length} · تعارض: ${rows.filter(r=>r.conflict).length} · أقدم فحص: ${old||'—'} · محدَّد للكتابة: ${sel}`+(noOffice?` · ${noOffice} اسم مكتب فارغ مُهمَل`:'');
     document.getElementById('replApplyBtn').disabled=!sel;
 }
-function replRowSet(i,kind,val){
+function replRowSet(i,kind,val,el){
     const r=_replRows[i]; if(!r) return;
     if(kind==='chk') r.checked=!!val&&!!r.sugg&&r.eligible;
-    else { r.sugg=val||''; if(!r.sugg) r.checked=false; }
+    else {
+        // اختيار موقف بيدك = نية كتابة → يتأشّر. قبل كان المربع يبقى مقفول لصف بلا اقتراح (2026-10-25)
+        r.sugg=val||''; r.checked=!!r.sugg&&r.eligible; r.auto=false;   // التقرير يكول «يدوي»
+        const box=el&&el.closest('tr')&&el.closest('tr').querySelector('input[type=checkbox]');
+        if(box){ box.disabled=!r.eligible||!r.sugg; box.checked=r.checked; }
+    }
     replImportSummary(0);
+}
+// خلية الرد بالمعاينة: كل فقاعة بسطر + ليش انقترح الموقف + شنو ذكر غيره + المواد المذكورة
+function replAnalysisHTML(r){
+    const a=r.a||{bubbles:[r.reply],kind:'',found:[],also:[],tags:[]};
+    const KIND={ack:'رد مجاملة — بلا موقف', noise:'ضوضاء واتساب — بلا نص', unknown:'نص بلا موقف واضح'};
+    const lines=(a.bubbles||[]).slice(0,8).map(b=>`<div style="border-right:2px solid #d1d5db;padding-right:4px;margin-top:2px">${escapeHtml(String(b).slice(0,600))}</div>`).join('');
+    const info=[];
+    if(a.reason) info.push('ليش: «'+escapeHtml(a.reason)+'»');
+    if((a.also||[]).length) info.push('⚠️ ذكر أيضاً: '+a.also.map(v=>escapeHtml(OFFICE_STANCE_LABEL[v]||v)).join('، '));
+    if(KIND[a.kind]) info.push(KIND[a.kind]);
+    if(a.attributed===false) info.push('الرد ما يسمّي هذا المكتب (المندوب عنده أكثر من مكتب)');
+    (a.tags||[]).forEach(t=>info.push('🏷️ '+escapeHtml(t)));
+    if((r.items||[]).length) info.push('💊 مواد مذكورة: '+r.items.map(escapeHtml).join('، '));
+    return `<div class="text-[10px] text-gray-600" style="max-width:280px;white-space:pre-wrap">${lines}</div>`
+        +(info.length?`<div class="text-[10px] mt-1" style="color:#92400e">${info.join('<br>')}</div>`:'');
 }
 window.replRowSet=replRowSet;
 function replImportApply(){
@@ -7160,7 +7344,7 @@ function replImportApply(){
     if(!todo.length){ showToast(`ℹ️ ماكو شي ينكتب${skipped?` (${skipped} تغيّر حالهم من المعاينة — أعد الاستيراد)`:''}`); return; }
     if(!confirm(`راح ينكتب موقف ${todo.length} مكتب${skipped?` (و${skipped} تنتخطّى لأن حالهم تغيّر)`:''}. متأكد؟`)) return;
     const snapshot=JSON.stringify(appState.officeStance);
-    todo.forEach(({r,arr})=>{ appState.officeStance[r.key]={ ...appState.officeStance[r.key], stance:r.sugg, note:String(r.reply||r.status), arrivalStateAtSet:arr, arrivalSrc:'dt' }; });
+    todo.forEach(({r,arr})=>{ appState.officeStance[r.key]={ ...appState.officeStance[r.key], stance:r.sugg, note:String((r.a&&r.a.bubbles&&r.a.bubbles.join('\n'))||r.status), arrivalStateAtSet:arr, arrivalSrc:'dt' }; });
     saveToStorage();
     let ok=false;
     try{ const s=JSON.parse(localStorage.getItem('ph_office_stance')||'{}'); ok=todo.every(({r})=>s[r.key]&&s[r.key].stance===r.sugg); }catch(_){}
@@ -7169,8 +7353,48 @@ function replImportApply(){
     if(typeof renderVendorsList==='function') renderVendorsList();
     document.getElementById('repliesImportModal').classList.add('hidden');
     showToast(`✅ انكتب موقف ${todo.length} مكتب${skipped?` · انتُخطّي ${skipped}`:''}`);
+    const report=replBuildReport(_replRows, todo);
+    if(confirm(`📤 أرسل تقرير المواقف لواتساب؟\n${report.written.length} مكتب برد مفهوم · ${report.unknown.length} ما معروف (يحتاجك)`)) replSendReport(report);
 }
 window.replImportApply=replImportApply;
+
+// تقرير المواقف بعد «تطبيق» (طلب مصطفى 2026-10-25): اللي انكتب فعلاً + الردود اللي ما انعرف موقفها.
+// «لا يوجد جواب»/«الرقم غير متوفر» (بلا نص) عدد بس — مو صفوف. دالة صافية (tests/repl_suggest.test.js).
+function replBuildReport(rows, todo){
+    const written=new Set(todo.map(t=>t.r.key));
+    const said=r=>String(((r.a&&r.a.bubbles)||[]).join(' / ')||'').slice(0,300);
+    const rep={version:1, createdAt:new Date().toISOString(), written:[], unknown:[], counts:{}};
+    rows.forEach(r=>{
+        const label=OFFICE_STANCE_LABEL[r.sugg]||r.sugg||'';
+        if(written.has(r.key)){
+            if(r.a&&r.a.kind==='empty'){ rep.counts[label]=(rep.counts[label]||0)+1; return; }
+            rep.written.push({office:r.office, rep:r.rep, stance:r.sugg, label, how:r.auto?'تلقائي':'يدوي', said:said(r)});
+        } else if(r.eligible && !r.cur && said(r) && r.a && (r.a.kind==='unknown'||r.a.kind==='stance')){
+            const why=r.a.conflict?'ذكر أكثر من موقف':(r.a.attributed===false?'ما يسمّي المكتب':(r.a.kind==='stance'?'مقترح: '+label:'ما معروف'));
+            rep.unknown.push({office:r.office, rep:r.rep, why, said:said(r)});
+        }
+    });
+    return rep;
+}
+// يكتب stance_report.json + replies_intent.json (op:report) بمجلد sender (أو تنزيل) ويطلق الريبلي — هو يرسم الجدول ويدزه لواتساب المالك.
+// النيّة الصريحة تمنع إن نفس الزر يشغّل فحص ردود كامل بالغلط (مراجعة Codex 2026-10-25).
+async function replSendReport(rep){
+    const files=[['stance_report.json',JSON.stringify(rep,null,1)], ['replies_intent.json',JSON.stringify({op:'report', id:'report-'+rep.createdAt, reportCreatedAt:rep.createdAt, createdAt:new Date().toISOString()})]];
+    let folder=null;
+    try{ const h=appState.folderHandle; if(h&&(await h.queryPermission({mode:'readwrite'}))==='granted'){ await h.getFileHandle('check_replies.py'); folder=h; } }catch(_){ folder=null; }
+    if(folder){
+        try{ for(const [n,t] of files) await writeFileInFolder(folder,n,t); }
+        catch(e){ alert('⚠️ فشلت كتابة ملف التقرير: '+(e&&e.message||e)); return; }
+    } else {
+        for(const [n,t] of files){
+            const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([t],{type:'application/json'})); a.download=n;
+            document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+            await new Promise(res=>setTimeout(res,400));
+        }
+    }
+    showToast('📤 تقرير المواقف راح للريبلي — يرسمه جدول ويدزه لواتساب');
+    setTimeout(()=>{ window.location.href='mansoor-replies://run'; }, folder?0:2500);
+}
 
 // مسح يدوي بالكامل لكل مواقف المندوب المسجّلة — الحذف التلقائي الموجود (بند 1.4 فوق) يمسح
 // موقف مكتب واحد بس لو تغيّرت حالة وصوله الفعلية عند استيراد تبويب المكاتب من جديد؛ هذا الزر
@@ -7321,6 +7545,19 @@ function dtOfficesForPrint(mode){
     if(mode==='selected') return visible.filter(o=>dtState.checkedOffices.has(o));
     return [];
 }
+// ترتيب الطباعة حسب الموقف (مصطفى 2026-10-26): المواقف الثمانية بترتيب OFFICE_STANCE_VALUES، بعدها موقف قديم غير معروف،
+// بعدها «بدون موقف»، وآخر شي اللي ما يحتاج موقف (—). نفس قاعدة النص المطبوع (dtStanceEligible). Array.sort ثابت
+// فداخل نفس الموقف يبقى الترتيب الحالي. ينسخ القائمة وما يغيّر الأصل.
+function dtStancePrintRank(officeStatus, stance){
+    if(!dtStanceEligible(officeStatus)) return OFFICE_STANCE_VALUES.length+2;
+    if(!stance) return OFFICE_STANCE_VALUES.length+1;
+    const i=OFFICE_STANCE_VALUES.indexOf(stance);
+    return i<0 ? OFFICE_STANCE_VALUES.length : i;
+}
+function dtSortByStanceForPrint(list, getStatus, getStance){
+    return list.map((x,i)=>({x,i,r:dtStancePrintRank(getStatus(x), getStance(x))}))
+        .sort((a,b)=>a.r-b.r || a.i-b.i).map(e=>e.x);
+}
 
 // ---- لفّ النص داخل عرض الخلية: يقطع بالكلمات، وإذا كلمة وحدة أطول من الخلية يقطعها بالحروف ----
 // يرجّع مصفوفة سطور. ctx.font لازم يكون مضبوطاً على نفس خط الرسم قبل النداء.
@@ -7373,7 +7610,8 @@ async function dtRenderOfficePagePDF(pdf, office, rows){
     const arrived=rows.filter(r=>{ const es=dtEffectiveStatus(r); return es && es!=='Not Arrived' && es!=='Not Requested'; }).length;
     // الموقف مسجَّل على مستوى المكتب كله — يُطبع مرة وحدة بهيدر الصفحة، مو مكرّر بكل صف مادة
     const officeStanceVal = dtStanceEligible(officeStatus) ? dtGetStance(rows[0]) : '';
-    const officeStanceText = officeStanceVal ? (' • الموقف: '+(OFFICE_STANCE_LABEL[officeStanceVal]||officeStanceVal)) : '';
+    // للغير واصل الموقف ينطبع دائماً — «بدون موقف» إذا فارغ (طلب مصطفى 2026-10-26: بلوك/ديون/بدون موقف)
+    const officeStanceText = dtStanceEligible(officeStatus) ? (' • الموقف: '+(officeStanceVal ? (OFFICE_STANCE_LABEL[officeStanceVal]||officeStanceVal) : 'بدون موقف')) : '';
 
     const cols=[
         {key:'item',   label:'اسم المادة',    w:58, align:'right',  wrap:3},
@@ -7579,7 +7817,7 @@ async function dtRenderNamesOnlyPDF(pdf, officeRollups){
         chunk.forEach((o,i)=>{
             const bg = o.officeStatus==='Completely Not Arrived' ? '#fee2e2' : o.officeStatus==='Partially Arrived' ? '#fef3c7' : '#dcfce7';
             ctx.fillStyle=bg; ctx.fillRect(TABLE_X,ry,TABLE_W_MM*S,ROW_H);
-            const stanceTxt = dtStanceEligible(o.officeStatus) ? (o.stance ? (OFFICE_STANCE_LABEL[o.stance]||o.stance) : '—') : '—';
+            const stanceTxt = dtStanceEligible(o.officeStatus) ? (o.stance ? (OFFICE_STANCE_LABEL[o.stance]||o.stance) : 'بدون موقف') : '—';
             const vals={ idx:String(chunkStart+i+1), office:o.office, status:DT_OFFICE_STATUS_LABEL[o.officeStatus]||o.officeStatus, stance:stanceTxt };
             let rx=TABLE_X;
             ctx.font=`${4.6*S}px ${FONT}`; ctx.fillStyle='#111827';
@@ -7623,7 +7861,7 @@ async function dtExportPDF(mode){
     const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
 
     if(dtState.printMode==='names'){
-        const rollups=dtGetOfficeList().filter(o=>officeNames.includes(o.office));
+        const rollups=dtSortByStanceForPrint(dtGetOfficeList().filter(o=>officeNames.includes(o.office)), o=>o.officeStatus, o=>o.stance);
         if(!rollups.length){ alert('⚠️ ما اكو بيانات مطابقة للفلاتر بهذا الاختيار'); return; }
         await dtRenderNamesOnlyPDF(pdf, rollups);
         pdf.save(`اسماء_المكاتب_${new Date().toISOString().slice(0,10)}.pdf`);
@@ -7631,8 +7869,11 @@ async function dtExportPDF(mode){
     }
 
     const allRows = dtGetFilteredRows();
+    const firstRowOf=new Map(); allRows.forEach(r=>{ if(r.office && !firstRowOf.has(r.office)) firstRowOf.set(r.office, r); });
+    // صفحات المكاتب بنفس ترتيب الموقف — الحالة والموقف من أول صف للمكتب، مثل هيدر dtRenderOfficePagePDF
+    const orderedOffices=dtSortByStanceForPrint(officeNames, n=>(firstRowOf.get(n)||{}).officeStatus, n=>{ const r=firstRowOf.get(n); return r ? dtGetStance(r) : ''; });
     let wroteAny=false, isFirstOffice=true;
-    for(const office of officeNames){
+    for(const office of orderedOffices){
         const rows = allRows.filter(r=>r.office===office);
         if(!rows.length) continue;
         if(!isFirstOffice) pdf.addPage();
@@ -14203,15 +14444,37 @@ window.onload=async()=>{
     function bonusNetOffices(product){
         const a=window.__bonusNet && window.npOfficesFor ? window.npOfficesFor(product) : null;
         if(!a) return null;
-        const list=a.slice().sort((x,y)=>(x.pharm-y.pharm) || String(y.date).localeCompare(String(x.date)));
+        // نفس المكتب مرتين لنفس المادة (اسمين بملف النت يختلفون بفراغ زايد — 53 زوج، 2026-10-26): سطر واحد للمكتب.
+        // الأحدث تاريخاً يغلب، وبنفس التاريخ اللي بيه بونص. فواتير البونص فقط (adv/sep) = الأكبر مو المجموع حتى ما تنحسب مرتين.
+        const byOff=new Map();
+        a.forEach(o=>{
+            const k=bonusPriceKey(o.vendor, true), b=byOff.get(k);
+            if(!b){ byOff.set(k, o); return; }
+            const d=String(o.date||'').localeCompare(String(b.date||''));
+            const win=(d>0 || (d===0 && (o.vpct||0)>(b.vpct||0))) ? o : b;
+            byOff.set(k, Object.assign({}, win, {adv:Math.max(o.adv||0, b.adv||0), sep:Math.max(o.sep||0, b.sep||0)}));
+        });
+        const list=Array.from(byOff.values()).sort((x,y)=>(x.pharm-y.pharm) || String(y.date).localeCompare(String(x.date)));
         // «مصدر ثانوي» (قرار 2026-10-06) = مكتب بلا بونص لمادة بونصها واصل ويه الشراء من مكتب ثاني (مو صيدلية) — مثل الركن الطبي مقابل النسق.
         // ينحسب هنا من كل مكاتب المادة قبل أي فلتر مكاتب، وعلى نُسخ حتى ما ينلمس كاش npOfficesFor.
-        // التلقائي يتصحّح باليد: زر جنب اسم المكتب بالكارت يگلب «ثانوي ↔ غير واصل» وينحفظ (bonusSecOv) — اليدوي يغلب التلقائي.
-        const main=list.find(o=>!o.pharm && o.type!=='advance' && o.type!=='nopurch' && (o.vpct||0)>0), ov=bonusSecOv();
+        // التأشير اليدوي (2026-10-26) — الأعلى يغلب: ✋ مادة×مكتب (bonusSecOv) · ★ أساسي المادة (bonusPrimary) · مكتب «ثانوي دائماً» (bonusOffSec) · التلقائي.
+        // «ثانوي» يخص المكتب اللي ما جاب بونص بس — مكتب جاب بونص يبقى حكمه مطابق/أقل/أكثر (دليل الوصول ما ينمسح) ويا شارة دوره (secRole).
+        const ov=bonusSecOv(), offKey=o=>bonusPriceKey(o.vendor, true);
+        const ok=o=>!o.pharm && o.type!=='advance' && o.type!=='nopurch';
+        const pk=bonusPrimary()[bonusPriceKey(product, true)];
+        const prim=pk ? list.find(o=>ok(o) && offKey(o)===pk) || null : null;
+        const main=prim || list.find(o=>ok(o) && (o.vpct||0)>0 && !bonusOffSecHas(o.vendor)) || null;
+        // مصدر البونص ينذكر بس إذا فعلاً جاب بونص — أساسي يدوي نسبته صفر ما ينكتب «البونص منه»
+        const from=main && (main.vpct||0)>0 ? main : null;
         return list.map(o=>{
-            if((o.vpct||0)>0 || o.type==='advance' || o.type==='nopurch') return o;
+            const isPrim=!!prim && o===prim;
+            const role=!isPrim && ok(o) && ((!!prim) || bonusOffSecHas(o.vendor));
+            if((o.vpct||0)>0 || o.type==='advance' || o.type==='nopurch')
+                return (isPrim || role) ? Object.assign({}, o, {isPrim, secRole:role}) : o;
+            if(isPrim) return Object.assign({}, o, {isPrim:true});
             const key=bonusSecKey(o), m=ov[key];
-            return Object.assign({}, o, {secKey:key, secMan:!!m, sec:m ? m==='sec' : !!main, secFrom:main||null});
+            const sec=m ? m==='sec' : (!!prim || bonusOffSecHas(o.vendor) || !!main);
+            return Object.assign({}, o, {secKey:key, secMan:!!m, sec, secFrom:from});   // بلا secRole: حكمه sec أصلاً، أو ✋ «مو ثانوي» يغلب
         });
     }
     // مكاتب مخفية باختيار المستخدم (طلب 2026-10-06): تختفي من طباعة المكاتب ومن شارات الكارتات بس — الحسابات وعدّ الحالات ما يتغيّرون.
@@ -14243,6 +14506,56 @@ window.onload=async()=>{
         const ov=bonusSecOv();
         if(to) ov[key]=to; else delete ov[key];
         try{ localStorage.setItem(BONUS_SEC_OV_KEY, JSON.stringify(ov)); }catch(_){}
+        bonusSecRerender();
+    };
+    // التأشير اليدوي للأساسي/الثانوي (طلب 2026-10-26): مكتب «ثانوي دائماً» بكل مواده (مثل احمد فلاح) + «★ أساسي» لمادة وحدة.
+    // localStorage مثل bonus_sec_override_v1 — مو ph_*: ما يدخل الباك أب ولا ينتقل بين الجهازين.
+    const BONUS_OFF_SEC_KEY='bonus_off_sec_v1', BONUS_PRIMARY_KEY='bonus_primary_v1';
+    let bonusOffSecCache=null, bonusPrimaryCache=null;
+    function bonusOffSec(){
+        if(!bonusOffSecCache){ try{ bonusOffSecCache=new Set(JSON.parse(localStorage.getItem(BONUS_OFF_SEC_KEY)||'[]')); }catch(_){ bonusOffSecCache=new Set(); } }
+        return bonusOffSecCache;
+    }
+    const bonusOffSecHas=v=>bonusOffSec().has(bonusPriceKey(v, true));
+    function bonusPrimary(){
+        if(!bonusPrimaryCache){ try{ bonusPrimaryCache=JSON.parse(localStorage.getItem(BONUS_PRIMARY_KEY)||'{}')||{}; }catch(_){ bonusPrimaryCache={}; } }
+        return bonusPrimaryCache;
+    }
+    function bonusOffSecSet(v, on){
+        const s=bonusOffSec(), k=bonusPriceKey(v, true);
+        if(on) s.add(k); else s.delete(k);
+        try{ localStorage.setItem(BONUS_OFF_SEC_KEY, JSON.stringify(Array.from(s))); }catch(_){}
+    }
+    window.bonusOffSecToggle=function(v){ bonusOffSecSet(v, !bonusOffSecHas(v)); bonusSecRerender(); };
+    // vendor فاضي = يرجع التلقائي
+    window.bonusPrimarySet=function(product, vendor){
+        const p=bonusPrimary(), k=bonusPriceKey(product, true);
+        if(vendor) p[k]=bonusPriceKey(vendor, true); else delete p[k];
+        try{ localStorage.setItem(BONUS_PRIMARY_KEY, JSON.stringify(p)); }catch(_){}
+        bonusSecRerender();
+    };
+    // مواد بلا بونص (طلب 2026-10-26): ملف المبيعات يدخل كل مواد المكتب (293 من 573 بونصها صفر) — زر يخفيها من الكارتات وطباعة المكاتب.
+    // «صفر» = نسبة الكارت 0% (ولا بونص بأي بيانات مخزونة) وماكو بونص فعلي ولا مسحوب مسبقاً. عرض بس — الحسابات ما تتغيّر.
+    const BONUS_ZERO_HIDE_KEY='bonus_zero_mat_hide_v1';
+    const bonusIsZeroMat=p=>!(p.pct>0) && !(p.bonus>0) && !(p.preTaken>0);
+    // فترة البونص (طلب 2026-10-27): من أول لآخر مبيع ببونص — صفوف الصيدليات المؤشَّرة + المقطوع على اسم المكتب (نفس «البونص الطالع»).
+    // ضمن فلتر التاريخ الحالي. يوم/شهر/سنة (طلب 2026-10-27): «11/2/2026 → 28/9/2026»، أو يوم واحد، أو «—» بلا بونص.
+    function bonusSpan(p){
+        let a='', b='';
+        (p.rows||[]).forEach(r=>{
+            if(!((r.bonus||0)>0 && (r.isOffice || r.included))) return;
+            const d=String(r.date||'').slice(0,10);
+            if(!/^\d{4}-\d{2}/.test(d)) return;
+            if(!a || d<a) a=d;
+            if(!b || d>b) b=d;
+        });
+        if(!a) return '—';
+        const m=d=>(/^\d{4}-\d{2}-\d{2}/.test(d) ? (+d.slice(8,10))+'/' : '')+(+d.slice(5,7))+'/'+d.slice(0,4);
+        return m(a)===m(b) ? m(a) : m(a)+' → '+m(b);
+    }
+    const bonusZeroMatHidden=()=>{ try{ return localStorage.getItem(BONUS_ZERO_HIDE_KEY)==='1'; }catch(_){ return false; } };
+    window.bonusZeroMatToggle=function(){
+        try{ localStorage.setItem(BONUS_ZERO_HIDE_KEY, bonusZeroMatHidden() ? '0' : '1'); }catch(_){}
         bonusSecRerender();
     };
     window.bonusSecHideToggle=function(){
@@ -14277,7 +14590,16 @@ window.onload=async()=>{
             if(k!=='adv' && (o.adv>0 || o.sep>0)) t+=` · <span style="opacity:.7">(فاتورة بونص فقط ${((o.adv||0)+(o.sep||0)).toLocaleString()} ق — خارج الحساب)</span>`;
             if(o.prev) t+=` · سابقاً ${bonusEsc(o.prev.deal)} (${bonusEsc(o.prev.date)})`;
             // تصحيح يدوي للثانوي: يگلب الحالة وينحفظ · على سطر مؤشَّر باليد (✋) يرجّعه للتلقائي
-            if(k==='sec' || k==='none') t+=` <button data-sk="${bonusEsc(o.secKey)}" onclick="event.stopPropagation();window.bonusSecSet(this.dataset.sk,'${o.secMan ? '' : (k==='sec' ? 'none' : 'sec')}')" title="${o.secMan ? 'مؤشَّر باليد — اضغط حتى يرجع للتلقائي' : 'تصحيح يدوي — ينحفظ'}" style="background:#fff;color:${v[1]};border:1px solid ${v[1]};border-radius:5px;padding:0 5px;font-size:10px;font-weight:bold;cursor:pointer">${o.secMan ? '↺ تلقائي' : (k==='sec' ? '✗ مو ثانوي' : '↪ ثانوي؟')}</button>`;
+            if((k==='sec' || k==='none') && o.secKey) t+=` <button data-sk="${bonusEsc(o.secKey)}" onclick="event.stopPropagation();window.bonusSecSet(this.dataset.sk,'${o.secMan ? '' : (k==='sec' ? 'none' : 'sec')}')" title="${o.secMan ? 'مؤشَّر باليد — اضغط حتى يرجع للتلقائي' : 'تصحيح يدوي — ينحفظ'}" style="background:#fff;color:${v[1]};border:1px solid ${v[1]};border-radius:5px;padding:0 5px;font-size:10px;font-weight:bold;cursor:pointer">${o.secMan ? '↺ تلقائي' : (k==='sec' ? '✗ مو ثانوي' : '↪ ثانوي؟')}</button>`;
+            // ★ أساسي المادة · ⇣ المكتب ثانوي بكل مواده — الصيدلية و«بونص فقط» ما إلهم تأشير
+            if(!o.pharm && k!=='adv' && k!=='nopurch'){
+                const bs=`background:#fff;border-radius:5px;padding:0 5px;font-size:10px;font-weight:bold;cursor:pointer;margin-inline-start:3px;`;
+                if(o.secRole && k!=='sec') t+=` <span style="color:#6d28d9;font-weight:bold">↪ ثانوي</span>`;
+                t+=` <button data-pp="${bonusEsc(p.product)}" data-pv="${bonusEsc(o.vendor)}" onclick="event.stopPropagation();window.bonusPrimarySet(this.dataset.pp,${o.isPrim ? "''" : 'this.dataset.pv'})" title="${o.isPrim ? 'الأساسي لهالمادة باختيارك — اضغط حتى يرجع التلقائي' : 'خلّي هذا المكتب الأساسي لهالمادة — الباقين يصيرون ثانوي'}" style="${bs}color:#b45309;border:1px solid #b45309">${o.isPrim ? '★ الأساسي ↺' : '★ أساسي'}</button>`;
+                const offSec=bonusOffSecHas(o.vendor);
+                t+=` <button data-pv="${bonusEsc(o.vendor)}" onclick="event.stopPropagation();window.bonusOffSecToggle(this.dataset.pv)" title="${offSec ? 'هذا المكتب ثانوي بكل مواده — اضغط حتى يرجع عادي' : 'خلّي هذا المكتب ثانوي بكل مواده'}" style="${bs}color:#6d28d9;border:1px ${offSec ? 'solid' : 'dashed'} #6d28d9">${offSec ? '⇣ ثانوي دائماً ✓' : '⇣ ثانوي دائماً'}</button>`;
+            }
+            if(o.isPrim) t='★ '+t;
             return `<span class="text-[11px]" style="background:${v[2]};color:${v[1]};border-radius:6px;padding:2px 6px;cursor:pointer" title="اضغط لسجل الشراءات كامل" onclick="npOpenLog(${o.i})">${t}</span>`;
         }).join('')+(nHid ? `<span class="text-[10px] text-gray-400">(${nHid} مصدر ثانوي مخفي)</span>` : '')
             +(nOffHid ? `<span class="text-[10px] text-gray-400">(${nOffHid} مكتب مخفي باختيارك)</span>` : '')+'</div>';
@@ -14352,15 +14674,21 @@ window.onload=async()=>{
         // الفلتر يشتغل بس وأسعار النت مزامَنة — بلاها ماكو حالة نفلتر عليها
         const kinds=window.__bonusNet ? poolList.map(bonusNetKinds) : null;
         const nf=kinds && window.__bonusNetFilter ? window.__bonusNetFilter : new Set();
-        const shown=pidx=>!nf.size || [...nf].some(k=>kinds[pidx].has(k));
-        const nShown=nf.size ? poolList.filter((_,i)=>shown(i)).length : poolList.length;
+        const zHide=bonusZeroMatHidden(), nZero=poolList.filter(bonusIsZeroMat).length;
+        const shown=pidx=>!(zHide && bonusIsZeroMat(poolList[pidx])) && (!nf.size || [...nf].some(k=>kinds[pidx].has(k)));
+        const nShown=(nf.size || zHide) ? poolList.filter((_,i)=>shown(i)).length : poolList.length;
         bonusNetFilterBar(kinds, nf, nShown);
+        const zBar=document.getElementById('bonusZeroBar');
+        if(zBar){
+            zBar.classList.toggle('hidden', !nZero);
+            zBar.innerHTML=`<button onclick="window.bonusZeroMatToggle()" class="text-[11px] font-bold" title="مادة نسبتها 0% وما إلها أي بونص — تختفي من الكارتات ومن طباعة المكاتب. الحسابات ما تتغيّر" style="border-radius:999px;padding:3px 10px;background:#fff;color:#475569;border:2px ${zHide?'solid':'dashed'} #475569">${zHide ? '🙈 المواد بلا بونص (0%): مخفية '+nZero.toLocaleString()+' — اضغط للإظهار' : '👁 المواد بلا بونص (0%): ظاهرة '+nZero.toLocaleString()+' — اضغط للإخفاء'}</button>`;
+        }
         if(!poolList.length){
             cont.innerHTML='<div class="text-center text-gray-400 py-10 text-sm">لا نتائج بهذا الفلتر</div>';
             return;
         }
         if(!nShown){
-            cont.innerHTML='<div class="text-center text-gray-400 py-10 text-sm">ماكو مادة بحالة البونص المختارة — اضغط «↺ الكل»</div>';
+            cont.innerHTML='<div class="text-center text-gray-400 py-10 text-sm">ماكو مادة ظاهرة — اضغط «↺ الكل» أو أظهر المواد بلا بونص</div>';
             return;
         }
         // تنبيه عام فوق كل الكاردات — علمود ما تضطر تدوّر كارت كارت
@@ -14388,6 +14716,7 @@ window.onload=async()=>{
                         <span class="font-black text-xs" style="min-width:22px;text-align:center;color:#6b7280;background:#f1f5f9;border-radius:6px;padding:2px 6px" title="تسلسل المادة">${pidx+1}</span>
                         <div class="font-bold text-sm">${bonusEsc(p.product)}</div>
                         ${bonusSalePriceHtml(p.product, pidx)}
+                        <span class="text-[11px] text-gray-500" dir="ltr" title="فترة البونص: من أول لآخر مبيع ببونص (ضمن فلتر التاريخ)">📅 ${bonusEsc(bonusSpan(p))}</span>
                     </div>
                     <div class="flex gap-1">
                         <button class="ios-btn text-xs px-2 py-1 font-bold" style="color:${(p.view&&p.view.hideZero)?'#16a34a':'#6b7280'}" data-bonus-action="toggle-hide-zero" data-pidx="${pidx}" title="يخفي/يظهر الصيدليات اللي بونصها صفر — عرض فقط، ما يغيّر التأشير ولا الحساب">${(p.view&&p.view.hideZero)?'☑':'☐'} إخفاء الأصفار</button>
@@ -14583,6 +14912,39 @@ window.onload=async()=>{
         });
     }
 
+    // نافذة قبل الطباعة لما يكون أكثر من مكتب: أشّر المكاتب + اكتب اسم → تنطبع كمكتب واحد. يرجّع null = إلغاء.
+    function bonusAskMergeOffices(names, rowCount){
+        return new Promise(resolve=>{
+            const ov=document.createElement('div');
+            ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+            ov.innerHTML=`<div dir="rtl" style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;font-family:Tajawal,Arial,sans-serif">
+                <div style="padding:14px 16px;background:#eff6ff;border-bottom:1px solid #bfdbfe">
+                    <div style="font-weight:bold;font-size:15px;color:#1e40af">📄 سيتم تصدير ${names.length} مكتب (${rowCount.toLocaleString()} صف)</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px">تريد تدمج مكاتب؟ أشّرها ✔ واكتب الاسم — تنطبع كمكتب واحد بملخص واحد بالمجموع. اتركها فارغة = كل مكتب لحاله.</div>
+                </div>
+                <div style="padding:10px 16px;overflow:auto;flex:1">${names.map(n=>`<label style="display:flex;gap:8px;align-items:center;padding:7px 8px;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:6px;cursor:pointer"><input type="checkbox" data-merge-office="${bonusEsc(n)}"><span style="font-weight:bold;font-size:13px;color:#1e3a8a">${bonusEsc(n)}</span></label>`).join('')}
+                    <input id="bonusMergeName" placeholder="اسم المكتب المدموج (مثال: انماء زادا)" style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;font-size:13px;font-family:inherit">
+                </div>
+                <div style="padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:8px">
+                    <button data-act="ok" style="background:#002060;color:#fff;border:0;border-radius:10px;padding:8px 18px;font-weight:bold;font-size:13px;cursor:pointer">متابعة الطباعة</button>
+                    <button data-act="cancel" style="background:#f3f4f6;color:#b91c1c;border:0;border-radius:10px;padding:8px 18px;font-weight:bold;font-size:13px;cursor:pointer">إلغاء</button>
+                </div>
+            </div>`;
+            const close=val=>{ try{ document.body.removeChild(ov); }catch(e){} resolve(val); };
+            ov.addEventListener('click', ev=>{
+                const act=ev.target && ev.target.getAttribute && ev.target.getAttribute('data-act');
+                if(act==='cancel' || ev.target===ov) return close(null);
+                if(act!=='ok') return;
+                const picked=Array.from(ov.querySelectorAll('input[data-merge-office]:checked')).map(c=>c.getAttribute('data-merge-office'));
+                const mergeName=String(ov.querySelector('#bonusMergeName').value||'').trim();
+                if(picked.length && !mergeName){ alert('اكتب اسم المكتب المدموج'); return; }
+                if(mergeName && !picked.length){ alert('أشّر المكاتب اللي تريد تدمجها'); return; }
+                close({names:picked, mergeName});
+            });
+            document.body.appendChild(ov);
+        });
+    }
+
     window.bonusExportPDF=async function(){
         if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
         const pools=window.__bonusPools||[];
@@ -14616,7 +14978,7 @@ window.onload=async()=>{
         });
 
         const printRows=[];
-        const mk=(off,b)=>({office:off, product:b.product, pharmacy:b.pharmacy, date:b.date, qty:b.qty, bonus:b.bonus, isPreTaken:b.isPreTaken});
+        const mk=(off,b)=>({office:off, product:b.product, pharmacy:b.pharmacy, date:b.date, qty:b.qty, bonus:b.bonus, isPreTaken:b.isPreTaken, src:b});
 
         if(!scopeTerms.length){
             // ===== ماكو فلتر مكتب → تقرير «عام» واحد يجمع كل الصفوف =====
@@ -14654,6 +15016,23 @@ window.onload=async()=>{
         if(!printRows.length){ alert('لا صفوف بونص (Bonus Qty ≥ 1) مؤشَّرة صح للطباعة.'); return; }
 
         // صفوف "مسحوب مسبقاً" تنضم لمجموع الملخص بس — ما تنطبع كصف صيدلية بجدول البيانات
+        // دمج مكاتب (26 ت1 2026): المكاتب المؤشَّرة تنطبع باسم واحد = جدول واحد + ملخص واحد بالمجموع.
+        // نفس صف البيع ممكن يكون مكرر لمكتبين مدموجين (فلتر يطابق الاثنين) → ينطبع مرة وحدة.
+        const namesOf=list=>Array.from(new Set(list.map(r=>r.office))).sort();
+        let allNames=namesOf(printRows);
+        if(allNames.length>1){
+            const ans=await bonusAskMergeOffices(allNames, printRows.filter(r=>!r.isPreTaken).length);
+            if(ans===null){ showToast('⚠️ أُلغيت الطباعة'); return; }
+            if(ans.names.length && ans.mergeName){
+                const set=new Set(ans.names), seen=new Set();
+                for(let i=printRows.length-1; i>=0; i--){ if(set.has(printRows[i].office)) printRows[i].office=ans.mergeName; }
+                for(let i=0; i<printRows.length; i++){
+                    const r=printRows[i]; if(r.office!==ans.mergeName) continue;
+                    if(seen.has(r.src)){ printRows.splice(i,1); i--; } else seen.add(r.src);
+                }
+            }
+        } else if(!confirm('سيتم تصدير '+allNames.length+' مكتب بملف PDF واحد ('+printRows.filter(r=>!r.isPreTaken).length.toLocaleString()+' صف).\n\nمتابعة؟')) return;
+
         const dataPrintRows=printRows.filter(r=>!r.isPreTaken);
         const preTakenRows=printRows.filter(r=>r.isPreTaken);
 
@@ -14662,8 +15041,6 @@ window.onload=async()=>{
         const officePreTakenGroups={};
         preTakenRows.forEach(r=>{ (officePreTakenGroups[r.office]=officePreTakenGroups[r.office]||[]).push(r); });
         const officeNames=Array.from(new Set([...Object.keys(officeGroups), ...Object.keys(officePreTakenGroups)])).sort();
-
-        if(!confirm('سيتم تصدير '+officeNames.length+' مكتب بملف PDF واحد ('+dataPrintRows.length.toLocaleString()+' صف).\n\nمتابعة؟')) return;
 
         showToast('⏳ جاري بناء PDF...', true);
         const {jsPDF}=window.jspdf;
@@ -14701,8 +15078,11 @@ window.onload=async()=>{
         ['none','غير واصل','غير واصل'],['sec','مصدر ثانوي','مصدر ثانوي'],['adv','بونص فقط — خارج الحساب','بونص فقط'],['nopct','واصل — الكارت بلا نسبة','كارت 0%']];
     function bonusOfficeReportRows(){
         const terms=String((document.getElementById('bonusOfficeFilter')||{}).value||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
-        const pc=v=>(Math.round(v*1000)/10)+'%', rows=[];
+        const pc=v=>(Math.round(v*1000)/10)+'%', rows=[], zHide=bonusZeroMatHidden();
         (window.__bonusPools||[]).forEach(p=>{
+            if(zHide && bonusIsZeroMat(p)) return;   // زر «المواد بلا بونص: مخفية» يشملها هنا هم
+            // البونص الطالع للمادة (طلب 2026-10-26) = الفعلي بالكارت (صفوف الصيدليات المؤشَّرة) + المقطوع على اسم المكتب
+            const outOff=(p.rows||[]).reduce((s,r)=>s+(r.isOffice ? (r.bonus||0) : 0), 0), out=(p.bonus||0)+outOff, span=bonusSpan(p);
             (bonusNetOffices(p.product)||[]).forEach(o=>{
                 const k=bonusNetVerdict(o, p.pct);
                 if(k==='nopurch' || o.pharm || !String(o.vendor||'').trim()) return;
@@ -14712,23 +15092,28 @@ window.onload=async()=>{
                          : k==='none' ? '—'
                          : k==='sec' ? (o.secFrom ? o.secFrom.deal+' من '+bonusOffShort(o.secFrom.vendor) : 'تأشير يدوي')   // الديل أول: إذا النص أطول من الخانة ينقطع اسم المكتب مو الديل
                          : o.deal+' ('+pc(o.vpct)+')';
-                rows.push({office:String(o.vendor).trim(), product:p.product, k, deal, card:p.pct>0 ? pc(p.pct) : '—'});
+                rows.push({office:String(o.vendor).trim(), product:p.product, k, deal, card:p.pct>0 ? pc(p.pct) : '—', out, outOff, span});
             });
         });
         return rows;
     }
     // كارتات العدّ قبل الطباعة — ضغطة على الكارت تشيل حالته من الطباعة أو ترجّعها. يرجّع Set بالحالات المطلوبة، أو null عند الإلغاء
-    function bonusAskOfficeReport(rows){
+    // الحالات = checkboxes صريحة (☑ = تنطبع) + أزرار جاهزة — قبلها كارتات تبدي شغّالة والضغطة تطفّيها، فـ«أأشّر مطابق» كان يشيله (2026-10-26).
+    // «ثانوي دائماً» بقائمة المكاتب يعيد بناء الصفوف فوراً (bonusOfficeReportRows) — العدّادات والطباعة تمشي على التصنيف الجديد.
+    const BONUS_OFF_PRESETS=[['الواصل فقط',['match','less','more','nopct']],['غير الواصل فقط',['none']],['الكل',null]];
+    function bonusAskOfficeReport(rows0){
+        let rows=rows0;
         return new Promise(resolve=>{
-            const cnt={}; rows.forEach(r=>{ cnt[r.k]=(cnt[r.k]||0)+1; });
+            const sel=new Set(BONUS_OFF_ST.map(s=>s[0]).filter(k=>!(k==='sec' && bonusSecHidden())));   // «إخفاء المصادر الثانوية» يطفّي الثانوي كبداية
             const ov=document.createElement('div');
             ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
             ov.innerHTML=`<div dir="rtl" style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:94vh;overflow:auto;padding:16px;font-family:Tajawal,Arial,sans-serif">
                 <div style="font-weight:bold;font-size:16px;color:#002060">🏢 طباعة المكاتب</div>
-                <div style="font-size:12px;color:#6b7280;margin:4px 0 12px"><span data-info></span><br>اضغط الكارت حتى تشيل حالته من الطباعة أو ترجّعها.</div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px">${BONUS_OFF_ST.filter(s=>cnt[s[0]]).map(s=>{ const v=BONUS_NET_V[s[0]];
-                    const on=!(s[0]==='sec' && bonusSecHidden());   // «إخفاء المصادر الثانوية» يطفّي كارتها هنا كبداية — ضغطة ترجّعه
-                    return `<button data-k="${s[0]}" data-on="${on?1:0}" style="min-width:92px;${on?'':'opacity:.35;'}background:${v[2]};color:${v[1]};border:2px ${on?'solid':'dashed'} ${v[1]};border-radius:12px;padding:8px 10px;cursor:pointer;font-family:inherit"><div data-n style="font-size:20px;font-weight:900">${cnt[s[0]].toLocaleString()}</div><div style="font-size:12px;font-weight:bold">${s[2]}</div></button>`; }).join('')}</div>
+                <div style="font-size:12px;color:#6b7280;margin:4px 0 10px"><span data-info></span></div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px"><b style="font-size:13px;color:#002060">شنو ينطبع؟</b>
+                    ${BONUS_OFF_PRESETS.map((p,i)=>`<button data-preset="${i}" style="background:#e0e7ff;color:#002060;border:0;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:bold;cursor:pointer;font-family:inherit">${p[0]}</button>`).join('')}</div>
+                <div data-stlist style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px"></div>
+                <div style="font-size:11px;color:#6b7280;margin-top:4px">☑ = ينطبع · الرقم = عدد المواد</div>
                 <div style="margin-top:12px;border-top:1px solid #e5e7eb;padding-top:10px">
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                         <b style="font-size:13px;color:#002060">المكاتب</b>
@@ -14737,7 +15122,7 @@ window.onload=async()=>{
                         <button data-offall="0" style="background:#f3f4f6;color:#b91c1c;border:0;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:bold;cursor:pointer;font-family:inherit">إخفاء المعروض</button>
                     </div>
                     <div data-offlist style="max-height:220px;overflow:auto;margin-top:6px;border:1px solid #e5e7eb;border-radius:8px"></div>
-                    <div style="font-size:11px;color:#6b7280;margin-top:4px">شيل الصح ☑ حتى يختفي المكتب من الطباعة ومن شارات الكارتات — اختيارك ينحفظ للمرات الجاية. (الرقم = عدد مواده)</div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:4px">شيل الصح ☑ حتى يختفي المكتب من الطباعة ومن شارات الكارتات · «ثانوي دائماً» = المكتب ينحسب مصدر ثانوي بكل مواده — اختيارك ينحفظ للمرات الجاية. (الرقم = سطور المكتب)</div>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:14px">
                     <button data-act="ok" style="background:#002060;color:#fff;border:0;border-radius:10px;padding:8px 18px;font-weight:bold;font-size:13px;cursor:pointer">طباعة PDF</button>
@@ -14749,27 +15134,35 @@ window.onload=async()=>{
             rows.forEach(r=>{ offN[r.office]=(offN[r.office]||0)+1; });
             const listEl=ov.querySelector('[data-offlist]'), qEl=ov.querySelector('[data-offq]');
             const shown=()=>{ const q=qEl.value.trim().toLowerCase(); return offs.map((o,i)=>i).filter(i=>!q || offs[i].toLowerCase().includes(q)); };
+            const stEl=ov.querySelector('[data-stlist]');
             const drawCounts=()=>{
-                const vis=rows.filter(r=>!bonusOffIsHid(r.office)), c={}; vis.forEach(r=>{ c[r.k]=(c[r.k]||0)+1; });
-                ov.querySelectorAll('button[data-k]').forEach(b=>{ b.querySelector('[data-n]').textContent=(c[b.dataset.k]||0).toLocaleString(); });
+                const vis=rows.filter(r=>!bonusOffIsHid(r.office)), c={};
+                vis.forEach(r=>{ (c[r.k]=c[r.k]||new Set()).add(r.product); });
+                stEl.innerHTML=BONUS_OFF_ST.map(s=>{ const v=BONUS_NET_V[s[0]], n=c[s[0]] ? c[s[0]].size : 0, on=sel.has(s[0]);
+                    return `<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:bold;background:${on?v[2]:'#f9fafb'};color:${on?v[1]:'#9ca3af'};border:1px solid ${on?v[1]:'#e5e7eb'};${n?'':'opacity:.5'}"><input type="checkbox" data-st="${s[0]}" ${on?'checked':''} style="width:16px;height:16px"><span style="flex:1">${s[2]}</span><span>${n.toLocaleString()}</span></label>`; }).join('');
                 const nVis=offs.filter(o=>!bonusOffIsHid(o)).length;
                 ov.querySelector('[data-info]').innerHTML=`<b>${nVis.toLocaleString()}</b> مكتب ظاهر من ${offs.length.toLocaleString()}`+(nVis<offs.length ? ` (<b style="color:#b91c1c">${(offs.length-nVis).toLocaleString()} مخفي</b>)` : '')
                     +` • <b>${new Set(vis.filter(r=>r.k!=='adv').map(r=>r.product)).size.toLocaleString()}</b> مادة • <b>${vis.length.toLocaleString()}</b> سطر (مادة × مكتب) • أدوية «بونص فقط» (خارج الحساب): <b>${new Set(vis.filter(r=>r.k==='adv').map(r=>r.product)).size.toLocaleString()}</b>`;
             };
             const drawList=()=>{ listEl.innerHTML=shown().map(i=>{ const hid=bonusOffIsHid(offs[i]);
-                return `<label style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;border-bottom:1px solid #f3f4f6;cursor:pointer;${hid?'color:#9ca3af;background:#f9fafb':''}"><input type="checkbox" data-offi="${i}" ${hid?'':'checked'}><span style="flex:1">${bonusEsc(offs[i])}</span><span style="color:#6b7280">${offN[offs[i]].toLocaleString()}</span></label>`; }).join('')
+                const sec=bonusOffSecHas(offs[i]);
+                return `<div style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;border-bottom:1px solid #f3f4f6;${hid?'color:#9ca3af;background:#f9fafb':''}"><label style="display:flex;gap:8px;align-items:center;flex:1;cursor:pointer"><input type="checkbox" data-offi="${i}" ${hid?'':'checked'}><span style="flex:1">${bonusEsc(offs[i])}</span></label><span style="color:#6b7280">${offN[offs[i]].toLocaleString()}</span><label style="display:flex;gap:3px;align-items:center;cursor:pointer;color:#6d28d9;font-weight:bold;white-space:nowrap" title="ثانوي بكل مواده"><input type="checkbox" data-offsec="${i}" ${sec?'checked':''}>ثانوي دائماً</label></div>`; }).join('')
                 || '<div style="padding:8px;font-size:12px;color:#9ca3af">ماكو مكتب بهذا الاسم</div>'; };
-            listEl.addEventListener('change', ev=>{ const i=ev.target.dataset && ev.target.dataset.offi; if(i==null) return;
-                bonusOffHidSet(offs[+i], !ev.target.checked); const lab=ev.target.closest('label'); lab.style.color=ev.target.checked?'':'#9ca3af'; lab.style.background=ev.target.checked?'':'#f9fafb'; drawCounts(); });
+            listEl.addEventListener('change', ev=>{ const d=ev.target.dataset||{};
+                if(d.offsec!=null){ bonusOffSecSet(offs[+d.offsec], ev.target.checked); rows=bonusOfficeReportRows(); drawCounts(); return; }
+                if(d.offi==null) return;
+                bonusOffHidSet(offs[+d.offi], !ev.target.checked); drawList(); drawCounts(); });
+            stEl.addEventListener('change', ev=>{ const k=ev.target.dataset && ev.target.dataset.st; if(!k) return;
+                if(ev.target.checked) sel.add(k); else sel.delete(k); drawCounts(); });
             qEl.addEventListener('input', drawList);
             drawList(); drawCounts();
             ov.addEventListener('click', ev=>{
                 const allBtn=ev.target.closest && ev.target.closest('button[data-offall]');
                 if(allBtn){ shown().forEach(i=>bonusOffHidSet(offs[i], allBtn.dataset.offall==='0')); drawList(); drawCounts(); return; }
-                const card=ev.target.closest && ev.target.closest('button[data-k]');
-                if(card){ const on=card.dataset.on!=='1'; card.dataset.on=on?'1':'0'; card.style.opacity=on?'1':'.35'; card.style.borderStyle=on?'solid':'dashed'; return; }
+                const pre=ev.target.closest && ev.target.closest('button[data-preset]');
+                if(pre){ const p=BONUS_OFF_PRESETS[+pre.dataset.preset]; sel.clear(); (p[1]||BONUS_OFF_ST.map(s=>s[0])).forEach(k=>sel.add(k)); drawCounts(); return; }
                 const act=ev.target.getAttribute && ev.target.getAttribute('data-act');
-                if(act==='ok') return close(new Set(Array.from(ov.querySelectorAll('button[data-k][data-on="1"]')).map(b=>b.dataset.k)));
+                if(act==='ok'){ if(!sel.size){ alert('اختار حالة وحدة على الأقل.'); return; } return close(new Set(sel)); }
                 if(act==='cancel' || ev.target===ov) return close(null);
             });
             document.body.appendChild(ov);
@@ -14783,7 +15176,9 @@ window.onload=async()=>{
         const keep=await bonusAskOfficeReport(all);
         bonusSecRerender();   // المكاتب اللي انخفت/رجعت بالنافذة تنعكس على شارات الكارتات حتى لو انلغت الطباعة
         if(!keep) return;
-        const rows=all.filter(r=>keep.has(r.k) && !bonusOffIsHid(r.office));
+        // الصفوف تنبني من جديد: «ثانوي دائماً» بالنافذة يغيّر التصنيف
+        const rows=bonusOfficeReportRows().filter(r=>keep.has(r.k) && !bonusOffIsHid(r.office));
+        const STS=BONUS_OFF_ST.filter(s=>keep.has(s[0]));   // الملخص والكارتات بالحالات المختارة بس — ماكو أعمدة كلها صفر
         if(!rows.length){ alert('كل الحالات أو كل المكاتب مشيولة — ماكو شي ينطبع.'); return; }
         showToast('⏳ جاري بناء PDF...', true);
         await new Promise(r=>setTimeout(r,30));
@@ -14792,8 +15187,8 @@ window.onload=async()=>{
         const FONT='Tajawal, Arial, sans-serif', top=M+TITLE_H+2, bottom=PH-M-FOOT_H;
         const ST=Object.fromEntries(BONUS_OFF_ST.map(s=>[s[0],s]));
         // الأعمدة تنرسم من اليمين لليسار
-        const COLS=[{k:'n',label:'ت',w:12},{k:'product',label:'اسم المادة',w:128},{k:'deal',label:'بونص المكتب (الديل والنسبة)',w:62},{k:'card',label:'نسبة الكارت',w:26},{k:'st',label:'الموقف',w:55}];
-        const SUMCOLS=[{k:'n',label:'ت',w:10},{k:'office',label:'المكتب',w:91},{k:'tot',label:'المواد',w:22}, ...BONUS_OFF_ST.map(s=>({k:s[0],label:s[2],w:160/BONUS_OFF_ST.length}))];
+        const COLS=[{k:'n',label:'ت',w:10},{k:'product',label:'اسم المادة',w:78},{k:'deal',label:'بونص المكتب (الديل والنسبة)',w:50},{k:'card',label:'نسبة الكارت',w:22},{k:'span',label:'فترة البونص',w:38},{k:'out',label:'البونص الطالع',w:36},{k:'st',label:'الموقف',w:49}];
+        const SUMCOLS=[{k:'n',label:'ت',w:10},{k:'office',label:'المكتب',w:91},{k:'tot',label:'المواد',w:22}, ...STS.map(s=>({k:s[0],label:s[2],w:160/STS.length}))];
 
         const mctx=document.createElement('canvas').getContext('2d'); mctx.font='bold 4.4px '+FONT;
         const groups={};
@@ -14845,7 +15240,8 @@ window.onload=async()=>{
         const eachCol=(cols, fn)=>{ let xr=R; cols.forEach(c=>{ fn(c, xr-c.w); xr-=c.w; }); };
         const fromV=(document.getElementById('bonusFromDate')||{}).value, toV=(document.getElementById('bonusToDate')||{}).value;
         const today=new Date().toISOString().slice(0,10);
-        const title='تقرير بونص المكاتب'+((fromV||toV) ? ' — من '+(fromV||'…')+' إلى '+(toV||'…') : '');
+        const title='تقرير بونص المكاتب'+((fromV||toV) ? ' — من '+(fromV||'…')+' إلى '+(toV||'…') : '')
+            +(STS.length<BONUS_OFF_ST.length ? '   •   المطبوع: '+STS.map(s=>s[2]).join(' + ') : '');
         const nMat=new Set(rows.filter(r=>r.k!=='adv').map(r=>r.product)).size, advMats=new Set(rows.filter(r=>r.k==='adv').map(r=>r.product)).size, allC=cntOf(rows);
         const arFont=await ensureArabicInvisibleFont(pdf).catch(()=>false);
 
@@ -14861,7 +15257,7 @@ window.onload=async()=>{
                 const yy=it.y;
                 if(it.t==='cards'){
                     const cards=[['عدد المكاتب', offices.length, '#002060', '#e0e7ff'], ['عدد المواد', nMat, '#002060', '#e0e7ff'],
-                        ...BONUS_OFF_ST.map(s=>[s[2], allC[s[0]]||0, BONUS_NET_V[s[0]][1], BONUS_NET_V[s[0]][2]])];
+                        ...STS.map(s=>[s[2], allC[s[0]]||0, BONUS_NET_V[s[0]][1], BONUS_NET_V[s[0]][2]])];
                     const gap=2, w=(CW-gap*(cards.length-1))/cards.length;
                     cards.forEach((c,i)=>{ const x=R-(i+1)*w-i*gap; box(x, yy, w, CARDS_H-6, c[3]);
                         txt(c[1].toLocaleString(), x+w/2, yy+7, {size:7.5, color:c[2], dir:'ltr'}); txt(c[0], x+w/2, yy+14.5, {size:3.8, color:c[2], max:w-2}); });
@@ -14896,6 +15292,11 @@ window.onload=async()=>{
                         else if(c.k==='product'){ let ly=yy+r.h/2-(r.lines.length*LINE_GAP)/2+LINE_GAP/2; r.lines.forEach(l=>{ txt(l, x+2, ly, {size:4.4, dir:'ltr', align:'left'}); ly+=LINE_GAP; }); }
                         else if(c.k==='deal') txt(r.deal, x+c.w/2, yy+r.h/2, {size:4.2, max:c.w-3, dir:/[؀-ۿ]/.test(r.deal) ? 'rtl' : 'ltr'});   // «10+1 (10%)» ينقلب ترتيبه تحت rtl
                         else if(c.k==='card') txt(r.card, x+c.w/2, yy+r.h/2, {size:4.2, dir:'ltr'});
+                        else if(c.k==='span') txt(r.span, x+c.w/2, yy+r.h/2, {size:3.1, dir:'ltr', max:c.w-1.5});
+                        else if(c.k==='out'){   // الرقم الكلي، وتحته المقطوع على اسم المكتب إذا أكو
+                            if(r.outOff>0){ txt(r.out.toLocaleString(), x+c.w/2, yy+r.h/2-1.6, {size:4.2, dir:'ltr'}); txt(r.outOff.toLocaleString()+' باسم المكتب مسبقاً', x+c.w/2, yy+r.h/2+2, {size:3.3, color:'#b45309', max:c.w-1.5}); }
+                            else txt(r.out ? r.out.toLocaleString() : '—', x+c.w/2, yy+r.h/2, {size:4.2, dir:'ltr', color:r.out ? '#000000' : '#9ca3af'});
+                        }
                         else txt(ST[r.k][1], x+c.w/2, yy+r.h/2, {size:4.2, color:v[1], max:c.w-3});
                     });
                 }
@@ -14912,6 +15313,132 @@ window.onload=async()=>{
         pdf.save('BonusOffices_'+today+'.pdf');
         showToast('✅ PDF جاهز — '+offices.length+' مكتب • '+rows.length.toLocaleString()+' سطر • '+pages.length+' صفحة');
         return {offices:offices.length, rows:rows.length, pages:pages.length};
+    };
+
+    // ===== 📋 طباعة المتابعة (طلب 2026-10-27): بس اللي يحتاج متابعة، مضغوط — بدل ~55 صفحة «طباعة المكاتب».
+    // الأقسام بالترتيب: ✗ غير واصل · ⬇ واصل ناقص · بلا شراء · ↪ مصدر ثانوي (بالأخير، للمراجعة قبل الإلغاء).
+    // المصدر نفس طباعة المكاتب (bonusOfficeReportRows + المكاتب المخفية + زر الصفريات) و«بلا شراء» = نفس chip الشاشة (bonusNetKinds).
+    // الاسم الطويل ينزل لسطرين وما ينقص — القوة/العبوة بآخر الاسم تميّز المادة.
+    window.bonusExportFollowupPDF=async function(){
+        if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
+        if(!window.__bonusNet){ alert('أسعار النت ما مزامَنة — سوّي ⚡ مزامنة سريعة أول (بعد زر «أسعار نت مع بونص» بالإكسل).'); return; }
+        const all=bonusOfficeReportRows().filter(r=>!bonusOffIsHid(r.office)), zHide=bonusZeroMatHidden();
+        const byName=(a,b)=>String(a.product).localeCompare(String(b.product),'en',{sensitivity:'base',numeric:true});
+        const noBuy=(window.__bonusPools||[]).filter(p=>!(zHide && bonusIsZeroMat(p)) && bonusNetKinds(p).has('nopurch')).map(p=>{
+            const outOff=(p.rows||[]).reduce((s,r)=>s+(r.isOffice ? (r.bonus||0) : 0), 0);
+            return {product:p.product, out:(p.bonus||0)+outOff, outOff, card:p.pct>0 ? (Math.round(p.pct*1000)/10)+'%' : '—', span:bonusSpan(p)};
+        }).sort(byName);
+        const SECS=[['none','✗ غير واصل'],['less','⬇ واصل ناقص'],['nopurch','بلا شراء — ماكو شراء بملف النت'],['sec','↪ مصدر ثانوي — للمراجعة قبل الإلغاء']];
+        const secRows=k=>k==='nopurch' ? noBuy : all.filter(r=>r.k===k);
+        const cnt={}; SECS.forEach(([k])=>{ cnt[k]=secRows(k).length; });
+        if(!SECS.some(([k])=>cnt[k])){ alert('ماكو شي يحتاج متابعة ضمن الفلتر الحالي.'); return; }
+        showToast('⏳ جاري بناء PDF المتابعة...', true);
+        await new Promise(r=>setTimeout(r,30));
+
+        const S=6, PW=297, PH=210, M=7, TITLE_H=10, FOOT_H=6, SEC_H=7, OFF_H=6, HEAD_H=6, ROW_H=6, ROW2_H=9.5, LINE_GAP=3.6, CW=PW-2*M, R=PW-M;
+        const FONT='Tajawal, Arial, sans-serif', top=M+TITLE_H+2, bottom=PH-M-FOOT_H;
+        const COLOR={none:'#b91c1c', less:'#b45309', nopurch:'#475569', sec:'#6d28d9'};
+        const colsFor=k=>k==='nopurch'
+            ? [{k:'n',label:'ت',w:10},{k:'product',label:'اسم المادة',w:122},{k:'card',label:'نسبة الكارت',w:22},{k:'span',label:'فترة البونص',w:38},{k:'out',label:'البونص الطالع',w:91}]
+            : [{k:'n',label:'ت',w:10},{k:'product',label:'اسم المادة',w:122},{k:'deal',label:k==='sec' ? 'البونص من' : 'بونص المكتب',w:45},{k:'card',label:'نسبة الكارت',w:22},{k:'span',label:'فترة البونص',w:38},{k:'out',label:'البونص الطالع',w:46}];
+        const mctx=document.createElement('canvas').getContext('2d'); mctx.font='bold 4.2px '+FONT;
+        // لحد 4 أسطر (bonusWrapText يقص بـ… بس إذا الاسم أطول من 4 أسطر) — كل سطر زايد +3.6 مم
+        const prep=r=>{ r.lines=bonusWrapText(mctx, r.product, 122-4, 4); r.h=r.lines.length>1 ? ROW2_H+(r.lines.length-2)*LINE_GAP : ROW_H; };
+
+        // ── توزيع الصفحات: شريط القسم + راس الجدول + شريط المكتب + أول سطر يدخلون سوية (ما يبقى عنوان وحده بأسفل الصفحة)
+        const pages=[]; let pg=null, y=0;
+        const newPage=()=>{ pg={items:[], names:[], prods:[]}; pages.push(pg); y=top; };
+        const push=(it,h)=>{ it.y=y; pg.items.push(it); y+=h; };
+        SECS.forEach(([k,label])=>{
+            const list=secRows(k); if(!list.length) return;
+            list.forEach(prep);
+            // الترتيب قبل الحجز — أول سطر ينطبع فعلاً هو اللي ينحسب ارتفاعه
+            const groups={}; if(k!=='nopurch') list.forEach(r=>{ (groups[r.office]=groups[r.office]||[]).push(r); });
+            const offOrder=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'ar'));
+            offOrder.forEach(o=>groups[o].sort(byName));
+            const firstH=k==='nopurch' ? list[0].h : groups[offOrder[0]][0].h;
+            const nOff=k==='nopurch' ? 0 : new Set(list.map(r=>r.office)).size;
+            const secText=label+' — '+list.length.toLocaleString()+(k==='nopurch' ? ' مادة' : ' سطر · '+nOff.toLocaleString()+' مكتب');
+            const pageTop=()=>{ newPage(); push({t:'sec', k, text:label+' (تابع)'}, SEC_H); push({t:'head', k}, HEAD_H); };
+            if(!pg || y+SEC_H+HEAD_H+(k==='nopurch' ? 0 : OFF_H)+firstH>bottom) newPage();
+            push({t:'sec', k, text:secText}, SEC_H); push({t:'head', k}, HEAD_H);
+            if(k==='nopurch'){
+                list.forEach((r,i)=>{ if(y+r.h>bottom) pageTop(); push({t:'row', k, r, n:i+1}, r.h); pg.prods.push(r.product); });
+            } else {
+                offOrder.forEach(o=>{
+                    const g=groups[o];
+                    if(y+OFF_H+g[0].h>bottom) pageTop();
+                    push({t:'off', name:o, n:g.length}, OFF_H); pg.names.push(o);
+                    g.forEach((r,i)=>{
+                        if(y+r.h>bottom){ pageTop(); push({t:'off', name:o+' (تابع — '+label.split(' — ')[0]+')', n:g.length}, OFF_H); pg.names.push(o); }
+                        push({t:'row', k, r, n:i+1}, r.h); pg.prods.push(r.product);
+                    });
+                });
+            }
+            y+=3;
+        });
+
+        const {jsPDF}=window.jspdf;
+        const pdf=new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+        const canvas=document.createElement('canvas'); canvas.width=PW*S; canvas.height=PH*S;
+        const ctx=canvas.getContext('2d');
+        const fit=(t,maxW)=>{ t=String(t==null?'':t); if(ctx.measureText(t).width<=maxW) return t; while(t.length>1 && ctx.measureText(t+'…').width>maxW) t=t.slice(0,-1); return t+'…'; };
+        const txt=(t,x,yy,o)=>{ ctx.direction=o.dir||'rtl'; ctx.textAlign=o.align||'center'; ctx.fillStyle=o.color||'#000000'; ctx.font='bold '+(o.size*S)+'px '+FONT; ctx.fillText(o.max ? fit(t,o.max*S) : String(t), x*S, yy*S); };
+        const box=(x,yy,w,h,fill)=>{ if(fill){ ctx.fillStyle=fill; ctx.fillRect(x*S,yy*S,w*S,h*S); } ctx.strokeStyle='#999999'; ctx.lineWidth=0.25*S; ctx.strokeRect(x*S,yy*S,w*S,h*S); };
+        const eachCol=(cols, fn)=>{ let xr=R; cols.forEach(c=>{ fn(c, xr-c.w); xr-=c.w; }); };
+        const fromV=(document.getElementById('bonusFromDate')||{}).value, toV=(document.getElementById('bonusToDate')||{}).value;
+        const today=new Date().toISOString().slice(0,10);
+        const title='متابعة بونص المكاتب'+((fromV||toV) ? ' — من '+(fromV||'…')+' إلى '+(toV||'…') : '')
+            +'   •   '+SECS.filter(([k])=>cnt[k]).map(([k,l])=>l.split(' — ')[0]+' '+cnt[k].toLocaleString()).join(' · ');
+        const arFont=await ensureArabicInvisibleFont(pdf).catch(()=>false);
+
+        for(let pi=0; pi<pages.length; pi++){
+            if(pi%5===0){ showToast('📄 صفحة '+(pi+1)+' من '+pages.length, true); await new Promise(r=>setTimeout(r,10)); }
+            ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.textBaseline='middle';
+            ctx.fillStyle='#002060'; ctx.fillRect(M*S, M*S, CW*S, TITLE_H*S);
+            txt(title, PW/2, M+TITLE_H/2, {size:5, color:'#ffffff', max:CW-4});
+            txt('مذخر أدوية المنصور', R, PH-M-FOOT_H/2+1, {size:3.6, color:'#555555', align:'right'});
+            txt(today, PW/2, PH-M-FOOT_H/2+1, {size:3.6, color:'#555555', dir:'ltr'});
+            txt('صفحة '+(pi+1)+' من '+pages.length, M, PH-M-FOOT_H/2+1, {size:3.6, color:'#555555', align:'left'});
+            pages[pi].items.forEach(it=>{
+                const yy=it.y;
+                if(it.t==='sec'){ box(M, yy, CW, SEC_H, COLOR[it.k]); txt(it.text, R-3, yy+SEC_H/2, {size:4.6, color:'#ffffff', align:'right', max:CW-6}); }
+                else if(it.t==='head') eachCol(colsFor(it.k), (c,x)=>{ box(x, yy, c.w, HEAD_H, '#4472C4'); txt(c.label, x+c.w/2, yy+HEAD_H/2, {size:3.8, color:'#ffffff', max:c.w-2}); });
+                else if(it.t==='off'){
+                    box(M, yy, CW, OFF_H, '#e0e7ff');
+                    txt(it.name, R-3, yy+OFF_H/2, {size:4.2, color:'#002060', align:'right', max:CW-40});
+                    txt(it.n.toLocaleString()+' مادة', M+3, yy+OFF_H/2, {size:3.6, color:'#002060', align:'left'});
+                } else if(it.t==='row'){
+                    const r=it.r;
+                    eachCol(colsFor(it.k), (c,x)=>{
+                        box(x, yy, c.w, r.h, it.n%2 ? null : '#F7F7F7');
+                        const cy=yy+r.h/2;
+                        if(c.k==='n') txt(it.n, x+c.w/2, cy, {size:3.8, dir:'ltr'});
+                        else if(c.k==='product'){ let ly=cy-(r.lines.length*LINE_GAP)/2+LINE_GAP/2; r.lines.forEach(l=>{ txt(l, x+2, ly, {size:4.2, dir:'ltr', align:'left'}); ly+=LINE_GAP; }); }
+                        else if(c.k==='deal') txt(r.deal, x+c.w/2, cy, {size:3.8, max:c.w-2, dir:/[؀-ۿ]/.test(r.deal) ? 'rtl' : 'ltr'});
+                        else if(c.k==='card') txt(r.card, x+c.w/2, cy, {size:3.8, dir:'ltr'});
+                        else if(c.k==='span') txt(r.span, x+c.w/2, cy, {size:3.1, dir:'ltr', max:c.w-1.5});
+                        else if(c.k==='out'){
+                            if(r.outOff>0){
+                                txt(r.out.toLocaleString(), x+c.w-2, cy, {size:4.2, dir:'ltr', align:'right'});
+                                txt(r.outOff.toLocaleString()+' باسم المكتب مسبقاً', x+2, cy, {size:3.2, color:'#b45309', align:'left', max:c.w-13});
+                            } else txt(r.out ? r.out.toLocaleString() : '—', x+c.w/2, cy, {size:4.2, dir:'ltr', color:r.out ? '#000000' : '#9ca3af'});
+                        }
+                    });
+                }
+            });
+            if(pi) pdf.addPage();
+            pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,PW,PH);
+            // طبقة نص مخفية — حتى ينلگى اسم المكتب والمادة بالبحث داخل الـPDF
+            try{
+                if(arFont){ pdf.setFont('NotoNaskhArabic'); pdf.setFontSize(6); pages[pi].names.forEach((nm,i)=>pdf.text(String(nm), PW-12, 8+(i%60)*3, {renderingMode:'invisible'})); }
+                pdf.setFont('helvetica'); pdf.setFontSize(6);
+                pages[pi].prods.forEach((nm,i)=>pdf.text(String(nm), 12, 20+(i%55)*3, {renderingMode:'invisible'}));
+            }catch(e){ console.warn('followup pdf invisible layer failed', e); }
+        }
+        pdf.save('BonusFollowup_'+today+'.pdf');
+        showToast('✅ PDF المتابعة جاهز — '+pages.length+' صفحة');
+        return {pages:pages.length, cnt};
     };
 
     // لف نص عمود اسم المادة على سطرين حد أقصى — يمنع تداخله مع عمود اسم الصيدليه
@@ -21834,9 +22361,10 @@ function tfxSimplePass(c, s){
         'لم يرد':              {c:'#4b5563', bg:'rgba(142,142,147,0.12)'},
         'مكالمة':              {c:'#1d4ed8', bg:'rgba(10,132,255,0.12)'},
         'رد بصورة':            {c:'#0e7490', bg:'rgba(50,173,230,0.12)'},
+        'رسالة صوتية':         {c:'#0e7490', bg:'rgba(50,173,230,0.12)'},
         'تعذر التأكد من الرقم': {c:'#374151', bg:'rgba(107,114,128,0.14)'}
     };
-    const RS_SHOT_STATUSES=new Set(['رد بصورة','تعذر التأكد من الرقم']);
+    const RS_SHOT_STATUSES=new Set(['رد بصورة','رسالة صوتية','تعذر التأكد من الرقم']);
 
     let rsReplies=[], rsQueueByPhone={}, rsImportedAt=null, rsDlvFilter='all', rsSearch='';
 
@@ -21885,6 +22413,7 @@ function tfxSimplePass(c, s){
             rsReadFile(file, data=>{
                 const list=rsParseRepliesJson(data);  // فشل الفحص = لا تلمس rsReplies القديمة (استيراد ذرّي)
                 rsReplies=list; rsImportedAt=new Date().toISOString();
+                try{ localStorage.setItem('ph_last_replies', JSON.stringify({importedAt:rsImportedAt, list})); }catch(_){}
                 showToast('✅ استيراد '+list.length+' سجل من replies.json');
                 rsRender();
             });
@@ -21898,6 +22427,8 @@ function tfxSimplePass(c, s){
             });
         });
         document.getElementById('rsClearBtn').addEventListener('click', ()=>{
+            // يمسح العرض بس — آخر ردود مستوردة تبقى محفوظة، والاستيراد الجاي يبدّلها (قرار مصطفى 2026-10-25)
+            rsClearedAt=rsStored().importedAt||null;
             rsReplies=[]; rsQueueByPhone={}; rsImportedAt=null; rsRender();
         });
         document.querySelectorAll('.rs-dlv-chip').forEach(chip=>chip.addEventListener('click', function(){
@@ -21956,8 +22487,18 @@ function tfxSimplePass(c, s){
             </tr>`;
         }).join('');
     }
+    // آخر ردود مستوردة (ph_last_replies — يكتبها استيراد هذا التبويب واستيراد نافذة المواقف): تنقرا لو أحدث من المعروض
+    let rsClearedAt=null;
+    function rsStored(){ try{ return JSON.parse(localStorage.getItem('ph_last_replies')||'{}')||{}; }catch(_){ return {}; } }
+    function rsSyncStored(){
+        const s=rsStored();
+        if(!s.importedAt || s.importedAt===rsImportedAt || s.importedAt===rsClearedAt) return;
+        if(rsImportedAt && s.importedAt<rsImportedAt) return;
+        try{ rsReplies=rsParseRepliesJson(s.list); rsImportedAt=s.importedAt; }catch(_){}
+    }
     function rsRender(){
         rsInit();
+        rsSyncStored();
         const empty=document.getElementById('rsEmptyState'), main=document.getElementById('rsMainContent');
         if(!empty||!main) return;
         const has=rsReplies.length>0;
@@ -22687,6 +23228,7 @@ function tfxSimplePass(c, s){
                         <button class="phone-chip dt-office-chip" data-dtostat="Completely Not Arrived" style="border-color:#FF3B30;color:#b91c1c" title="ما وصل منها ولا شي — بلا أي مادة زايدة">🔴 ما وصلت <span class="cnt" id="dtChipNoneCnt">0</span></button>
                         <button class="phone-chip dt-office-chip" data-dtostat="NotArrivedExtra" style="border-color:#fca5a5;color:#b91c1c;border-style:dashed" title="ما وصل المطلوب بس أرسل مادة غير مطلوبة — منفصلة عن «ما وصلت»">🔴➕ ما وصل + زيادة <span class="cnt" id="dtChipNoneExtraCnt">0</span></button>
                         <button class="phone-chip dt-office-chip" data-dtostat="No Items Ordered (Extra Arrivals Only)" style="border-color:#6b7280;color:#374151" title="الطلبية كلها غير مطلوبة">🚫 غير مطلوبة <span class="cnt" id="dtChipNoOrderCnt">0</span></button>
+                        <button type="button" class="phone-chip" onclick="window.__dtClearFilters&&window.__dtClearFilters()" style="border-color:rgba(255,59,48,0.4);color:#dc2626" title="يرجّع كل فلاتر المكاتب والمواد (نفس زر «إزالة الفلاتر» فوق)"><i class="fas fa-eraser ml-1"></i>إزالة الفلاتر</button>
                     </div>
                     <div class="flex gap-1.5 mb-2">
                         <button id="dtSelectAllVisibleBtn" class="ios-btn bg-[#007AFF] text-white px-2 py-1.5 text-xs flex-1 min-w-0" title="تحديد كل المكاتب الظاهرة بعد الفلتر (للطباعة/واتساب)"><i class="fas fa-check-square ml-1"></i>تحديد الظاهر</button>
@@ -23042,9 +23584,11 @@ function tfxSimplePass(c, s){
                     <button onclick="window.bonusResetAll()" class="ios-btn text-xs px-3 py-2" style="color:#b91c1c" title="يلغي كل التعديلات ويرجع البيانات كما هي بالمزامنة">🔄 استعادة الأصل</button>
                     <button onclick="window.bonusExportPDF()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#002060" title="يطبع كل الصفوف المؤشَّرة صح (بونص ≥ 1) — صفحة لكل مكتب، نفس تخطيط طباعة الإكسل"><i class="fas fa-file-pdf ml-1"></i> PDF</button>
                     <button onclick="window.bonusExportOfficesPDF()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#0f766e" title="موقف بونص كل مكتب مقابل نسبة الكارت — ملخص بالأعداد، وتحت اسم كل مكتب جدول مواده"><i class="fas fa-building ml-1"></i> طباعة المكاتب</button>
+                    <button onclick="window.bonusExportFollowupPDF()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#b91c1c" title="بس اللي يحتاج متابعة، مضغوط: غير واصل ← واصل ناقص ← بلا شراء ← المصادر الثانوية بالأخير للمراجعة">📋 طباعة المتابعة</button>
                 </div>
                 <div id="bonusResultCount" class="text-xs text-gray-500 mt-2"></div>
                 <div id="bonusNetFilterBar" class="hidden flex items-center gap-1 flex-wrap mt-2 pt-2 border-t"></div>
+                <div id="bonusZeroBar" class="hidden flex items-center gap-1 flex-wrap mt-2"></div>
                 <div class="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t">
                     <span class="text-[11px] font-bold text-gray-500">المواد (تدخل بالطباعة والملخص لو مؤشَّرة):</span>
                     <button onclick="window.bonusMaterialsCheckAll(true)" class="ios-btn text-xs px-2 py-1"><i class="fas fa-check-double ml-1"></i>تحديد الكل</button>
@@ -23725,7 +24269,7 @@ function tfxSimplePass(c, s){
             <div>
                 <h3 class="text-lg font-black"><i class="fas fa-comment-dots ml-2" style="color:#0A84FF"></i>دراسة موقف الطلبيات</h3>
                 <div class="text-xs text-gray-500 mt-1">
-                    ردود المكاتب على الطلبية المرسلة — من ملف <code>replies.json</code> (سكربت فحص الردود على الجهاز). بيانات بالذاكرة بس وتختفي بتحديث الصفحة.
+                    ردود المكاتب على الطلبية المرسلة — من ملف <code>replies.json</code> (سكربت فحص الردود على الجهاز). آخر ردود مستوردة تبقى محفوظة بعد تحديث الصفحة، والاستيراد الجاي يبدّلها.
                 </div>
             </div>
             <div class="flex gap-2 flex-wrap">
