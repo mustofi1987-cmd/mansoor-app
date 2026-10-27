@@ -14995,15 +14995,15 @@ window.onload=async()=>{
         // الكارت المخفي يبقى بمكانه بالقائمة (pidx ثابت) — الأزرار والتسلسل ما يتغيرون
         cont.innerHTML=banner+poolList.map((p,pidx)=>!draw(p,pidx) ? '' : `
             <div class="border rounded-xl p-3 mb-2 bg-white" style="${p.enabled?'':'opacity:0.4'}">
-                <div class="flex items-center justify-between gap-2 mb-2">
-                    <div class="flex items-center gap-2">
+                <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                    <div class="flex items-center gap-2 flex-wrap min-w-0">
                         <input type="checkbox" ${p.enabled?'checked':''} data-bonus-material-check data-pidx="${pidx}" title="مؤشَّرة = تدخل بالطباعة والملخص">
                         <span class="font-black text-xs" style="min-width:22px;text-align:center;color:#6b7280;background:#f1f5f9;border-radius:6px;padding:2px 6px" title="تسلسل المادة">${pidx+1}</span>
                         <div class="font-bold text-sm">${bonusEsc(p.product)}</div>
                         ${bonusSalePriceHtml(p.product, pidx)}
                         <span class="text-[11px] text-gray-500" dir="ltr" title="فترة البونص: من أول لآخر مبيع ببونص (ضمن فلتر التاريخ)">📅 ${bonusEsc(bonusSpan(p))}</span>
                     </div>
-                    <div class="flex gap-1">
+                    <div class="flex gap-1 flex-wrap">
                         <button class="ios-btn text-xs px-2 py-1 font-bold" style="color:${(p.view&&p.view.hideZero)?'#16a34a':'#6b7280'}" data-bonus-action="toggle-hide-zero" data-pidx="${pidx}" title="يخفي/يظهر الصيدليات اللي بونصها صفر — عرض فقط، ما يغيّر التأشير ولا الحساب">${(p.view&&p.view.hideZero)?'☑':'☐'} إخفاء الأصفار</button>
                         <button class="ios-btn text-xs px-2 py-1" data-bonus-action="expand" data-pidx="${pidx}">${p.expanded?'▲ طي':'▼ '+((p.view&&p.view.hideZero)?bonusViewRows(p).length+'/':'')+p.rows.length+' صف'}</button>
                         ${(window.__bonusOrig&&window.__bonusOrig.has(p.product)) ? `<button class="ios-btn text-xs px-2 py-1" style="color:#b45309" data-bonus-action="reset-material" data-pidx="${pidx}" title="يرجّع هذي المادة بس كما هي بالمزامنة (التأشير، الصفوف المضافة، النسبة، المبيعات والمستحق اليدوي) — الباقي ما يتأثر. «↶ تراجع» يلغيها">↺ الأصل</button>` : ''}
