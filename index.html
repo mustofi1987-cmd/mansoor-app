@@ -73,7 +73,8 @@
             background:none !important; color:inherit !important; font-size:13.5px; font-weight:500; }
         .more-menu .ios-btn.hidden { display:none; }
         .more-menu .ios-btn:hover { background:var(--accent) !important; color:#fff !important; filter:none; }
-        .more-menu #deleteDataBtn { color:var(--red) !important; }
+        /* الفعل الخطر بآخر القسم ومفصول بخط — نمط Apple للـdestructive */
+        .more-menu #deleteDataBtn { color:var(--red) !important; margin-top:6px; border-top:.5px solid var(--separator); border-radius:0 0 8px 8px; }
         .more-menu #deleteDataBtn:hover { background:var(--red) !important; color:#fff !important; }
         /* موبايل: القائمة تنربط بعرض الهيدر كله (.app-header relative) بدل زر ⋯ اللي ممكن يكون بنص السطر */
         @media (max-width:640px){ .more-wrap { position:static; } .more-menu { grid-template-columns:1fr; left:0; right:0; width:auto; } }
@@ -247,7 +248,8 @@
         dialog.ofd[open] { display:flex; }
         dialog.ofd::backdrop { background:rgba(0,0,0,.28); }
         .ofd-h { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:.5px solid var(--separator); font-size:16px; }
-        .ofd-x { border:0; background:var(--fill); width:28px; height:28px; border-radius:50%; cursor:pointer; }
+        /* الدائرة المرسومة 28px، ومنطقة اللمس 44px (حد Apple) — الـpadding خارج الخلفية بـbackground-clip */
+        .ofd-x { border:0; background:var(--fill); background-clip:content-box; width:44px; height:44px; padding:8px; margin:-8px; border-radius:50%; cursor:pointer; }
         .ofd-body { flex:1; overflow:auto; padding:4px 16px; }
         .ofd-sec { border-bottom:.5px solid var(--separator); padding:10px 0; }
         .ofd-sec > summary { cursor:pointer; font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:8px; }
@@ -307,6 +309,8 @@
 
         /* Check import badge */
         #checkDataBadge { display:inline-flex; align-items:center; gap:5px; background:rgba(175,82,222,0.12); color:#6b21a8; border:1px solid rgba(175,82,222,0.3); border-radius:10px; padding:3px 10px; font-size:11px; font-weight:700; }
+        /* قاعدة الـid فوق تغلب كلاس hidden، فالشارتين جانت تبين «—» حتى بلا بيانات (updateCheckBadge/updateActiveSnapshotBadge) */
+        #checkDataBadge.hidden, #activeSnapshotBadge.hidden { display:none; }
         .dr-source-toggle { display:inline-flex; background:rgba(118,118,128,0.12); border-radius:10px; padding:2px; gap:0; }
         .dr-source-btn { padding:5px 14px; border-radius:8px; font-size:11px; font-weight:700; color:#374151; background:transparent; border:none; cursor:pointer; transition:all .15s; }
         .dr-source-btn.active { background:white; box-shadow:0 1px 4px rgba(0,0,0,0.12); color:#007AFF; }
@@ -370,10 +374,10 @@
             <div style="flex:1;height:8px;background:#e5e5ea;border-radius:4px;overflow:hidden"><div id="serverSyncProgressBar" style="height:100%;width:0%;background:#00A3A3;transition:width .2s"></div></div>
             <span id="serverSyncProgressText" style="font-size:12px;white-space:nowrap;color:#636366">0%</span>
         </div>
-        <button id="serverSyncBtn" class="ios-btn bg-[#00A3A3] text-white px-4 py-2 text-sm" title="يجيب آخر نسخة احتياطية مرفوعة من اللابتوب مباشرة — بلا اختيار ملف يدوي"><i class="fas fa-rotate ml-1"></i> 🔄 تحديث البيانات من اللابتوب</button>
-        <button id="syncExcelBtn" class="ios-btn bg-[#007AFF] text-white px-4 py-2 text-sm" title="مزامنة شاملة من ملف Excel — كل الـ sheets دفعة واحدة"><i class="fas fa-sync-alt ml-1"></i> 🔄 مزامنة Excel</button>
+        <button id="serverSyncBtn" class="ios-btn bg-[#00A3A3] text-white px-4 py-2 text-sm" title="يجيب آخر نسخة احتياطية مرفوعة من اللابتوب مباشرة — بلا اختيار ملف يدوي"><i class="fas fa-rotate ml-1"></i> تحديث البيانات من اللابتوب</button>
+        <button id="syncExcelBtn" class="ios-btn bg-[#007AFF] text-white px-4 py-2 text-sm" title="مزامنة شاملة من ملف Excel — كل الـ sheets دفعة واحدة"><i class="fas fa-sync-alt ml-1"></i> مزامنة Excel</button>
         <button id="saveDataBtn" class="ios-btn hdr-btn px-4 py-2 text-sm"><i class="fas fa-save ml-1"></i> حفظ</button>
-        <button id="liveStatusBtn" class="ios-btn hdr-btn px-4 py-2 text-sm relative" title="شاشة متابعة الإرسال المباشرة"><i class="fas fa-satellite-dish ml-1"></i> 📡 متابعة مباشرة <span id="liveStatusDot" class="hidden absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span></button>
+        <button id="liveStatusBtn" class="ios-btn hdr-btn px-4 py-2 text-sm relative" title="شاشة متابعة الإرسال المباشرة"><i class="fas fa-satellite-dish ml-1"></i> متابعة مباشرة <span id="liveStatusDot" class="hidden absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span></button>
         <div class="more-wrap">
             <button id="moreMenuBtn" type="button" class="ios-btn hdr-btn px-3 py-2 text-sm" aria-haspopup="true" aria-expanded="false" title="باقي الأوامر">⋯ المزيد</button>
             <div id="moreMenu" class="more-menu" hidden>
@@ -381,13 +385,13 @@
                     <button id="importDataBtn" class="ios-btn bg-[#007AFF] text-white px-4 py-2 text-sm"><i class="fas fa-upload ml-1"></i> استيراد</button>
                     <button id="backupBtn" class="ios-btn bg-[#8E8E93] text-white px-4 py-2 text-sm" title="نسخة احتياطية موحّدة لكل التطبيق (طلبيات + تدقيق) — ملف JSON واحد"><i class="fas fa-download ml-1"></i> نسخة احتياطية شاملة</button>
                     <button id="restoreBtn" class="ios-btn bg-[#5856D6] text-white px-4 py-2 text-sm" title="استعادة موحّدة من ملف JSON (طلبيات + تدقيق)"><i class="fas fa-upload ml-1"></i> استعادة شاملة</button>
-                    <button id="deleteDataBtn" class="ios-btn bg-[#FF3B30] text-white px-4 py-2 text-sm"><i class="fas fa-sync ml-1"></i> ريسيت</button>
+                    <button id="deleteDataBtn" class="ios-btn bg-[#FF3B30] text-white px-4 py-2 text-sm"><i class="fas fa-trash-can ml-1"></i> ريسيت</button>
                 </div>
                 <div><h4>المزامنة</h4>
-                    <button id="tabSyncBtn" onclick="tabSyncOpen()" class="ios-btn text-white px-4 py-2 text-sm" style="background:linear-gradient(135deg,#0f766e,#0369a1)" title="أشّر التبويبات اللي تريدها واختر ملف Excel مرة وحدة — كل تبويب يسحب شيته"><i class="fas fa-layer-group ml-1"></i> 🗂 مزامنة حسب التبويب</button>
-                    <button id="githubSyncBtn" class="ios-btn bg-[#24292f] text-white px-4 py-2 text-sm" title="يسحب آخر نسخة من GitHub — يشتغل واللابتوب مطفي"><i class="fab fa-github ml-1"></i> ⬇️ تحديث من GitHub</button>
-                    <button id="githubPushBtn" class="ios-btn bg-[#1f6feb] text-white px-4 py-2 text-sm" title="يبني النسخة ويرفعها لـGitHub مباشرة — بلا ملف بـDownloads، ويستبدل النسخة السابقة"><i class="fas fa-cloud-arrow-up ml-1"></i> ⬆️ رفع البيانات لـGitHub</button>
-                    <button id="githubSettingsBtn" class="ios-btn bg-gray-300 text-gray-800 px-3 py-2 text-sm" title="إعداد الاتصال بـ GitHub (مرة وحدة لكل جهاز)"><i class="fas fa-gear"></i></button>
+                    <button id="tabSyncBtn" onclick="tabSyncOpen()" class="ios-btn text-white px-4 py-2 text-sm" style="background:linear-gradient(135deg,#0f766e,#0369a1)" title="أشّر التبويبات اللي تريدها واختر ملف Excel مرة وحدة — كل تبويب يسحب شيته"><i class="fas fa-layer-group ml-1"></i> مزامنة حسب التبويب</button>
+                    <button id="githubSyncBtn" class="ios-btn bg-[#24292f] text-white px-4 py-2 text-sm" title="يسحب آخر نسخة من GitHub — يشتغل واللابتوب مطفي"><i class="fab fa-github ml-1"></i> تحديث من GitHub</button>
+                    <button id="githubPushBtn" class="ios-btn bg-[#1f6feb] text-white px-4 py-2 text-sm" title="يبني النسخة ويرفعها لـGitHub مباشرة — بلا ملف بـDownloads، ويستبدل النسخة السابقة"><i class="fas fa-cloud-arrow-up ml-1"></i> رفع البيانات لـGitHub</button>
+                    <button id="githubSettingsBtn" class="ios-btn bg-gray-300 text-gray-800 px-3 py-2 text-sm" title="إعداد الاتصال بـ GitHub (مرة وحدة لكل جهاز)"><i class="fas fa-gear ml-1"></i> إعدادات GitHub</button>
                     <button id="localCodeLinkBtn" class="hidden ios-btn bg-gray-300 text-gray-800 px-3 py-2 text-sm" title="اربط ملف التطبيق المحلي (مرة وحدة) — لازم قبل زر التحديث"><i class="fas fa-link ml-1"></i> ربط الملف</button>
                     <button id="localCodeUpdateBtn" class="hidden ios-btn bg-[#0f172a] text-white px-4 py-2 text-sm" title="يحدّث نسخة التطبيق المحلية (الكود نفسه) من آخر نسخة على GitHub — تضل تشتغل بلا نت بعدها"><i class="fas fa-arrows-rotate ml-1"></i> تحديث نسخة التطبيق</button>
                 </div>
@@ -395,16 +399,16 @@
                     <button id="exportPdfBtn" class="ios-btn bg-[#AF52DE] text-white px-4 py-2 text-sm" title="تصدير كل الطلبيات PDF"><i class="fas fa-file-pdf ml-1"></i> PDF</button>
                     <button id="exportPdfSelectedBtn" class="ios-btn bg-[#5856D6] text-white px-4 py-2 text-sm" title="تصدير المحدد فقط (✓) PDF"><i class="fas fa-file-pdf ml-1"></i> PDF محدد</button>
                     <button id="vendorStockBtn" class="ios-btn bg-[#FF9500] text-white px-4 py-2 text-sm" title="كشف رصيد المكتب من UpdatedStock_Smart"><i class="fas fa-clipboard-list ml-1"></i> كشف رصيد</button>
-                    <button id="deliveryReportBtn" class="ios-btn bg-gradient-to-r from-[#0f766e] to-[#0369a1] text-white px-4 py-2 text-sm" title="تقرير الوصول"><i class="fas fa-clipboard-check ml-1"></i> 📋 Delivery Report</button>
+                    <button id="deliveryReportBtn" class="ios-btn bg-gradient-to-r from-[#0f766e] to-[#0369a1] text-white px-4 py-2 text-sm" title="تقرير الوصول"><i class="fas fa-clipboard-check ml-1"></i> Delivery Report</button>
                 </div>
                 <div><h4>المكاتب</h4>
                     <button id="manageRepsBtn" class="ios-btn bg-[#FF9500] text-white px-4 py-2 text-sm"><i class="fas fa-users ml-1"></i> المندوبين</button>
                     <button id="manageStanceMsgsBtn" class="ios-btn bg-[#FF9500] text-white px-4 py-2 text-sm" title="تعديل نصوص رسائل المتابعة لكل موقف، وتفعيل/إلغاء إرسالها"><i class="fas fa-comment-dots ml-1"></i> رسائل المتابعة</button>
-                    <button id="replImportBtn" onclick="replImportOpen()" class="ios-btn bg-[#128c4a] text-white px-4 py-2 text-sm" title="استيراد replies.json (ناتج check_replies.py) كمواقف مندوبين — بمعاينة قبل أي كتابة"><i class="fab fa-whatsapp ml-1"></i> 📥 استيراد ردود واتساب</button>
-                    <a id="replRunLink" href="mansoor-replies://run" onclick="return replRunCheck(event)" class="ios-btn bg-[#0369a1] text-white px-4 py-2 text-sm inline-block" title="يشغّل check_replies.bat على هذا الجهاز (يحتاج تسجيل البروتوكول مرة وحدة)"><i class="fas fa-play ml-1"></i> ▶️ تشغيل فحص الردود</a>
+                    <button id="replImportBtn" onclick="replImportOpen()" class="ios-btn bg-[#128c4a] text-white px-4 py-2 text-sm" title="استيراد replies.json (ناتج check_replies.py) كمواقف مندوبين — بمعاينة قبل أي كتابة"><i class="fab fa-whatsapp ml-1"></i> استيراد ردود واتساب</button>
+                    <a id="replRunLink" href="mansoor-replies://run" onclick="return replRunCheck(event)" class="ios-btn bg-[#0369a1] text-white px-4 py-2 text-sm inline-block" title="يشغّل check_replies.bat على هذا الجهاز (يحتاج تسجيل البروتوكول مرة وحدة)"><i class="fas fa-play ml-1"></i> تشغيل فحص الردود</a>
                     <button id="officeLinkBtn" class="ios-btn text-white px-4 py-2 text-sm" style="background:#0369a1" title="نفس المكتب اجه باسمين؟ اربطهم هنا"><i class="fas fa-link ml-1"></i> روابط المكاتب</button>
                     <button id="excludeListBtn" class="ios-btn bg-[#FF3B30] text-white px-4 py-2 text-sm" title="استثناء مادة من مكتب معيّن — تختفي من كشف الرصيد والطلبية/الإرسال"><i class="fas fa-ban ml-1"></i> استثناءات</button>
-                    <button id="archiveModalBtn" class="ios-btn bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white px-4 py-2 text-sm" title="أرشيف الطلبيات"><i class="fas fa-box-archive ml-1"></i> 📦 الأرشيف</button>
+                    <button id="archiveModalBtn" class="ios-btn bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white px-4 py-2 text-sm" title="أرشيف الطلبيات"><i class="fas fa-box-archive ml-1"></i> الأرشيف</button>
                 </div>
             </div>
         </div>
@@ -489,7 +493,10 @@
     #dashboardTab .db-two{display:grid;grid-template-columns:1.6fr 1fr;gap:12px}
     #dashboardTab .db-card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:6px 18px;min-width:0}
     #dashboardTab .db-card-h{font-size:13.5px;color:var(--text-2);padding:10px 0 2px}
-    #dashboardTab .db-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:.5px solid var(--separator);cursor:pointer}
+    #dashboardTab .db-more>summary{list-style:none;cursor:pointer;color:var(--accent);font-size:13px;font-weight:600;padding:10px 0;min-height:44px;display:flex;align-items:center}
+    #dashboardTab .db-more>summary::-webkit-details-marker{display:none}
+    #dashboardTab .db-more[open]>summary{font-size:0}
+    #dashboardTab .db-more[open]>summary::after{content:'عرض أقل';font-size:13px}    #dashboardTab .db-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:.5px solid var(--separator);cursor:pointer}
     #dashboardTab .db-item:last-child{border-bottom:0}
     #dashboardTab .db-item .grow{flex:1;min-width:0}
     #dashboardTab .db-item .t{font-size:14.5px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -882,7 +889,7 @@
             <div class="text-6xl mb-4">📦</div>
             <h3 class="text-xl font-bold mb-2">المواد المخصصة</h3>
             <p class="text-sm">استورد ملف Excel فيه sheet اسمه <b>AllocatedItems</b></p>
-            <p class="text-xs mt-2">عبر زر "🔄 مزامنة Excel" بالأعلى — أو زر "استيراد Excel مباشر" هنا</p>
+            <p class="text-xs mt-2">عبر زر "مزامنة Excel" بالأعلى — أو زر "استيراد Excel مباشر" هنا</p>
         </div>
 
         <div id="allocMainContent" class="hidden">
@@ -1667,10 +1674,14 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
     function renderSyncList(s){
         const h='<div class="db-card-h">حداثة المزامنة</div>';
         if(s.state==='na') return h+itemRow({lv:2, tab:s.tab, t:'ماكو شيتات', s:s.why});
-        return h+s.items.slice(0,8).map(i=>itemRow({
+        const row=i=>itemRow({
             pill: i.unknown?['warn','تاريخ مجهول']:(i.stale?['warn','قديم']:['ok','محدَّث']),
             tab:s.tab, t:i.name, s:(i.unknown?'—':fmtDateTime(i.at))+(i.rows!=null?' · '+fmt(i.rows)+' صف':'')
-        })).join('')+(s.items.length>8?`<div class="db-card-h" style="font-size:11px">+${fmt(s.items.length-8)} شيت ثاني</div>`:'');
+        });
+        // الباقي بـ<details>: يفتح/يسد بمكانه بلا JS (summary مو [data-db-tab] فما يفتح تبويب)
+        const rest=s.items.slice(8);
+        return h+s.items.slice(0,8).map(row).join('')
+            +(rest.length?`<details class="db-more"><summary>عرض الكل (${fmt(s.items.length)})</summary>${rest.map(row).join('')}</details>`:'');
     }
     // 6) بونص النت
     function pNet(){
@@ -10518,7 +10529,7 @@ window.onload=async()=>{
                 location.reload();
             }catch(err){
                 alert('❌ فشل التحديث:\n'+err.message+(err.stack?('\n\n'+err.stack.split('\n').slice(0,3).join('\n')):''));
-                btn.disabled=false; btn.textContent='🔄 تحديث البيانات من اللابتوب';
+                btn.disabled=false; btn.innerHTML='<i class="fas fa-rotate ml-1"></i> تحديث البيانات من اللابتوب';
                 progWrap.classList.add('hidden');
             }finally{
                 await releaseWakeLock();
@@ -10819,7 +10830,7 @@ window.onload=async()=>{
                 location.reload();
             }catch(err){
                 alert('❌ فشل التحديث من GitHub:\n'+err.message);
-                btn.disabled=false; btn.innerHTML='<i class="fab fa-github ml-1"></i> ⬇️ تحديث من GitHub';
+                btn.disabled=false; btn.innerHTML='<i class="fab fa-github ml-1"></i> تحديث من GitHub';
                 progWrap.classList.add('hidden');
             }finally{
                 try{ if(wakeLock) await wakeLock.release(); }catch(_){}
@@ -22668,7 +22679,7 @@ function tfxSimplePass(c, s){
             <div class="text-6xl mb-4">⏳</div>
             <h3 class="text-xl font-bold mb-2">المواد المنتهية / القريبة من الانتهاء</h3>
             <p class="text-sm">استورد ملف Excel فيه sheet اسمه <b>Expiry Material</b></p>
-            <p class="text-xs mt-2">عبر زر "🔄 مزامنة Excel" بالأعلى — أو زر "استيراد Excel" هنا</p>
+            <p class="text-xs mt-2">عبر زر "مزامنة Excel" بالأعلى — أو زر "استيراد Excel" هنا</p>
         </div>
 
         <div id="expMainContent" class="hidden">
