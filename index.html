@@ -1047,15 +1047,7 @@
 <div id="globalTab" class="tab-content hidden">
     <div class="ios-card p-5">
         <h3 class="font-bold text-lg mb-4">📊 عرض شامل — <span id="globalCount">0</span> عنصر</h3>
-        <!-- Global kanban chips -->
-        <div class="flex flex-wrap gap-2 mb-3" id="globalKanbanChips">
-            <button class="global-chip on" data-gk="all" style="color:#374151">الكل <span class="cnt" id="gk-all">0</span></button>
-            <button class="global-chip" data-gk="dispense" style="color:#14532d;background:#dcfce7">✅ Dispense <span class="cnt" id="gk-dispense">0</span></button>
-            <button class="global-chip" data-gk="dont" style="color:#7f1d1d;background:#fee2e2">❌ Don't <span class="cnt" id="gk-dont">0</span></button>
-            <button class="global-chip" data-gk="over" style="color:#713f12;background:#fef9c3">🟡 Over Stock <span class="cnt" id="gk-over">0</span></button>
-            <button class="global-chip" data-gk="expiry" style="color:#7f1d1d;background:#fca5a5">🔴 Expiry <span class="cnt" id="gk-expiry">0</span></button>
-            <button class="global-chip" data-gk="nomatch" style="color:#4b5563;background:#e5e7eb">⚫ No Match <span class="cnt" id="gk-nomatch">0</span></button>
-        </div>
+        <!-- كارتات الكانبان (الكل · Dispense · Don't · Over · Expiry · No Match) انشالت بطلب مصطفى 2026-11-02 — globalKanbanState يبقى 'all' -->
         <div class="cov-policy-bar mb-3" style="max-width:640px"></div>
         <div class="flex flex-wrap gap-x-3 gap-y-2 mb-4">
           <div class="fgrp" style="--c:#2563eb"><span class="fgl">🔍 بحث</span>
@@ -1076,6 +1068,19 @@
           <div class="fgrp text-sm font-bold" style="--c:#16a34a" title="نفس فلتر «📋 الفحص» بتبويب المكاتب (وضع الإرسال) — تغييره هنا يتغيّر هناك والعكس"><span class="fgl">📋 الفحص</span>
                 <label class="flex items-center gap-1"><input type="checkbox" data-sm="at:at" checked onchange="sendModeToggle(this)"> مفحوص @</label>
                 <label class="flex items-center gap-1"><input type="checkbox" data-sm="at:noat" checked onchange="sendModeToggle(this)"> غير مفحوص</label>
+          </div>
+          <!-- 📞 نفس فلتر الرقم مال تبويب المكاتب (appState.phoneFilter) — الزر هنا يضغط زر هناك فتمشي نفس سلسلة إعادة الرسم -->
+          <div class="fgrp" style="--c:#0891b2" title="نفس فلتر «حالة الرقم» بتبويب المكاتب — «بيها رقم» يخلي «السعر الثاني» والأرخص ينحسب بين المكاتب اللي بيها رقم مندوب بس"><span class="fgl">📞 رقم المندوب</span>
+            <div class="flex gap-1" id="globalPhoneChips">
+                <button type="button" class="phone-chip on" data-pf="all" onclick="document.querySelector('#phoneFilterChips [data-pf=all]').click()">الكل</button>
+                <button type="button" class="phone-chip" data-pf="with" onclick="document.querySelector('#phoneFilterChips [data-pf=with]').click()">بيها رقم</button>
+                <button type="button" class="phone-chip" data-pf="without" onclick="document.querySelector('#phoneFilterChips [data-pf=without]').click()">بدون</button>
+            </div>
+          </div>
+          <div class="fgrp" style="--c:#0d9488" title="عرض وطباعة هذا التبويب بس — ما يغيّر الطلبية ولا الإرسال ولا متابعة الوصول. فاضي = بلا حد"><span class="fgl">📈 الصرف والتغطية</span>
+            <label class="text-sm flex items-center gap-1">صرف شهري من <input type="number" min="0" id="globalMonFrom" class="ios-input w-16 text-sm" placeholder="—" oninput="gvRangeSet('monFrom',this.value)"></label>
+            <label class="text-sm flex items-center gap-1">إلى <input type="number" min="0" id="globalMonTo" class="ios-input w-16 text-sm" placeholder="—" oninput="gvRangeSet('monTo',this.value)"></label>
+            <label class="text-sm flex items-center gap-1" title="يخفي المواد اللي رصيدها يغطي أكثر من هذا العدد من الأيام (عمود التغطية من CompareSheet)">🙈 تغطية أكثر من <input type="number" min="0" id="globalCovMax" class="ios-input w-16 text-sm" placeholder="—" oninput="gvRangeSet('covMax',this.value)"> يوم</label>
           </div>
           <div class="fgrp" style="--c:#b91c1c"><span class="fgl">💲 أسعار النت</span>
             <select id="globalNetFilter" class="ios-input text-sm w-auto" title="مقارنة سعر النت بين المكاتب الأخرى لنفس المادة — يحتاج مزامنة 💲 أسعار نت"><option value="">💲 فرق السعر: الكل</option><option value="warn">⛔ أرخص عند غيره (≥ العتبة)</option><option value="any">أرخص عند غيره (أي فرق)</option><option value="odd">⚠️ فرق كبير ≥ 70% (تأكد من السعر)</option><option value="best">✓ هذا الأرخص</option><option value="nocmp">بلا سعر للمقارنة</option><option value="hideDear">🙈 اخفِ المكاتب الأغلى</option><option value="review">🔍 مواد المراجعة (موقوفة بوضع الإرسال)</option></select>
@@ -4227,6 +4232,14 @@ function globalFilteredItems(){
     // keepOv: صفوف وضع الإرسال (بُعد «مكاتب أخرى») تبقى ظاهرة هنا بشارة ⏸ — بُعد الفحص يبقى يخفي مثل قبل
     all=filterItems(all,{keepOv:true,search:f.item,reqCompare:f.reqCompare,reqValue:f.reqValue,company:f.company,share:f.share,otherVendors:f.other,fake:f.fake,sortField:f.sortField,sortDir:f.sortDir});
     all=all.filter(item=>!f.vendor||item.vendor.toLowerCase().includes(f.vendor.toLowerCase()));
+    // 📞 رقم المندوب — نفس appState.phoneFilter مال تبويب المكاتب. «بيها رقم» يضيّق مقارنة الأرخص كذلك (gvNetSync)
+    if(appState.phoneFilter==='with'||appState.phoneFilter==='without'){
+        const ok=new Map(), has=v=>{ if(!ok.has(v)){ const r=matchRepForOffice(v).rep; ok.set(v, !!(r && r.phone)); } return ok.get(v); };
+        all=all.filter(o=>has(o.vendor)===(appState.phoneFilter==='with'));
+    }
+    // 📈 الصرف الشهري من–إلى + 🙈 التغطية — عرض وطباعة هذا التبويب بس (مو الطلبية/الإرسال/المتابعة — Codex 2026-11-02)
+    if(f.monFrom!=null||f.monTo!=null) all=all.filter(o=>{ const m=gvMonthly(o); return m!=null && (f.monFrom==null||m>=f.monFrom) && (f.monTo==null||m<=f.monTo); });
+    if(f.covMax!=null) all=all.filter(o=>!o.cv || !(o.cv.cov>f.covMax));
     // 🔍 مواد المراجعة: كل صفوف المادة اللي بيها صف موقوف بوضع الإرسال — المادة تنحسب على الطلبية كلها (مو المفلتر) حتى يطلع أخوها المرسَل وياها
     if(f.net==='review'){
         const held=new Set(appState.orders.filter(o=>!sendHeldAt(o) && sendHeldOv(o)).map(o=>o.itemName));
@@ -4242,10 +4255,24 @@ function globalFilteredItems(){
     if(typeof globalKanbanFilter === 'function') all=globalKanbanFilter(all);
     return all;
 }
+// الصرف الشهري لصف الطلبية من أعمدة Module48 (cv.avg يومي). FAKE: المعدل منفوخ ← (raw+bal)/50 يومي (نفس معادلة الهدف بـcovApply)،
+// بس إذا raw موثوق — «Possible Stock Fake» وraw=20 برصيد ≤0 (حد أدنى مفروض) = غير معروف (null)
+function gvMonthly(o){
+    const c=o&&o.cv; if(!c) return null;
+    if(/fake/i.test(c.type||'')){
+        if(c.type!=='FAKE' || !(c.raw>0) || (c.raw===20 && c.bal<=0)) return null;
+        const d=(c.raw+c.bal)/50; return d>0 ? Math.round(d*30) : null;
+    }
+    return Math.round((Number(c.avg)||0)*30);
+}
+window.gvRangeSet=function(k, v){
+    const f=appState.globalFilters, n=(v===''||v==null||!isFinite(Number(v))) ? null : Number(v);
+    if(k==='monFrom'||k==='monTo'||k==='covMax') f[k]=n;
+    appState.globalPage=1; clearTimeout(gvRangeSet._t); gvRangeSet._t=setTimeout(renderGlobalView, 200);
+};
 function renderGlobalView(){
     const all=globalFilteredItems();
-    // Update kanban chip counts
-    if(typeof updateGlobalKanbanCounts === 'function') updateGlobalKanbanCounts();
+    document.querySelectorAll('#globalPhoneChips .phone-chip').forEach(c=>c.classList.toggle('on',c.dataset.pf===(appState.phoneFilter||'all')));
     const totalPages=Math.ceil(all.length/appState.pageSize)||1;
     if(appState.globalPage>totalPages) appState.globalPage=Math.max(1,totalPages);
     const start=(appState.globalPage-1)*appState.pageSize;
@@ -4352,6 +4379,9 @@ function gvPdfNote(head){
     if(f.net==='review') tags.push('مواد المراجعة ('+(sendOvLabel()||'الوضع: الكل')+')');
     else if(f.net && gvNetRows()) tags.push({warn:`أرخص عند غيره ≥ ${gvNetThr()}%`, any:'أرخص عند غيره', odd:'فرق سعر كبير', hideDear:'بلا المكاتب الأغلى', best:'هذا الأرخص', nocmp:'بلا سعر للمقارنة'}[f.net]);
     if(typeof globalKanbanState!=='undefined' && globalKanbanState.active!=='all') tags.push('چبس: '+globalKanbanState.active);
+    if(appState.phoneFilter==='with') tags.push('📞 بيها رقم (الأرخص بينها بس)'); else if(appState.phoneFilter==='without') tags.push('📞 بلا رقم');
+    if(f.monFrom!=null||f.monTo!=null) tags.push(`صرف شهري ${f.monFrom??'…'}–${f.monTo??'…'}`);
+    if(f.covMax!=null) tags.push(`تغطية ≤ ${f.covMax} يوم`);
     if(!sendAtAll()) tags.push(sendAtLabel()); // الطباعة تتبع الجدول: بُعد الفحص بس (keepOv)
     if(p.covOn) tags.push(`تغطية ≤ ${p.covMaxAt}/${p.covMaxNo}`);
     if(p.tgtOn) tags.push(`هدف ${p.tgtAt}/${p.tgtNo}`);
@@ -19622,6 +19652,10 @@ window.onload=async()=>{
         document.getElementById('globalOtherFilter').value='';
         document.getElementById('globalFakeFilter').value=''; appState.globalFilters.fake='';
         document.getElementById('globalNetFilter').value=''; appState.globalFilters.net='';
+        ['globalMonFrom','globalMonTo','globalCovMax'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+        appState.globalFilters.monFrom=appState.globalFilters.monTo=appState.globalFilters.covMax=null;
+        // 📞 الرقم مشترك ويه المكاتب — يرجع «الكل» من نفس زر هناك حتى تتحدث المقارنة والعدادات (Codex 2026-11-02)
+        if(appState.phoneFilter && appState.phoneFilter!=='all'){ const pc=document.querySelector('#phoneFilterChips [data-pf="all"]'); if(pc) pc.click(); }
         appState.globalFilters.vendor=''; appState.globalFilters.item='';
         appState.globalFilters.reqCompare=''; appState.globalFilters.reqValue=null;
         appState.globalFilters.share=''; appState.globalFilters.other='';
@@ -21574,6 +21608,9 @@ document.addEventListener('DOMContentLoaded', function(){
     function applyFreshBal(uRec, cRec){
         const s3=tsOf(st.s3At), cand=[balIndex(uRec, 'Stock Smart', HU.name, HU.av, HU.id), balIndex(cRec, 'Check', HC.name, HC_AV)].filter(Boolean);
         st.bal={s3, dated:cand.length>0, srcs:[], n:{}};
+        // balAt = تاريخ تصدير رصيد هذي المادة بالذات (Sheet3 أو المصدر الأحدث اللي عرفها) — يقراه تقرير «وصل للتفاح» بس، ما يدخل بأي حساب هنا
+        // r.s3 = أرصدة Sheet3 نفسها قبل أي تحديث تحت — يقراها «📸 ثبّت برصيد Sheet3» بتبويب التفاح بس (2026-11-02)، ما تدخل بحساب الكوتات
+        (st.rows||[]).forEach(r=>{ r.balAt=s3; r.s3={m:r.mansour, a:r.apple, t:r.total, at:s3}; });
         if(s3==null || !st.rows) return;
         st.bal.srcs=cand.filter(b=>b.at>s3).sort((x,y)=>y.at-x.at);
         if(!st.bal.srcs.length) return;
@@ -21584,7 +21621,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 const g=(!isNA(r.id) && b.byId.size) ? b.byId.get(r.id) : (dup.get(r.name)===1 ? b.byName.get(r.name) : null);
                 if(!g) continue;   // the newest source that knows the item decides, even when it agrees with Sheet3
                 if(g.t!==r.total){ r.bal0={src:b.src, at:b.at, total:r.total}; st.bal.n[b.src]=(st.bal.n[b.src]||0)+1; }
-                r.total=g.t; r.mansour=g.m; r.apple=g.a;
+                r.total=g.t; r.mansour=g.m; r.apple=g.a; r.balAt=b.at;
                 break;
             }
         });
@@ -22758,6 +22795,40 @@ function tfxCalc(r, rules, manual, minQty, maxQty){
     o.aftM=balM-o.qty; o.aftT=balT+o.qty;
     return o;
 }
+// «📦 وصل للتفاح» (2026-11-02): تثبيت (s) مقابل رصيد حالي (now). تقديري — رصيد بس، مو حركة تحويل (Codex 2026-11-02):
+// ΔT = زيادة التفاح، ΔM = نقص المنصور، كلها بالأرصدة الخام (سالب يبقى سالب حتى −10 → +20 = 30). الصرف بالفترة يقلّل ΔT.
+// st: missing (ما موجودة) · pending (رصيدها ما تحدّث بعد التثبيت) · full · over · partial · none ·
+//     unsure (التفاح زاد بلا نقص المنصور = شراء/مصدر ثاني؟) · transit (طلع من المنصور وما دخل التفاح)
+const TFX_ARR={full:0.9, part:0.1, over:1.1, mOk:0.5};
+function tfxArrival(s, now){
+    if(!now) return {st:'missing'};
+    // الرصيد الحالي لازم ينصدّر بعد رصيد التثبيت **وبعد وقت التثبيت نفسه** (pinAt بنفس ساعة tsOf: وقت محلي كأنه UTC) — Codex 2026-11-02
+    if(s.balAt==null || now.balAt==null || !(now.balAt>s.balAt) || (s.pinAt!=null && !(now.balAt>s.pinAt))) return {st:'pending'};
+    const q=Math.max(0, Number(s.qty)||0), dT=(Number(now.apple)||0)-(Number(s.apple)||0), dM=(Number(s.mansour)||0)-(Number(now.mansour)||0);
+    const pT=q>0 ? dT/q : 0, pM=q>0 ? dM/q : 0;
+    // زيادة التفاح تنحسب وصول بس إذا المنصور نقص ≥ نصها (حدّه 50% من الكمية) — وإلا غير محسوم (شراء/مصدر ثاني؟)
+    const mOk=pM>=Math.min(pT, 1)*TFX_ARR.mOk;
+    let st;
+    if(pT>=TFX_ARR.part && !mOk) st='unsure';
+    else if(pT>=TFX_ARR.full) st=pT>TFX_ARR.over ? 'over' : 'full';
+    else if(pT>=TFX_ARR.part) st='partial';
+    else st=pM>=TFX_ARR.mOk ? 'transit' : 'none';
+    // القطع المحسوبة واصلة = ΔT محصور بين 0 والكمية (للنسبة الكلية) — unsure ما ينحسب
+    const got=(st==='full'||st==='over'||st==='partial') ? Math.min(q, Math.max(0, dT)) : 0;
+    return {st, dT, dM, pT, pM, got};
+}
+// «📸 ثبّت برصيد Sheet3» (2026-11-02): نسخة من صف الكوتات بأرصدة Sheet3 الأصلية (r.s3 من applyFreshBal) بدل Stock Smart/Check — ما تغيّر الصف نفسه
+function tfxS3View(r){ return r && r.s3 ? {...r, mansour:r.s3.m, apple:r.s3.a, total:r.s3.t, balAt:r.s3.at} : null; }
+// يوم الإرسال «YYYY-MM-DD» → آخر دقيقة باليوم بساعة tsOf (وقت محلي كأنه UTC): بس رصيد انصدّر بعد يوم الإرسال يتقارن (Codex 2026-11-02:
+// رصيد انصدّر بين Sheet3 والإرسال ما ينحسب وصول). null = تاريخ غلط، أو قبل Sheet3، أو بعد اليوم.
+function tfxSendDayAt(s, s3At, nowAt){
+    const m=/^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$/.exec(String(s||'')); if(!m) return null;
+    const y=+m[1], mo=+m[2], d=+m[3], t=Date.UTC(y, mo-1, d, 23, 59, 59), c=new Date(t);
+    if(c.getUTCFullYear()!==y || c.getUTCMonth()!==mo-1 || c.getUTCDate()!==d) return null;
+    if(s3At!=null && t<s3At) return null;
+    if(nowAt!=null && Date.UTC(y, mo-1, d)>nowAt) return null;
+    return t;
+}
 // Simple steps mode (Mustafa 2026-10-24): ① keep only items passing the conditions (strict > / <, blank = no condition; monthly range inclusive)
 // ② cover Tuffah `days` ③ optional: Mansoor keeps >= `keep` days. Mansoor is the main store and the donor (Mustafa 2026-10-24):
 // blank ③ = no floor — it only never gives more than its own balance. One rule → same tfxCalc / cap.
@@ -22815,25 +22886,28 @@ function tfxSimplePass(c, s){
     const CATS_KEY='ph_tfx_cats';
     st.filters.cats=new Set((Array.isArray(loadJson(CATS_KEY, [])) ? loadJson(CATS_KEY, []) : []).filter(k=>k in CAT_LABEL));
 
-    function build(){
-        const q=window.__qtState, rows=(q && q.rows) || [];
-        st.list=[]; st.skip={fake:0, noAvg:0, cond:0};
+    // useS3 (2026-11-02): نفس الحساب بأرصدة Sheet3 الأصلية (tfxS3View) — يرجّع النتيجة بس، ما يلمس st (الجدول والتقرير يبقون بالأرصدة المحدَّثة)
+    function buildList(useS3){
+        const q=window.__qtState, rows0=(q && q.rows) || [], rows=useS3 ? rows0.map(tfxS3View).filter(Boolean) : rows0;
+        const list=[], skip={fake:0, noAvg:0, cond:0};
         const sm=st.simple.on, rules=sm ? tfxSimpleRules(st.simple) : st.rules;
         // a key two rows share (same name + company, no External ID) can't tell them apart: no manual qty / exclusion for either (Codex 2026-10-24)
-        const seen=new Map(); st.allCats=new Set(); st.allCos=new Set();
-        rows.forEach(r=>{ if(r.at){ const k=keyOf(r); seen.set(k, (seen.get(k)||0)+1); st.allCats.add(r.cat); if(r.company) st.allCos.add(r.company); } });
+        const seen=new Map(), cats=new Set(), cos=new Set();
+        rows.forEach(r=>{ if(r.at){ const k=keyOf(r); seen.set(k, (seen.get(k)||0)+1); cats.add(r.cat); if(r.company) cos.add(r.company); } });
         rows.forEach(r=>{
             const k=keyOf(r), dup=(seen.get(k)||0)>1, m=dup ? null : qtyMap()[k], c=tfxCalc(r, rules, (typeof m==='number' && m>=0) ? m : null, st.simple.minQty, st.simple.maxQty);
-            if(c.why){ if(c.why!=='noAt') st.skip[c.why]++; return; }
-            if(sm && !tfxSimplePass(c, st.simple)){ st.skip.cond++; return; }
-            st.list.push({r, c, k, dup, excl:!dup && st.excl.has(k)});
+            if(c.why){ if(c.why!=='noAt') skip[c.why]++; return; }
+            if(sm && !tfxSimplePass(c, st.simple)){ skip.cond++; return; }
+            list.push({r, c, k, dup, excl:!dup && st.excl.has(k)});
         });
+        return {list, skip, cats, cos};
     }
+    function build(){ const b=buildList(false); st.list=b.list; st.skip=b.skip; st.allCats=b.cats; st.allCos=b.cos; }
     function inCard(x, card){ return card==='all' ? true : card==='excl' ? x.excl : (!x.excl && x.c.st===card); }
-    function baseFiltered(skipCats){
+    function baseFiltered(skipCats, list){
         const s=st.filters.search.trim().toLowerCase(), co=st.filters.company;
         const off={op:''}, fm=st.simple.on ? off : st.filters.m, ft=st.simple.on ? off : st.filters.t;   // balance filters belong to the advanced mode
-        return st.list.filter(x=>(!s || x.r._s.includes(s)) && (!co || x.r.company===co) && (skipCats || !st.filters.cats.size || st.filters.cats.has(x.r.cat)) && balOk(x.c.balM, fm) && balOk(x.c.balT, ft));
+        return (list||st.list).filter(x=>(!s || x.r._s.includes(s)) && (!co || x.r.company===co) && (skipCats || !st.filters.cats.size || st.filters.cats.has(x.r.cat)) && balOk(x.c.balM, fm) && balOk(x.c.balT, ft));
     }
     const SORTS={name:x=>x.r.name, company:x=>x.r.company||'', cat:x=>CAT_LABEL[x.r.cat]||'', rule:x=>x.c.rule ? x.c.rule.y*1e6+x.c.rule.x : -1, monthly:x=>x.c.monthly, balM:x=>x.c.balM, covM:x=>x.c.covM, balT:x=>x.c.balT,
         covT:x=>x.c.covT, qty:x=>x.c.qty, aftM:x=>x.c.aftM, aftT:x=>x.c.aftT};
@@ -22843,7 +22917,7 @@ function tfxSimplePass(c, s){
     }
     // what PDF / Excel print: items with a transfer quantity, inside search + company, never the excluded ones
     // what PDF / Excel print, in the table's current sort (Mustafa 2026-10-24)
-    function orderRows(){ return sorted(baseFiltered().filter(x=>!x.excl && x.c.qty>0)); }
+    function orderRows(list){ return sorted(baseFiltered(false, list).filter(x=>!x.excl && x.c.qty>0)); }
 
     function drawRules(){
         const inp=(i, k, v, ph)=>`<input type="number" min="0" ${k==='y' ? 'max="'+TFX_Y_MAX+'"' : ''} value="${v==null ? '' : v}" placeholder="${ph}" onchange="tfxRuleEdit(${i},'${k}',this.value)" class="ios-input px-2 py-1 text-xs text-center" style="width:80px">`;
@@ -22906,7 +22980,7 @@ function tfxSimplePass(c, s){
             }).join('') : `<tr><td colspan="13" class="p-6 text-center text-gray-400">ماكو مواد بهذا الكارت</td></tr>`)+'</tbody>';
         $('tfxPager').innerHTML=pages>1 ? `<button type="button" onclick="tfxPage(-1)" class="ios-btn px-3 py-1 text-xs font-bold"${st.page<=1 ? ' disabled' : ''}>‹ السابق</button><span>${st.page} / ${pages} · ${fmtN(rows.length)} مادة</span><button type="button" onclick="tfxPage(1)" class="ios-btn px-3 py-1 text-xs font-bold"${st.page>=pages ? ' disabled' : ''}>التالي ›</button>` : (rows.length ? `${fmtN(rows.length)} مادة` : '');
     }
-    const redo=()=>{ build(); draw(); };
+    const redo=()=>{ build(); draw(); if(window.tfxArrRedraw) window.tfxArrRedraw(); };
 
     // load the quota rows; a load another call superseded (loadSeq) or a sync from another tab leaves an older snapshot → load again (Codex 2026-10-24)
     async function fresh(force){
@@ -22984,6 +23058,180 @@ function tfxSimplePass(c, s){
     window.tfxSort=function(k){ st.sort=st.sort.k===k ? {k, d:-st.sort.d} : {k, d:(k==='name'||k==='company'||k==='cat') ? 1 : -1}; draw(); };
     window.tfxPage=function(d){ st.page=Math.max(1, st.page+d); draw(); };
 
+    // ======== 📦 وصل للتفاح (2026-11-02): «📸 ثبّت» يحفظ قائمة الطلبية + الأرصدة الخام، والتقرير يقارنها بالرصيد بعد المزامنة الجاية ========
+    // ph_tfx_snaps = آخر 10 تثبيتات. قراءة بس من __qtState — ما يلمس الكوتات ولا باقي مفاتيح tfx.
+    const SNAP_KEY='ph_tfx_snaps', SNAP_MAX=10;
+    const ARR_CARDS=[['all','الكل','#475569'],['full','✅ وصل','#15803d'],['over','🔵 وصل أكثر','#1d4ed8'],['partial','🟡 جزئي','#b45309'],['none','❌ ما وصل','#b91c1c'],
+        ['transit','🚚 طلع من المنصور وما دخل التفاح','#7c3aed'],['unsure','⚠️ التفاح زاد بلا نقص المنصور','#c2410c'],['pending','⏳ رصيدها ما تحدّث','#64748b'],['missing','⚫ ما موجودة / ملتبسة','#374151']];
+    const ARR_LABEL=Object.fromEntries(ARR_CARDS);
+    const arr={on:false, sel:null, card:'all', search:'', company:'', cat:'', sort:{k:'pT', d:1}};
+    const snapsOf=()=>{ const v=loadJson(SNAP_KEY, []); return Array.isArray(v) ? v.filter(s=>s && Array.isArray(s.rows)) : []; };
+    const validId=id=>id && !/^n\/?a$/i.test(String(id)) ? String(id) : '';
+    window.tfxSnap=async function(){
+        try{ await fresh(); }catch(e){ showToast('❌ '+(e && e.message || e)); return; }   // never pin quantities from a stale load
+        const rows=orderRows();
+        if(!rows.length){ showToast('⚠️ ماكو مواد بقائمة الطلبية حتى تتثبّت'); return; }
+        const pinAt=Date.now()-new Date().getTimezoneOffset()*60000;   // نفس ساعة balAt (tsOf يقرا الوقت المحلي كأنه UTC)
+        const snap={id:Date.now().toString(36), at:new Date().toISOString(), rows:rows.map(x=>({id:validId(x.r.id), name:x.r.name, company:x.r.company||'', cat:x.r.cat||'', pinAt,
+            qty:x.c.qty, apple:Number(x.r.apple)||0, mansour:Number(x.r.mansour)||0, balAt:x.r.balAt==null ? null : x.r.balAt, monthly:x.c.monthly}))};
+        const all=[snap, ...snapsOf()].slice(0, SNAP_MAX);
+        try{ localStorage.setItem(SNAP_KEY, JSON.stringify(all)); }catch(_){ alert('❌ ما انحفظ التثبيت — مساحة المتصفح'); return; }
+        arr.sel=snap.id;
+        showToast(`📸 انثبّتت ${fmtN(snap.rows.length)} مادة · ${fmtN(snap.rows.reduce((s, r)=>s+r.qty, 0))} قطعة — بعد ما تزامن الإكسل الجاي افتح «📦 وصل للتفاح»`);
+        if(arr.on) arrDraw();
+    };
+    // «📸 ثبّت برصيد Sheet3» (2026-11-02): لطلبية انرسلت قبل — القائمة تنحسب من أرصدة Sheet3 الأصلية بلا Stock Smart/Check (نفس الإعدادات الحالية)،
+    // «قبل» = Sheet3، والمقارنة تبدي من آخر يوم الإرسال (pinAt) حتى رصيد انصدّر بين Sheet3 والإرسال ما ينحسب وصول (Codex 2026-11-02)
+    window.tfxSnapS3=async function(){
+        try{ await fresh(); }catch(e){ showToast('❌ '+(e && e.message || e)); return; }
+        const q=window.__qtState, rows=orderRows(buildList(true).list), s3=rows.length ? rows[0].r.balAt : null;
+        if(s3==null){ showToast(rows.length ? '⚠️ Sheet3 بلا تاريخ تصدير — ما نكدر نثبّت منه' : '⚠️ ماكو مواد بقائمة الطلبية من رصيد Sheet3'); return; }
+        const pieces=rows.reduce((s, x)=>s+x.c.qty, 0), s3Txt=q.s3At || new Date(s3).toISOString().slice(0, 16).replace('T', ' ');
+        const nowAt=Date.now()-new Date().getTimezoneOffset()*60000;
+        const day=prompt(`📸 تثبيت من رصيد Sheet3 (${s3Txt}) — بلا تحديث Stock Smart\n`+
+            `${fmtN(rows.length)} مادة · ${fmtN(pieces)} قطعة (بالإعدادات والفلاتر الحالية — لازم يطابق الطلبية اللي انرسلت)\n\n`+
+            `اكتب يوم إرسال الطلبية (YYYY-MM-DD) — المقارنة بس ويه رصيد انصدّر بعد هذا اليوم:`, '');
+        if(day==null) return;
+        const pinAt=tfxSendDayAt(day, s3, nowAt);
+        if(pinAt==null){ showToast('⚠️ تاريخ غلط — لازم YYYY-MM-DD، مو قبل Sheet3 ولا بعد اليوم'); return; }
+        const snap={id:Date.now().toString(36), at:new Date().toISOString(), src:'s3', s3At:s3Txt, sendDay:day.trim(),
+            rows:rows.map(x=>({id:validId(x.r.id), name:x.r.name, company:x.r.company||'', cat:x.r.cat||'', pinAt,
+                qty:x.c.qty, apple:Number(x.r.apple)||0, mansour:Number(x.r.mansour)||0, balAt:x.r.balAt, monthly:x.c.monthly}))};
+        const all=[snap, ...snapsOf()].slice(0, SNAP_MAX);
+        try{ localStorage.setItem(SNAP_KEY, JSON.stringify(all)); }catch(_){ alert('❌ ما انحفظ التثبيت — مساحة المتصفح'); return; }
+        arr.sel=snap.id;
+        showToast(`📸 انثبّتت ${fmtN(snap.rows.length)} مادة · ${fmtN(pieces)} قطعة من Sheet3 ${s3Txt} — افتح «📦 وصل للتفاح»`);
+        if(arr.on) arrDraw();
+    };
+    window.tfxArrRedraw=()=>{ if(arr.on) arrDraw(); };
+    window.tfxArrToggle=async function(){
+        arr.on=!arr.on; $('tfxArrBox').style.display=arr.on ? '' : 'none';
+        if(arr.on){ try{ await fresh(); }catch(e){ showToast('❌ '+(e && e.message || e)); } arrDraw(); $('tfxArrBox').scrollIntoView({behavior:'smooth', block:'start'}); }
+    };
+    window.tfxArrSet=function(k, v){
+        if(k==='sort'){ arr.sort={k:v, d:arr.sort.k===v ? -arr.sort.d : 1}; }
+        else if(k in arr) arr[k]=v;
+        if(k==='sel') arr.card='all';
+        arrDraw();
+    };
+    window.tfxArrDel=function(){
+        const s=snapsOf(), cur=s.find(x=>x.id===arr.sel); if(!cur) return;
+        if(!confirm('حذف تثبيت '+String(cur.at).slice(0, 16).replace('T', ' ')+'؟')) return;
+        try{ localStorage.setItem(SNAP_KEY, JSON.stringify(s.filter(x=>x.id!==arr.sel))); }catch(_){}
+        arr.sel=null; arrDraw();
+    };
+    // مطابقة صف التثبيت بالرصيد الحالي: ID أولاً، بعدين الاسم+الشركة، بعدين الاسم — بس إذا فريد؛ أكثر من واحد = ملتبس (Codex 2026-11-02)
+    function arrRows(snap){
+        const rows=(window.__qtState && window.__qtState.rows) || [], byId=new Map(), byNC=new Map(), byN=new Map();
+        const push=(m, k, r)=>{ const a=m.get(k); if(a) a.push(r); else m.set(k, [r]); };
+        rows.forEach(r=>{ const id=validId(r.id); if(id) push(byId, id, r); push(byNC, r.name+'|'+(r.company||''), r); push(byN, r.name, r); });
+        const one=a=>a && a.length===1 ? a[0] : (a && a.length>1 ? 'amb' : null);
+        return snap.rows.map(s=>{
+            let m=s.id ? one(byId.get(s.id)) : null;
+            if(m==null) m=one(byNC.get(s.name+'|'+s.company));
+            if(m==null) m=one(byN.get(s.name));
+            const amb=m==='amb', now=amb ? null : m, a=tfxArrival(s, now);
+            return {s, now, amb, a, st:a.st};
+        });
+    }
+    function arrFiltered(list){
+        const q=arr.search.trim().toLowerCase();
+        return list.filter(x=>(!q || (x.s.name+' '+x.s.company).toLowerCase().includes(q)) && (!arr.company || x.s.company===arr.company) && (!arr.cat || x.s.cat===arr.cat));
+    }
+    const ARR_SORTS={name:x=>x.s.name, company:x=>x.s.company, qty:x=>x.s.qty, tB:x=>x.s.apple, tN:x=>x.now ? x.now.apple : -1e15, dT:x=>x.a.dT??-1e15,
+        mB:x=>x.s.mansour, mN:x=>x.now ? x.now.mansour : -1e15, dM:x=>x.a.dM??-1e15, pT:x=>x.a.pT??-1e15, st:x=>ARR_CARDS.findIndex(c=>c[0]===x.st)};
+    function arrSorted(a){
+        const f=ARR_SORTS[arr.sort.k]||ARR_SORTS.pT, d=arr.sort.d;
+        return a.slice().sort((p, q)=>{ const u=f(p), v=f(q); return (typeof u==='string' ? u.localeCompare(v, 'ar') : (u-v))*d || p.s.name.localeCompare(q.s.name, 'ar'); });
+    }
+    const arrPct=v=>v==null || !isFinite(v) ? '—' : Math.round(v*100)+'%';
+    const arrSum=list=>{ const cmp=list.filter(x=>x.st!=='pending' && x.st!=='missing'), q=cmp.reduce((s, x)=>s+x.s.qty, 0), g=cmp.reduce((s, x)=>s+(x.a.got||0), 0);
+        return {n:list.length, nCmp:cmp.length, q, g, p:q>0 ? g/q : null, nFull:cmp.filter(x=>x.st==='full'||x.st==='over').length}; };
+    function arrDraw(){
+        const box=$('tfxArrBox'); if(!box || !arr.on) return;
+        const snaps=snapsOf();
+        if(!snaps.length){ box.innerHTML=`<div class="p-6 text-center text-gray-500 font-bold">ماكو تثبيت بعد — اضغط «📸 ثبّت القائمة» بعد ما تطلّع قائمة القطع، وبعد مزامنة الإكسل الجاية ارجع هنا.</div>`; return; }
+        if(!snaps.some(s=>s.id===arr.sel)) arr.sel=snaps[0].id;
+        const snap=snaps.find(s=>s.id===arr.sel), list=arrRows(snap);
+        list.forEach(x=>{ if(x.amb) x.st='missing'; });
+        const cos=[...new Set(snap.rows.map(r=>r.company).filter(Boolean))].sort((a, b)=>a.localeCompare(b, 'ar'));
+        const cats=[...new Set(snap.rows.map(r=>r.cat).filter(Boolean))];
+        const base=arrFiltered(list), cnt={}; ARR_CARDS.forEach(([k])=>cnt[k]=k==='all' ? base.length : base.filter(x=>x.st===k).length);
+        const shown=arrSorted(base.filter(x=>arr.card==='all' || x.st===arr.card)), sum=arrSum(base);
+        const opt=(v, l, on)=>`<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
+        const th=(k, l, t)=>`<th class="p-2 text-center cursor-pointer select-none" onclick="tfxArrSet('sort','${k}')"${t ? ` title="${esc(t)}"` : ''}>${l} <span style="color:${arr.sort.k===k ? '#1d4ed8' : '#cbd5e1'}">${arr.sort.k===k ? (arr.sort.d>0 ? '▲' : '▼') : '⇅'}</span></th>`;
+        const dlt=v=>v==null ? '—' : `<b style="color:${v>0 ? '#15803d' : v<0 ? '#b91c1c' : '#64748b'}">${v>0 ? '+' : ''}${fmtN(v)}</b>`;
+        // ⏳ notice (2026-11-02): say why nothing compares yet and what to do
+        const pend=list.filter(x=>x.st==='pending').length, mx=a=>a.filter(v=>v!=null).reduce((m, v)=>Math.max(m, v), -Infinity);
+        const dt=v=>isFinite(v) ? new Date(v).toISOString().slice(0, 16).replace('T', ' ') : '—';
+        const pendBox=!pend ? '' : `<div class="text-sm font-bold mb-2 p-2 rounded-lg" style="background:${pend===list.length ? '#fef2f2;color:#b91c1c' : '#f8fafc;color:#475569'}">⏳ ${pend===list.length ? 'كل المواد' : fmtN(pend)+' مادة'} بلا رصيد جديد بعد التثبيت — المقارنة تحتاج رصيد انصدّر بعد وقت التثبيت.<br>
+                <span class="text-xs">${snap.src==='s3' ? 'المقارنة بعد يوم الإرسال' : 'وقت التثبيت'}: <b>${dt(mx(snap.rows.map(r=>r.pinAt)))}</b> · رصيد «قبل»: <b>${dt(mx(snap.rows.map(r=>r.balAt)))}</b> · أحدث رصيد بالتطبيق: <b>${dt(mx(list.map(x=>x.now && x.now.balAt)))}</b></span><br>
+                <span class="text-xs">الحل: بالإكسل زر <b>Stock Smart</b> ← احفظ الملف ← هنا <b>⚡ مزامنة</b> ← ارجع للتقرير.</span></div>`;
+        box.innerHTML=`<div class="flex flex-wrap items-center gap-2 mb-2">
+                <span class="text-base font-black" style="color:#1d4ed8">📦 وصل للتفاح</span>
+                <select onchange="tfxArrSet('sel',this.value)" class="ios-input px-2 py-1 text-sm">${snaps.map(s=>opt(s.id, 'تثبيت '+String(s.at).slice(0, 16).replace('T', ' ')+(s.src==='s3' ? ' · 📄 Sheet3 '+String(s.s3At||'').slice(0, 16)+' · إرسال '+(s.sendDay||'') : '')+' · '+fmtN(s.rows.length)+' مادة · '+fmtN(s.rows.reduce((a, r)=>a+r.qty, 0))+' قطعة', s.id===arr.sel)).join('')}</select>
+                <button type="button" onclick="tfxArrDel()" class="text-xs font-bold px-2" style="color:#dc2626">🗑 حذف التثبيت</button>
+                <span class="flex-1"></span>
+                <button type="button" onclick="tfxArrPdf()" class="ios-btn text-xs px-3 py-1 font-bold" style="background:#c2410c;color:#fff"><i class="fas fa-file-pdf ml-1"></i>PDF</button>
+                <button type="button" onclick="tfxArrExcel()" class="ios-btn text-xs px-3 py-1 font-bold" style="background:#15803d;color:#fff"><i class="fas fa-file-excel ml-1"></i>Excel</button>
+            </div>
+            <div class="text-[11px] mb-2 p-2 rounded-lg" style="background:#fffbeb;color:#92400e">⚠️ تقديري من الأرصدة بس (مو حركة تحويل): <b>نسبة الوصول = زيادة رصيد التفاح ÷ الكمية</b>، ونقص المنصور جنبها للتأكيد. الصرف بين ${snap.src==='s3' ? 'Sheet3 والمزامنة' : 'التثبيت والمزامنة'} يقلّل الزيادة.
+                زيادة التفاح تنحسب بس إذا المنصور نقص ≥ نصها، وإلا ⚠️ غير محسوم · ✅ ≥ ${Math.round(TFX_ARR.full*100)}% · 🔵 &gt; ${Math.round(TFX_ARR.over*100)}% · 🟡 ${Math.round(TFX_ARR.part*100)}–${Math.round(TFX_ARR.full*100)}% · ❌ &lt; ${Math.round(TFX_ARR.part*100)}% · ⏳ = رصيد المادة ما انصدّر بعد التثبيت (زامن الإكسل).</div>${pendBox}
+            <div class="flex flex-wrap gap-3 mb-2 text-sm font-bold">
+                <span class="px-3 py-1 rounded-lg" style="background:#eff6ff;color:#1d4ed8">نسبة الوصول الكلية: ${arrPct(sum.p)} <span class="text-xs text-gray-500">(${fmtN(sum.g)} من ${fmtN(sum.q)} قطعة)</span></span>
+                <span class="px-3 py-1 rounded-lg" style="background:#f0fdf4;color:#15803d">وصلت كاملة: ${fmtN(sum.nFull)} من ${fmtN(sum.nCmp)} مادة (${arrPct(sum.nCmp ? sum.nFull/sum.nCmp : null)})</span>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-2">${ARR_CARDS.filter(([k])=>k==='all' || cnt[k]).map(([k, l, c])=>`<button type="button" onclick="tfxArrSet('card','${k}')" class="ios-btn px-3 py-1 text-xs font-bold" style="border:2px solid ${c};${arr.card===k ? `background:${c};color:#fff` : `background:#fff;color:${c}`}">${l} <span class="opacity-80">${fmtN(cnt[k])}${k!=='all' && base.length ? ' · '+Math.round(cnt[k]*100/base.length)+'%' : ''}</span></button>`).join('')}</div>
+            <div class="flex flex-wrap gap-2 mb-2 items-center">
+                <input type="text" value="${esc(arr.search)}" oninput="tfxArrSearch(this.value)" placeholder="🔍 بحث بالمادة أو الشركة" class="ios-input px-3 py-1 text-sm" style="min-width:200px">
+                <select onchange="tfxArrSet('company',this.value)" class="ios-input px-2 py-1 text-sm" style="max-width:220px">${opt('', 'كل الشركات', !arr.company)}${cos.map(c=>opt(c, c, c===arr.company)).join('')}</select>
+                <select onchange="tfxArrSet('cat',this.value)" class="ios-input px-2 py-1 text-sm">${opt('', 'كل الأنواع', !arr.cat)}${cats.map(c=>opt(c, CAT_LABEL[c]||c, c===arr.cat)).join('')}</select>
+            </div>
+            <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-gray-50 text-xs">${th('name', 'المادة')}${th('company', 'الشركة')}${th('qty', 'الكمية')}${th('tB', 'تفاح قبل')}${th('tN', 'تفاح الآن')}${th('dT', 'زيادة التفاح')}${th('mB', 'منصور قبل')}${th('mN', 'منصور الآن')}${th('dM', 'نقص المنصور')}${th('pT', 'نسبة الوصول', 'زيادة التفاح ÷ الكمية')}${th('st', 'الحالة')}</tr></thead><tbody>`+
+            (shown.length ? shown.map(x=>{ const c=(ARR_CARDS.find(k=>k[0]===x.st)||ARR_CARDS[0])[2];
+                return `<tr class="border-b"><td class="p-2 font-bold">${esc(x.s.name)}</td><td class="p-2 text-xs">${esc(x.s.company)}</td><td class="p-2 text-center font-black">${fmtN(x.s.qty)}</td>`+
+                    `<td class="p-2 text-center">${fmtN(x.s.apple)}</td><td class="p-2 text-center">${x.now ? fmtN(x.now.apple) : '—'}</td><td class="p-2 text-center">${dlt(x.a.dT)}</td>`+
+                    `<td class="p-2 text-center">${fmtN(x.s.mansour)}</td><td class="p-2 text-center">${x.now ? fmtN(x.now.mansour) : '—'}</td><td class="p-2 text-center">${dlt(x.a.dM)}</td>`+
+                    `<td class="p-2 text-center font-black">${arrPct(x.a.pT)}</td><td class="p-2 text-center text-xs font-bold" style="color:${c}">${x.amb ? '⚫ ملتبسة (أكثر من مادة بنفس الاسم)' : ARR_LABEL[x.st]||x.st}</td></tr>`; }).join('')
+                : '<tr><td colspan="11" class="p-6 text-center text-gray-400">ماكو مواد بهذا الفلتر</td></tr>')+'</tbody></table></div>';
+    }
+    let arrT=null;
+    window.tfxArrSearch=function(v){ arr.search=v; clearTimeout(arrT); arrT=setTimeout(()=>{ const ae=document.activeElement, pos=ae && ae.selectionStart; arrDraw();
+        const inp=$('tfxArrBox').querySelector('input[type=text]'); if(inp){ inp.focus(); try{ inp.setSelectionRange(pos, pos); }catch(_){} } }, 250); };
+    function arrCurrent(){
+        const snap=snapsOf().find(s=>s.id===arr.sel); if(!snap) return null;
+        const list=arrRows(snap); list.forEach(x=>{ if(x.amb) x.st='missing'; });
+        const base=arrFiltered(list);
+        return {snap, base, rows:arrSorted(base.filter(x=>arr.card==='all' || x.st===arr.card))};
+    }
+    window.tfxArrExcel=function(){
+        const c=arrCurrent(); if(!c || !c.rows.length){ showToast('⚠️ ماكو مواد بالفلتر الحالي'); return; }
+        const aoa=[['#', 'المادة', 'الشركة', 'النوع', 'الكمية', 'تفاح قبل', 'تفاح الآن', 'زيادة التفاح', 'منصور قبل', 'منصور الآن', 'نقص المنصور', 'نسبة الوصول %', 'الحالة']];
+        c.rows.forEach((x, i)=>aoa.push([i+1, x.s.name, x.s.company, CAT_LABEL[x.s.cat]||'', x.s.qty, x.s.apple, x.now ? x.now.apple : '', x.a.dT??'', x.s.mansour, x.now ? x.now.mansour : '', x.a.dM??'',
+            x.a.pT==null ? '' : Math.round(x.a.pT*100), x.amb ? 'ملتبسة' : (ARR_LABEL[x.st]||x.st)]));
+        const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Tuffah_Arrival');
+        XLSX.writeFile(wb, 'tuffah_arrival_'+String(c.snap.at).slice(0, 10)+'.xlsx');
+    };
+    window.tfxArrPdf=async function(){
+        if(st.busy){ showToast('⏳ الـPDF بعده يتجهّز...'); return; }
+        if(typeof window.jspdf==='undefined' || typeof window.dtPdfGrouped!=='function'){ alert('❌ مكتبة PDF ما محمّلة'); return; }
+        const c=arrCurrent(); if(!c || !c.rows.length){ showToast('⚠️ ماكو مواد بالفلتر الحالي'); return; }
+        const sum=arrSum(c.base), title='Mansoor Pharmacy Report — وصل للتفاح';
+        const note='تثبيت '+String(c.snap.at).slice(0, 16).replace('T', ' ')+' · الوصول الكلي '+arrPct(sum.p)+' ('+fmtN(sum.g)+'/'+fmtN(sum.q)+' قطعة) · تقديري من الأرصدة';
+        const grp=arr.card==='all' ? 'كل الحالات' : ARR_LABEL[arr.card];
+        const rows=c.rows.map((x, i)=>({v:{n:String(i+1), name:x.s.name, qty:fmtN(x.s.qty), tB:fmtN(x.s.apple), tN:x.now ? fmtN(x.now.apple) : '—', dT:x.a.dT==null ? '—' : fmtN(x.a.dT),
+            dM:x.a.dM==null ? '—' : fmtN(x.a.dM), pT:arrPct(x.a.pT), st:x.amb ? 'ملتبسة' : String(ARR_LABEL[x.st]||x.st).replace(/^\S+\s/, '')}}));
+        st.busy=true; showToast('⏳ جاري تجهيز PDF...', true);
+        try{
+            try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(_){}
+            await window.dtPdfGrouped({title, note, groups:[[grp+'  —  '+fmtN(rows.length)+' مادة', rows]], repeatGroup:true, searchKeys:['name'], dpr:2.2, quality:0.92,
+                cols:[{key:'n', label:'#', w:10}, {key:'name', label:'المادة', w:95, align:'right'}, {key:'qty', label:'الكمية', w:20}, {key:'tB', label:'تفاح قبل', w:20}, {key:'tN', label:'تفاح الآن', w:20},
+                    {key:'dT', label:'زيادة التفاح', w:22}, {key:'dM', label:'نقص المنصور', w:22}, {key:'pT', label:'نسبة الوصول', w:22}, {key:'st', label:'الحالة', w:46}],
+                fileName:'tuffah_arrival_'+String(c.snap.at).slice(0, 10)});
+            showToast('✅ تم تصدير PDF');
+        }catch(e){ showToast('❌ فشل توليد PDF'); alert('❌ فشل توليد PDF: '+(e && e.message || e)); }
+        finally{ st.busy=false; }
+    };
     window.tfxPdf=async function(){
         if(st.busy){ showToast('⏳ الـPDF بعده يتجهّز...'); return; }
         if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
@@ -24846,6 +25094,9 @@ function tfxSimplePass(c, s){
                 <label class="flex items-center gap-1 text-xs font-bold" style="color:#9a3412" title="ولا مادة تاخذ أكثر من هذا الرقم — فاضي = بلا حد">أعلى كمية <input id="tfxS_maxQty" type="number" min="0" placeholder="بلا حد" oninput="tfxSimpleSet('maxQty',this.value)" onchange="tfxSimpleShow('maxQty')" class="ios-input px-2 py-1 text-xs text-center font-black" style="width:70px"> قطعة</label>
                 <button type="button" onclick="tfxPdf()" class="ios-btn text-xs px-3 py-1 font-bold" style="background:#c2410c;color:#fff"><i class="fas fa-file-pdf ml-1"></i>PDF الطلبية</button>
                 <button type="button" onclick="tfxExcel()" class="ios-btn text-xs px-3 py-1 font-bold" style="background:#15803d;color:#fff"><i class="fas fa-file-excel ml-1"></i>Excel</button>
+                <button type="button" onclick="tfxSnap()" class="ios-btn text-xs px-3 py-1 font-bold" style="background:#1d4ed8;color:#fff" title="يحفظ قائمة الطلبية الحالية ويه رصيد التفاح والمنصور — بعد مزامنة الإكسل الجاية «📦 وصل للتفاح» يقارن الأرصدة ويطلّع شنو وصل">📸 ثبّت القائمة</button>
+                <button type="button" onclick="tfxSnapS3()" class="ios-btn text-xs px-3 py-1 font-bold" style="background:#fff;color:#1d4ed8;border:1px solid #1d4ed8" title="لطلبية انرسلت قبل: يحسب القائمة من رصيد Sheet3 الأصلي (بلا تحديث Stock Smart/Check) ويثبّته كرصيد «قبل» — يسألك يوم الإرسال، وبعدها «📦 وصل للتفاح» يقارن ويه الرصيد الأحدث">📸 ثبّت برصيد Sheet3</button>
+                <button type="button" onclick="tfxArrToggle()" class="ios-btn text-xs px-3 py-1 font-bold" style="background:rgba(29,78,216,0.1);color:#1d4ed8;border:1px solid #1d4ed8" title="تقرير: شنو وصل للتفاح من آخر تثبيت — بنسب وفلاتر وترتيب">📦 وصل للتفاح</button>
             </div>
             <div class="text-[11px] text-gray-500 mb-2">أيام التفاح حدها 89 (فوق الـ90 الإكسل يرجّعها للمنصور) · مواد FAKE تدخل بصرف مصحَّح (المباع ÷ 100 يوم)، وFAKE بلا مبيع والصرف صفر ما يدخلن · الكمية تكدر تعدّلها بالجدول.</div>
             <div id="tfxCards" class="flex flex-wrap gap-2 mb-3"></div>
@@ -24857,6 +25108,7 @@ function tfxSimplePass(c, s){
             </div>
             <div class="overflow-x-auto"><table class="w-full text-sm" id="tfxTable"></table></div>
             <div id="tfxPager" class="flex items-center justify-center gap-3 mt-3 text-sm"></div>
+            <div id="tfxArrBox" class="mt-4 p-3 rounded-xl" style="display:none;border:2px solid #1d4ed8;background:#fff"></div>
         </div>
     </div>
 </div>
