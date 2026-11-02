@@ -827,7 +827,7 @@
     #dashboardTab .db-more[open]>summary::after{content:'عرض أقل';font-size:13px}    #dashboardTab .db-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:.5px solid var(--separator);cursor:pointer}
     #dashboardTab .db-item:last-child{border-bottom:0}
     #dashboardTab .db-item .grow{flex:1;min-width:0}
-    #dashboardTab .db-item .t{font-size:14.5px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #dashboardTab .db-item .t{font-size:14.5px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:plaintext;text-align:right}   /* plaintext: اسم إنگليزي ينقص من آخره مو من أوله (2026-11-02) */
     #dashboardTab .db-item .s{font-size:12.5px;color:var(--text-2)}
     #dashboardTab .db-item .chev{color:var(--text-3)}
     #dashboardTab .db-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap;flex:none;background:var(--fill);color:var(--text-2)}
@@ -6328,8 +6328,14 @@ const DT_DECISION_LABEL = { 'return':'🔴 يحتاج إرجاع', 'keep':'🟢 
 let _dtCheckSetCache=null, _dtCheckSetSig='';
 function dtInvalidateCheckSet(){ _dtCheckSetCache=null; _dtCheckSetSig=''; }
 window.dtInvalidateCheckSet=dtInvalidateCheckSet;
+// الأداء (2026-11-02): التوقيع فوق يلف على كل الطلبية، وdtCheckSet ينادى مرة لكل سطر وصول (~8K×~7K = بطء ~0.4 ثانية
+// بكل تبديل تبويب). داخل نفس المهمة المتزامنة ونفس المصفوفة نرجّع الكاش بلا لفة — يصفر بأول microtask.
+let _dtCheckSetTick=false, _dtCheckSetRef=null, _dtCheckSetLen=-1;
 function dtCheckSet(){
     const orders=(typeof appState!=='undefined' && appState.orders) ? appState.orders : [];
+    if(_dtCheckSetCache && _dtCheckSetTick && _dtCheckSetRef===orders && _dtCheckSetLen===orders.length) return _dtCheckSetCache;
+    if(!_dtCheckSetTick){ _dtCheckSetTick=true; queueMicrotask(()=>{ _dtCheckSetTick=false; }); }
+    _dtCheckSetRef=orders; _dtCheckSetLen=orders.length;
     let checkCount=0;
     orders.forEach(o=>{ if(o && o.isCheck) checkCount++; });
     const sig=orders.length+'|'+checkCount;
@@ -17437,6 +17443,7 @@ window.onload=async()=>{
     async function refreshDeliveryTrackingAfterLinkChange(){
         dtState.data=[];
         invalidateOfficeArrivalCache();
+        if(window.dtInvalidateCheckSet) window.dtInvalidateCheckSet();   // مفاتيح Check مبنية على resolveOffice — الربط يغيّرها (Codex 11-02)
         await window.__renderDeliveryTracking();
         if(typeof window.__renderReturnsTab==='function') await window.__renderReturnsTab();
         renderVendorsList();   // روابط المكاتب تغيّر resolveOffice → حالة المكتب بتبويب المكاتب تتغيّر وياها
