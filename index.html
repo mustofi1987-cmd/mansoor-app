@@ -58,6 +58,26 @@
             .side-nav-group { display:block; font-size:11.5px; font-weight:700; color:var(--text-3); padding:14px 10px 5px; }
             .segmented-btn { width:100%; padding:7px 10px; border-radius:var(--radius-sm); font-size:14px; background:transparent; }
         }
+        /* سهم إخفاء الشريط الجانبي (2026-11-02) — ديسكتوب بس. الزر برّه #sideNav حتى يبقى ظاهر بعد الإخفاء. الحالة: localStorage ui_sideCollapsed (مو ph_) */
+        #sideNavToggle { display:none; }
+        @media (min-width:1100px){
+            .side-nav { transition:transform .25s ease; }
+            .app-wrap { transition:padding-inline-start .25s ease; }
+            #sideNavToggle { display:grid; place-items:center; position:fixed; top:50%; right:218px; z-index:41; width:28px; height:28px; border-radius:50%;
+                border:.5px solid var(--separator); background:var(--surface); color:var(--text-2); box-shadow:var(--shadow); cursor:pointer; font-size:12px; transition:right .25s ease; }
+            #sideNavToggle:hover { color:var(--accent); }
+            #sideNavToggle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+            body.side-collapsed .side-nav { transform:translateX(100%); }
+            body.side-collapsed .app-wrap { padding-inline-start:42px !important; }
+            body.side-collapsed #sideNavToggle { right:6px; }
+        }
+        /* موبايل (2026-11-02): قائمة مكاتب متابعة الوصول تاخذ عرضها المحفوظ من الديسكتوب (ph_rz_dt_side، لحد 520px)
+           فالصفحة كانت تنسحب لـ618px على 375. تحت 768: القائمة فوق الجدول بعرض الشاشة، بلا مقبض سحب */
+        @media (max-width:767.98px){
+            .flex:has(> #dtSidebarBox) { flex-direction:column; align-items:stretch !important; }
+            #dtSidebarBox { width:auto !important; max-width:none !important; max-height:50vh; }
+            #dtSidebarResizer { display:none !important; }
+        }
         /* قائمة ⋯ بالهيدر — الهيدر بيه backdrop-filter (stacking context) فهو نفسه ينرفع فوق البطاقات وتحت الـmodals (z-50+) */
         .app-header { position:relative; z-index:45; }
         /* الكود يخفي/يظهر شريط التقدّم بكلاس hidden (~9673/9720)، بس الـinline display:flex جان يغلبه فيبقى ظاهر دائماً */
@@ -483,6 +503,7 @@
         <button id="saveDataBtn" class="ios-btn hdr-btn px-4 py-2 text-sm"><i class="fas fa-save ml-1"></i> حفظ</button>
         <button id="liveStatusBtn" class="ios-btn hdr-btn px-4 py-2 text-sm relative" title="شاشة متابعة الإرسال المباشرة"><i class="fas fa-satellite-dish ml-1"></i> متابعة مباشرة <span id="liveStatusDot" class="hidden absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span></button>
         <button type="button" class="cmdk-open ios-btn hdr-btn px-3 py-2 text-sm" title="بحث سريع بالتبويبات والأوامر (Ctrl+K)"><i class="fas fa-magnifying-glass ml-1"></i> بحث <kbd style="font-size:10.5px;opacity:.6;font-family:inherit">Ctrl K</kbd></button>
+        <button type="button" id="dbBellBtn" class="ios-btn hdr-btn px-3 py-2 text-sm relative" aria-label="التنبيهات العاجلة — يفتح لوحة التحليل" title="التنبيهات العاجلة — يفتح لوحة التحليل"><i class="fas fa-bell"></i><span id="dbBellBadge" class="db-bell-badge" hidden>0</span></button>
         <div class="more-wrap">
             <button id="moreMenuBtn" type="button" class="ios-btn hdr-btn px-3 py-2 text-sm" aria-haspopup="true" aria-expanded="false" title="باقي الأوامر">⋯ المزيد</button>
             <div id="moreMenu" class="more-menu" hidden>
@@ -553,6 +574,26 @@
     <button class="segmented-btn" data-tab="quotaShare">🔐 الحصص</button>
     <button class="segmented-btn" data-tab="tuffahXfer">🍎 قطع منصور ← تفاح</button>
 </nav>
+
+<!-- سهم إخفاء/إظهار الشريط (ديسكتوب ≥1100). ⚠️ بلا data-tab — مستمع [data-tab] يخفي التبويبات -->
+<button type="button" id="sideNavToggle" aria-controls="sideNav" aria-expanded="true" title="إخفاء الشريط الجانبي"><i class="fas fa-chevron-right"></i></button>
+<script>
+(function(){
+    const KEY='ui_sideCollapsed', btn=document.getElementById('sideNavToggle'); if(!btn) return;
+    function apply(c){
+        document.body.classList.toggle('side-collapsed', c);
+        btn.setAttribute('aria-expanded', String(!c));
+        btn.title=c ? 'إظهار الشريط الجانبي' : 'إخفاء الشريط الجانبي';
+        btn.firstElementChild.className='fas '+(c ? 'fa-chevron-left' : 'fa-chevron-right');
+    }
+    let c=false; try{ c=localStorage.getItem(KEY)==='1'; }catch(_){}
+    apply(c);
+    btn.addEventListener('click', function(){
+        c=!document.body.classList.contains('side-collapsed'); apply(c);
+        try{ localStorage.setItem(KEY, c?'1':'0'); }catch(_){}
+    });
+})();
+</script>
 
 <!-- موبايل (<1100px): Tab Bar بالمجموعات الخمس + sheet. يضغط زر #sideNav الأصلي من ورا، فمستمع [data-tab] (~9990) ما يتغيّر.
      ⚠️ لا تحط data-tab على أي عنصر هنا — المستمع يربط كل [data-tab] ويخفي كل تبويب ما يطابق. -->
@@ -720,22 +761,32 @@
 <!-- 🧭 DASHBOARD TAB (2026-10-18) — ملخص تشغيلي، قراءة فقط: ما يكتب أي state ولا ph_* ولا يعيد حساب السالب/Fake Sale/التغطية/الحصص -->
 <div id="dashboardTab" class="tab-content hidden" style="display:none">
     <div class="p-1">
-        <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
-            <h3 class="font-bold text-base"><i class="fas fa-compass ml-2 text-[#007AFF]"></i> لوحة التحليل</h3>
-            <div class="flex items-center gap-2">
-                <span id="dbStamp" class="text-[11px] text-gray-400"></span>
-                <button onclick="window.dbRender(true)" class="ios-btn bg-[#007AFF] text-white px-3 py-1.5 text-xs">↻ تحديث</button>
+        <!-- v2 (2026-11-02): ترحيب · chips بالأعداد · سلال المواد · تنبيهات بأقسام — mockups/dashboard-v2.html -->
+        <div class="db-hero">
+            <div><div id="dbHello" class="db-hello"></div><h3 class="db-h1">لوحة التحليل</h3></div>
+            <div class="db-hero-act">
+                <span id="dbStamp"></span>
+                <button type="button" onclick="window.dbRender(true)" class="db-refresh">↻ تحديث</button>
             </div>
         </div>
-        <div class="text-[11px] text-gray-500 mb-3">كل لوحة تكتب مصدرها. «غير محمّل» = البيانات مو موجودة بهذا الجهاز بعد — مو صفر. اضغط اللوحة تفتح تبويبها.</div>
+        <div id="dbChips" class="db-chips" role="toolbar" aria-label="فلترة اللوحة"></div>
         <div id="dbKpis" class="db-kpis"></div>
-        <div class="db-section-h"><h2>يحتاج انتباهك اليوم</h2><span>مرتّب حسب الأهمية</span></div>
-        <div class="db-two">
-            <div id="dbAttention" class="db-card"></div>
-            <div id="dbSyncList" class="db-card"></div>
-        </div>
-        <div class="db-section-h"><h2>لوحات ثانية</h2><span></span></div>
-        <div id="dbGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+        <section data-db-sec>
+            <div class="db-section-h"><h2>المواد — يكفي كم يوم</h2><span>نفس «وصل وخلص» · الرصيد ÷ الصرف اليومي</span></div>
+            <div id="dbBaskets" class="db-baskets"></div>
+        </section>
+        <section data-db-sec>
+            <div class="db-section-h"><h2>🔔 يحتاج انتباهك</h2><span>مقسّم حسب النوع · العاجل أول</span></div>
+            <div class="db-two">
+                <div id="dbAttention" class="db-card"></div>
+                <div id="dbSyncList" class="db-card" data-chip="none"></div>
+            </div>
+        </section>
+        <div class="text-[11px] text-gray-400 mt-3">«غير محمّل» = البيانات مو موجودة بهذا الجهاز بعد — مو صفر. اضغط أي سطر يفتح تبويبه.</div>
+        <section data-db-sec>
+            <div class="db-section-h"><h2>لوحات ثانية</h2><span></span></div>
+            <div id="dbGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3" data-chip="none"></div>
+        </section>
     </div>
 </div>
 <style>
@@ -784,6 +835,33 @@
     #dashboardTab .db-pill.bad{background:var(--red-soft);color:var(--red)}
     #dashboardTab .db-pill.warn{background:var(--orange-soft);color:#C93400}
     #dashboardTab .db-pill.ok{background:var(--green-soft);color:#248A3D}
+    /* v2 (2026-11-02) */
+    #dashboardTab .db-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:2px 2px 14px}
+    #dashboardTab .db-hello{font-size:13px;color:var(--text-2)}
+    #dashboardTab .db-h1{font-size:28px;font-weight:800;color:var(--text);margin-top:2px;line-height:1.15}
+    #dashboardTab .db-hero-act{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-3)}
+    #dashboardTab .db-refresh{border:0;background:var(--accent);color:#fff;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;min-height:36px;cursor:pointer}
+    #dashboardTab .db-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    #dashboardTab .db-chips::-webkit-scrollbar{display:none}
+    #dashboardTab .db-chip{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:6px 14px;border-radius:999px;border:.5px solid var(--separator);background:var(--surface);color:var(--text);font-size:13.5px;font-weight:600;white-space:nowrap;cursor:pointer;box-shadow:var(--shadow)}
+    #dashboardTab .db-chip .n{font-weight:500;color:var(--text-3);font-variant-numeric:tabular-nums}
+    #dashboardTab .db-chip.on{background:var(--text);color:#fff;border-color:var(--text)}
+    #dashboardTab .db-chip.on .n{color:rgba(255,255,255,.7)}
+    #dashboardTab .db-chip:disabled{opacity:.45;cursor:default;box-shadow:none}
+    #dashboardTab .db-chip:focus-visible,#dashboardTab .db-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    #dashboardTab .db-baskets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    #dashboardTab .db-bk{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:8px 16px 4px;border-top:4px solid var(--fill);min-width:0}
+    #dashboardTab .db-bk-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700;font-size:14px;padding:6px 0 4px}
+    #dashboardTab .db-bk-h b{font-size:24px;font-variant-numeric:tabular-nums}
+    #dashboardTab .db-bk .db-item{padding:8px 0}
+    #dashboardTab .db-bk-more{display:flex;gap:14px;flex-wrap:wrap;border-top:.5px solid var(--separator)}
+    #dashboardTab .db-link{background:none;border:0;color:var(--accent);font-size:13px;font-weight:600;padding:8px 0;min-height:44px;cursor:pointer}
+    #dashboardTab .db-grp-h{font-size:11.5px;font-weight:700;color:var(--text-3);padding:12px 0 0;letter-spacing:.2px}
+    #dashboardTab .db-empty{font-size:13px;color:var(--text-2);padding:14px 0}
+    #dashboardTab [hidden]{display:none !important}
+    .db-bell-badge{position:absolute;top:-5px;left:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--red,#FF3B30);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+    .db-bell-badge[hidden]{display:none}
+    @media (max-width:900px){ #dashboardTab .db-baskets{grid-template-columns:1fr} #dashboardTab .db-h1{font-size:24px} }
     @media (max-width:900px){ #dashboardTab .db-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} #dashboardTab .db-two{grid-template-columns:1fr} #dashboardTab .db-kpi .val{font-size:30px} }
 </style>
 
@@ -1943,9 +2021,41 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
         const p=x.pill||PILL[x.lv];
         return `<div class="db-item" data-db-tab="${x.tab}" ${btn(x.t)}><span class="db-pill ${p[0]}">${esc(p[1])}</span><div class="grow"><div class="t" title="${esc(x.t)}">${esc(x.t)}</div><div class="s">${esc(x.s)}</div></div><span class="chev">‹</span></div>`;
     }
+    // v2 (2026-11-02): نفس البنود، بس كل بند إله مجموعة (g) — العرض بأقسام. الشارة 🔔 = عدد بنود lv:0 (مو الأسطر).
+    const GRP={arrival:['الوصول','notArr'], returns:['المرتجعات','ret'], expiry:['الإكسباير','exp'], bonus:['البونص والأسعار','bonus'], sync:['المزامنة','none'], orders:['الطلبية','none']};
+    function attentionItems(ks){
+        const {orders:o, arrival:a, returns:r, sync:s, expiry:e, bonus:b}=ks, it=[];
+        const na=k=>({lv:2, tab:k.tab, s:k.why});
+        const push=(g,list)=>list.forEach(x=>it.push(Object.assign(x,{g})));
+        // الإكسباير: كل أسطر الشيت بلا فلاتر التبويب
+        if(!e || e.state==='na') push('expiry',[{lv:2, tab:'expiry', t:'شيت الإكسباير غير محمّل', s:(e&&e.why)||'زامن Expiry Material'}]);
+        else {
+            const L=[];
+            if(e.expired) L.push({lv:0, tab:'expiry', t:`${fmt(e.expired)} سطر منتهي`, s:'المنتهية · من '+fmt(e.total)+' سطر'});
+            if(e['1m']) L.push({lv:0, tab:'expiry', t:`${fmt(e['1m'])} سطر ينتهي خلال شهر`, s:'المنتهية'});
+            if(e['3m']) L.push({lv:1, tab:'expiry', t:`${fmt(e['3m'])} سطر ينتهي خلال 1–3 أشهر`, s:'المنتهية'});
+            if(!L.length) L.push({lv:3, tab:'expiry', t:'ماكو سطر ينتهي خلال 3 أشهر', s:'المنتهية'});
+            push('expiry',L);
+        }
+        if(!b || b.state==='na') push('bonus',[{lv:2, tab:'netPrice', t:'أسعار نت مع بونص غير محمّلة', s:(b&&b.why)||''}]);
+        else push('bonus',[b.late ? {lv:1, tab:'netPrice', t:`${fmt(b.late)} سطر بونص متأخر`, s:'أسعار نت مع بونص · كل الأسطر'} : {lv:3, tab:'netPrice', t:'ماكو بونص متأخر', s:'أسعار نت مع بونص'}]);
+        return legacyAttention({orders:o, arrival:a, returns:r, sync:s}).concat(it);
+    }
     function renderAttention(ks){
+        const items=attentionItems(ks).map((x,i)=>Object.assign(x,{i}));
+        const groups={};
+        items.forEach(x=>{ (groups[x.g]=groups[x.g]||[]).push(x); });
+        return Object.keys(groups)
+            .map(g=>({g, list:groups[g].sort((x,y)=>(x.lv-y.lv)||(x.i-y.i))}))
+            .sort((x,y)=>(x.list[0].lv-y.list[0].lv) || (Object.keys(GRP).indexOf(x.g)-Object.keys(GRP).indexOf(y.g)))
+            .map(({g,list})=>`<div data-chip="${GRP[g][1]}"><div class="db-grp-h">${esc(GRP[g][0])}</div>${list.map(itemRow).join('')}</div>`).join('');
+    }
+    function urgentCount(ks){ return attentionItems(ks).filter(x=>x.lv===0).length; }
+    // البنود القديمة (وصول · مرتجعات · مزامنة · طلبية) — نفس المنطق، مع g لكل بند
+    function legacyAttention(ks){
         const {orders:o, arrival:a, returns:r, sync:s}=ks, it=[];
         const na=k=>({lv:2, tab:k.tab, s:k.why});
+        let from=0; const tag=g=>{ for(;from<it.length;from++) it[from].g=g; };
         if(a.state==='na') it.push(Object.assign(na(a), {t:'متابعة الوصول غير محمّلة'}));
         else if(!a.total) it.push({lv:2, pill:['','مستثناة'], tab:a.tab, t:`كل أسطر الوصول (${fmt(a.excluded)}) مستثناة`, s:'متابعة الوصول'});
         else {
@@ -1954,19 +2064,23 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
             if(a.other) it.push({lv:1, tab:a.tab, t:`${fmt(a.other)} سطر زيادة أو غير مطلوب`, s:'متابعة الوصول'});
             if(a.matched===a.total) it.push({lv:3, tab:a.tab, t:'كل أسطر الوصول مطابقة', s:'متابعة الوصول'});
         }
+        tag('arrival');
         if(r.state==='na') it.push(Object.assign(na(r), {t:'المرتجعات غير محمّلة'}));
         else if(r.n) it.push({lv:0, tab:r.tab, t:`${fmt(r.n)} سطر يحتاج إرجاع`, s:'المرتجعات · حسب الفلاتر الحالية'});
         else it.push({lv:2, pill:['','صفر بالفلاتر'], tab:r.tab, t:'ماكو إرجاع ضمن فلاتر تبويب المرتجعات', s:'شيل الفلاتر بالتبويب للتأكد'});
+        tag('returns');
         if(s.state==='na') it.push(Object.assign(na(s), {t:'ماكو شيتات مزامنة'}));
         else {
             if(s.unknown) it.push({lv:1, tab:s.tab, t:`${fmt(s.unknown)} شيت تاريخ مزامنته مجهول`, s:'حداثة المزامنة'});
             if(s.stale) it.push({lv:1, tab:s.tab, t:`${fmt(s.stale)} شيت أقدم من ${STALE_DAYS} أيام`, s:'أقدمها: '+(s.items.find(i=>i.stale)||{}).name});
             if(!s.unknown && !s.stale) it.push({lv:3, tab:s.tab, t:'كل الشيتات محدّثة', s:`خلال ${STALE_DAYS} أيام`});
         }
+        tag('sync');
         if(o.state==='na') it.push(Object.assign(na(o), {t:'ماكو طلبية محمّلة'}));
         else if(o.unsent) it.push({lv:1, tab:o.tab, t:`${fmt(o.unsent)} مكتب بالطلبية غير مؤشَّر مرسل`, s:'المكاتب · العلامة تنحط يدوي أيضاً'});
         else it.push({lv:3, tab:o.tab, t:'كل مكاتب الطلبية مؤشَّرة مرسلة', s:'المكاتب'});
-        return it.map((x,i)=>Object.assign(x,{i})).sort((x,y)=>(x.lv-y.lv)||(x.i-y.i)).map(itemRow).join('');
+        tag('orders');
+        return it;
     }
     function renderSyncList(s){
         const h='<div class="db-card-h">حداثة المزامنة</div>';
@@ -1999,6 +2113,93 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
             <div class="db-row mt-1"><span>أرشيفات محفوظة</span><b>${fmt(all.length)}</b></div>`, 'archiveGetActive()');
     }
 
+    // ---- v2 (2026-11-02): سلال المواد — نفس صفوف وشرائح «وصل وخلص» (dtSoBaseRows + DT_SO_BUCKETS)، بلا حساب تغطية جديد ----
+    // العدد = أسطر (مادة×مكتب) مثل كارتات التبويب بلا فلاتر. dtLoadFromStore ممنوع هنا — فارغ = «غير محمّل».
+    function kMaterials(){
+        if(!(dtState.data||[]).length || typeof dtSoBaseRows!=='function') return {state:'na', tab:'soldOut', why:'غير محمّل أو فارغ — افتح تبويب متابعة الوصول مرة'};
+        const by={}; Object.keys(DT_SO_BUCKETS).forEach(k=>by[k]=[]);
+        dtSoBaseRows().forEach(r=>{ const s=dtSoldOutInfo(r); for(const k in DT_SO_BUCKETS){ if(DT_SO_BUCKETS[k].f(s)){ by[k].push({r,s}); break; } } });
+        const cov=x=>x.s.cov===null ? Infinity : x.s.cov;
+        for(const k in by) by[k].sort((x,y)=>{ const a=cov(x), b=cov(y); return a===b ? (x.s.bal||0)-(y.s.bal||0) : a-b; });
+        return {state:'ok', tab:'soldOut', by};
+    }
+    function kBonus(){
+        const st=window.__npState;
+        if(!st || !Array.isArray(st.rows)) return {state:'na', tab:'netPrice', why:'افتح تبويب «أسعار نت مع بونص» مرة حتى ينحمّل'};
+        return {state:'ok', tab:'netPrice', late:st.rows.filter(r=>r.type==='late').length};
+    }
+    async function kExpiry(){
+        const c=typeof window.__expUrgCounts==='function' ? await window.__expUrgCounts() : null;
+        return c ? Object.assign({state:'ok', tab:'expiry'}, c) : {state:'na', tab:'expiry', why:'زامن شيت Expiry Material'};
+    }
+    const BASKETS=[{chip:'c3', keys:['c3']}, {chip:'c7', keys:['c7']}, {chip:'c10', keys:['c10','nomov']}];
+    function renderBaskets(m){
+        if(m.state==='na') return `<div class="db-card" style="grid-column:1/-1">${itemRow({lv:2, tab:m.tab, t:'سلال المواد غير محمّلة', s:m.why})}</div>`;
+        return BASKETS.map(bk=>{
+            const B=bk.keys.map(k=>DT_SO_BUCKETS[k]), list=[].concat(...bk.keys.map(k=>m.by[k]));
+            const title=B.map(b=>b.t).join(' · ');
+            const rows=list.slice(0,5).map(({r,s})=>{
+                const b=DT_SO_BUCKETS[bk.keys.find(k=>DT_SO_BUCKETS[k].f(s))];
+                return `<div class="db-item" ${btn(r.item)} data-db-so="${esc(bk.keys.find(k=>DT_SO_BUCKETS[k].f(s)))}" data-db-so-q="${esc(r.item)}">`
+                    +`<div class="grow"><div class="t" title="${esc(r.item)}">${esc(r.item)}</div><div class="s">${esc(r.office)}${s.neg?' · رصيد سالب (انحسب صفر)':''}</div></div>`
+                    +`<span class="db-pill" style="background:${b.bg};color:${b.c}">${esc(s.noMov?'بلا صرف':dtSoCovText(s))}</span><span class="chev">‹</span></div>`;
+            }).join('') || '<div class="db-empty">ماكو مادة بهالشريحة ✓</div>';
+            const more=bk.keys.map(k=>`<button type="button" class="db-link" data-db-so="${k}">${bk.keys.length>1?esc(DT_SO_BUCKETS[k].t.replace(/^\S+\s/,''))+' ':'عرض الكل '}(${fmt(m.by[k].length)}) ‹</button>`).join('');
+            return `<div class="db-bk" data-chip="${bk.chip}" style="border-top-color:${B[0].c}"><div class="db-bk-h"><span>${esc(title)}</span><b style="color:${B[0].c}">${fmt(list.length)}</b></div>${rows}<div class="db-bk-more">${more}</div></div>`;
+        }).join('');
+    }
+    // chips بالأعداد (فكرة DNA) — تفلتر اللوحة بمكانها، بالذاكرة بس
+    const dbUi={chip:'all'};
+    function renderChips(ks){
+        const {materials:m, arrival:a, returns:r, expiry:e, bonus:b}=ks;
+        const ok=k=>k && k.state==='ok';
+        const list=[
+            ['all','الكل',null,true],
+            ['c3','🔴 حرجة ≤3 أيام', ok(m)?m.by.c3.length:null],
+            ['c7','🟠 تخلص خلال 4–7', ok(m)?m.by.c7.length:null],
+            ['c10','🟡 8–10 · بلا صرف', ok(m)?m.by.c10.length+m.by.nomov.length:null],
+            ['notArr','📬 ما وصل', ok(a)?a.notArrived:null],
+            ['ret','↩️ إرجاع', ok(r)?r.n:null],
+            ['exp','⏳ منتهي أو خلال شهر', ok(e)?e.expired+e['1m']:null],
+            ['bonus','💲 بونص متأخر', ok(b)?b.late:null]
+        ];
+        if(!list.some(x=>x[0]===dbUi.chip && (x[3] || x[2]!=null))) dbUi.chip='all';
+        return list.map(([k,label,n,always])=>{
+            const dis=!always && n==null;
+            return `<button type="button" class="db-chip${dbUi.chip===k?' on':''}" data-db-chip="${k}" aria-pressed="${dbUi.chip===k}"${dis?' disabled title="غير محمّل"':''}>${esc(label)}${always?'':`<span class="n">${n==null?'—':fmt(n)}</span>`}</button>`;
+        }).join('');
+    }
+    function applyChip(){
+        const tab=document.getElementById('dashboardTab'); if(!tab) return;
+        const c=dbUi.chip;
+        tab.querySelectorAll('[data-chip]').forEach(el=>{ el.hidden = c!=='all' && el.dataset.chip!==c; });
+        tab.querySelectorAll('[data-db-sec]').forEach(sec=>{
+            const items=sec.querySelectorAll('[data-chip]');
+            sec.hidden = c!=='all' && items.length>0 && ![...items].some(el=>!el.hidden);
+        });
+        tab.querySelectorAll('[data-db-chip]').forEach(b=>{ const on=b.dataset.dbChip===c; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)); });
+    }
+    function hello(){
+        const d=new Date(), h=d.getHours();
+        const g=h<12?'صباح الخير':(h<18?'نهارك سعيد':'مساء الخير');
+        let date=''; try{ date=d.toLocaleDateString('ar-IQ-u-nu-latn',{weekday:'long', day:'numeric', month:'long'}); }catch(_){}
+        return g+(date?' · '+date:'');
+    }
+    // 🔔 بالهيدر — عدد البنود العاجلة. يتحدّث مع كل رسم للوحة ومع كل تبديل تبويب (الإكسباير من آخر قراءة)
+    let lastExp=null;
+    function setBell(n){
+        const el=document.getElementById('dbBellBadge'); if(!el) return;
+        el.hidden=!n; el.textContent=n>99?'99+':String(n);
+        const b=document.getElementById('dbBellBtn'); if(b) b.title=n?`${n} تنبيه عاجل — يفتح لوحة التحليل`:'ماكو تنبيه عاجل — يفتح لوحة التحليل';
+    }
+    window.dbUpdateBell=async function(){
+        try{ lastExp=await kExpiry(); }catch(_){}   // يعيد القراءة بس إذا المخزن تغيّر (__expUrgCounts)
+        try{
+            const safeK=(fn,tab)=>{ try{ return fn(); }catch(e){ return {state:'na', tab, why:''}; } };
+            setBell(urgentCount({sync:{state:'na', tab:'offices'}, orders:safeK(kOrders,'offices'), arrival:safeK(kArrival,'deliveryTracking'), returns:safeK(kReturns,'returns'), expiry:lastExp, bonus:safeK(kBonus,'netPrice')}));
+        }catch(e){ console.error('dbUpdateBell', e); }
+    };
+
     let seq=0;
     window.dbRender=async function(force){
         const grid=document.getElementById('dbGrid'), kpis=document.getElementById('dbKpis'); if(!grid || !kpis) return;
@@ -2008,22 +2209,48 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
         let list=[]; try{ list=await sheetsMeta(force); }catch(e){ console.error('dashboard sheets', e); }
         if(my!==seq) return;   // ضغطة أحدث سبقتنا — لا نكتب فوقها
         const safeK=(fn,tab)=>{ try{ return fn(); }catch(e){ console.error('dashboard kpi', e); return {state:'na', tab, why:'⚠️ خطأ: '+(e&&e.message||e)}; } };
-        const ks={sync:safeK(()=>kSync(list),'offices'), orders:safeK(kOrders,'offices'), arrival:safeK(kArrival,'deliveryTracking'), returns:safeK(kReturns,'returns')};
+        let expiry; try{ expiry=await kExpiry(); }catch(e){ console.error('dashboard expiry', e); expiry={state:'na', tab:'expiry', why:'⚠️ خطأ: '+(e&&e.message||e)}; }
+        if(my!==seq) return;
+        lastExp=expiry;
+        const ks={sync:safeK(()=>kSync(list),'offices'), orders:safeK(kOrders,'offices'), arrival:safeK(kArrival,'deliveryTracking'), returns:safeK(kReturns,'returns'),
+                  materials:safeK(kMaterials,'soldOut'), bonus:safeK(kBonus,'netPrice'), expiry};
+        const hi=document.getElementById('dbHello'); if(hi) hi.textContent=hello();
         const put=(id,fn)=>{ const el=document.getElementById(id); if(!el) return;
             try{ el.innerHTML=fn(); }catch(e){ console.error('dashboard '+id, e); el.innerHTML=`<div class="text-xs text-red-600 py-3">⚠️ ${esc(e&&e.message||e)}</div>`; } };
         put('dbKpis', ()=>renderKpis(ks));
         put('dbAttention', ()=>renderAttention(ks));
         put('dbSyncList', ()=>renderSyncList(ks.sync));
+        put('dbBaskets', ()=>renderBaskets(ks.materials));
+        put('dbChips', ()=>renderChips(ks));
         grid.innerHTML=[safe(pNet), safe(pArchive)].join('');
+        applyChip();
+        try{ setBell(urgentCount(ks)); }catch(e){ console.error('dashboard bell', e); }
         const st=document.getElementById('dbStamp'); if(st) st.textContent='آخر تحديث: '+fmtDateTime(new Date().toISOString());
     };
+    // chip · سلة «وصل وخلص» · 🔔
+    document.addEventListener('click', e=>{
+        if(!e.target.closest) return;
+        const ch=e.target.closest('[data-db-chip]');
+        if(ch && !ch.disabled){ dbUi.chip=(dbUi.chip===ch.dataset.dbChip && ch.dataset.dbChip!=='all') ? 'all' : ch.dataset.dbChip; applyChip(); return; }
+        const so=e.target.closest('#dashboardTab [data-db-so]');
+        if(so){
+            // «عرض الكل» يمسح فلاتر التبويب المؤقتة حتى العدد يطابق السلة (Codex 11-02 #3–4)
+            Object.assign(dtSoTab, {view:'sold', bucket:so.dataset.dbSo, review:false, exp:false, boostDone:false, others:false, skipped:false, phone:'all', office:null, search:so.dataset.dbSoQ||''});
+            const s=document.getElementById('dtSoSearch'); if(s) s.value=dtSoTab.search;
+            const b=document.querySelector('#sideNav .segmented-btn[data-tab="soldOut"]'); if(b) b.click();
+            return;
+        }
+        if(e.target.closest('#dbBellBtn')){ const b=document.querySelector('#sideNav .segmented-btn[data-tab="dashboard"]'); if(b) b.click(); window.scrollTo(0,0); }
+    });
+    // أول قراءة للشارة بعد ما التطبيق يحمّل (الإكسباير من IDB، قراءة بس)
+    window.addEventListener('load', ()=>setTimeout(()=>window.dbUpdateBell(), 2500));
     document.addEventListener('click', e=>{
         const p=e.target.closest && e.target.closest('[data-db-tab]'); if(!p) return;
         const b=document.querySelector('.segmented-btn[data-tab="'+p.dataset.dbTab+'"]'); if(b && p.dataset.dbTab!=='dashboard') b.click();
     });
     document.addEventListener('keydown', e=>{
         if(e.key!=='Enter' && e.key!==' ') return;
-        const p=e.target.closest && e.target.closest('[data-db-tab]'); if(p){ e.preventDefault(); p.click(); }
+        const p=e.target.closest && e.target.closest('[data-db-tab],#dashboardTab .db-item[data-db-so]'); if(p){ e.preventDefault(); p.click(); }
     });
 })();
 // Auto-save every 30 seconds
@@ -2153,8 +2380,9 @@ async function loadFromStorage(){
 }
 
 // ======================== RESET ========================
-function doReset(){
-    if(!confirm('ريسيت كامل؟\n✅ يُحذف: الطلبيات + حالة المرسل\n✅ يُبقى: المندوبين وأرقامهم وربطهم + الاستثناءات')) return;
+async function doReset(){
+    if(!confirm('ريسيت كامل؟\n✅ يُحذف: الطلبيات + حالة المرسل\n✅ يُبقى: المندوبين وأرقامهم وربطهم + الاستثناءات\n\nتنزل نسخة احتياطية أول.')) return;
+    if(typeof window.safetyBackupThen==='function' && !(await window.safetyBackupThen('يكمل الريسيت'))) return;
     appState.orders=[];
     appState.ordersRaw=[];
     appState.sentVendors=new Set();
@@ -10226,6 +10454,7 @@ window.onload=async()=>{
         document.getElementById('tuffahXferTab').style.display=tab==='tuffahXfer'?'block':'none';
         document.getElementById('repliesStudyTab').style.display=tab==='repliesStudy'?'block':'none';
         if(tab==='dashboard') window.dbRender && window.dbRender();
+        else if(window.dbUpdateBell) setTimeout(window.dbUpdateBell, 0);   // 🔔 بالهيدر — بعد ما التبويب يرسم
         if(tab==='global'){ renderGlobalView(); gvNetEnsure(); }
         if(tab==='audit') renderAudit();
         if(tab==='allocated') renderAllocated();
@@ -10536,7 +10765,9 @@ window.onload=async()=>{
 
     // ======================== BACKUP / RESTORE ========================
     // يبني حمولة النسخة الاحتياطية من كل المصادر — مشتركة بين زر التنزيل وزر الرفع لـGitHub
-    async function buildBackupPayload(){
+    // opts.errors (اختياري): مصفوفة تنجمع بيها أخطاء القراءة اللي كانت تنبلع بصمت — شكل الملف ما يتغيّر
+    async function buildBackupPayload(opts){
+            const errs=(opts && Array.isArray(opts.errors)) ? opts.errors : [];
             if(autoSaveTimer) clearTimeout(autoSaveTimer);
             saveToStorage();
             const dump={};
@@ -10555,17 +10786,26 @@ window.onload=async()=>{
                     const v=await window.__auditIDB.get(window.__auditIDB.KEY);
                     if(Array.isArray(v)) auditRows=v;
                 }
-            }catch(e){ console.warn('backup: audit IDB read failed',e); }
+            }catch(e){ console.warn('backup: audit IDB read failed',e); errs.push('التدقيق: '+(e&&e.message||e)); }
             // اقرأ الطلبيات من IndexedDB
             let ordersRawArr=[];
             try{
                 const oj=await ordIdbGet(ORD_KEY);
                 if(oj) ordersRawArr=JSON.parse(oj);
-            }catch(e){ console.warn('backup: orders IDB read failed',e); }
+            }catch(e){ console.warn('backup: orders IDB read failed',e); errs.push('الطلبيات: '+(e&&e.message||e)); }
             // اقرأ كل الـ Excel sheets من IndexedDB
             let excelSheets={};
             try{ if(window.__excelStore) excelSheets=await window.__excelStore.getAll(); }
-            catch(e){ console.warn('backup: excel IDB read failed',e); }
+            catch(e){ console.warn('backup: excel IDB read failed',e); errs.push('شيتات الإكسل: '+(e&&e.message||e)); }
+            // نسخة الأمان (opts): saveToStorage ما ينتظر حفظ الطلبيات بـIDB ويبلع فشله، فالقراءة فوق ممكن تكون قديمة —
+            // الطلبيات من الذاكرة (هي الحقيقة)، والأرشيف يُقرا من IDB مباشرة إذا ما انحمّل (Codex 11-02 diff #1–2)
+            if(opts){
+                if(Array.isArray(appState.ordersRaw)) ordersRawArr=appState.ordersRaw;
+                if(!('ph_archive' in dump)){
+                    try{ const a=await ordIdbGet(ARCHIVE_IDB_KEY); if(a) dump.ph_archive=a; }
+                    catch(e){ errs.push('الأرشيف: '+(e&&e.message||e)); }
+                }
+            }
 
             const payload={
                 _type:'mansoor_backup_v3',          // ← نسخة موحّدة شاملة
@@ -10585,18 +10825,39 @@ window.onload=async()=>{
     }
     window.buildBackupPayload=buildBackupPayload;
 
+    // ينزّل ملف النسخة الشاملة. strict: أي جزء ما انقرا → يرمي خطأ وما ينزّل شي (حتى ما نحذف على نسخة ناقصة)
+    async function downloadFullBackup(opts){
+        const errors=[];
+        const payload=await buildBackupPayload({errors});
+        if(opts && opts.strict && errors.length) throw new Error('ما انقرت كل البيانات:\n• '+errors.join('\n• '));
+        const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        const now=new Date();
+        const pad=n=>String(n).padStart(2,'0');
+        const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+        const name=`mansoor_backup_${opts&&opts.tag?opts.tag+'_':''}FULL_${stamp}.json`;
+        a.href=url; a.download=name; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),3000);
+        return {payload, name};
+    }
+    // فكرة كبسولة 4 (2026-11-02): نسخة تلقائية قبل الريسيت/الاستعادة. التحميل ما نكدر نتأكد منه برمجياً،
+    // فالمستخدم يأكّد إنه نزل قبل ما يكمل. فشل القراءة أو «Cancel» = ولا شي ينمسح.
+    window.safetyBackupThen=async function(what){
+        let r;
+        try{
+            showToast('⏳ نسخة احتياطية قبل ما '+what+'...',true);
+            r=await downloadFullBackup({strict:true, tag:'BEFORE'});
+        }catch(e){
+            alert('❌ ما انعملت نسخة احتياطية — ما راح '+what+'، ولا شي انمسح.\n\n'+(e&&e.message||e));
+            return false;
+        }
+        return confirm(`⬇ نزلت نسخة احتياطية بـDownloads:\n${r.name}\n(${r.payload.orders} طلبية · ${r.payload.excelSheetCount} sheet · ${r.payload.totalKeys} مفتاح)\n\nتأكد إنها نزلت، بعدين OK حتى ${what}.\nCancel = ما يصير شي.`);
+    };
     document.getElementById('backupBtn').onclick=async function(){
         try{
             showToast('⏳ تجهيز النسخة الاحتياطية الشاملة...',true);
-            const payload=await buildBackupPayload();
-            const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-            const url=URL.createObjectURL(blob);
-            const a=document.createElement('a');
-            const now=new Date();
-            const pad=n=>String(n).padStart(2,'0');
-            const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
-            a.href=url; a.download=`mansoor_backup_FULL_${stamp}.json`; a.click();
-            setTimeout(()=>URL.revokeObjectURL(url),3000);
+            const {payload}=await downloadFullBackup();
             showToast(`✅ نسخة شاملة واحدة: ${payload.orders} طلبية، ${payload.auditRows} صف تدقيق، ${payload.excelSheetCount} sheet`);
         }catch(e){ alert('❌ فشل النسخ الاحتياطي:\n'+e.message); }
     };
@@ -10708,7 +10969,7 @@ window.onload=async()=>{
     }
 
     document.getElementById('restoreBtn').onclick=function(){
-        if(!confirm('⚠️ سيتم استبدال كل البيانات الحالية بالنسخة الاحتياطية — متأكد؟')) return;
+        if(!confirm('⚠️ استعادة شاملة — تستبدل كل بيانات هذا الجهاز بالملف:\n✖ ينمسح: الطلبيات · حالة المرسل · المندوبين وأرقامهم · الاستثناءات · الأرشيف · التدقيق · كل شيتات الإكسل · الإعدادات\n✔ يجي بدالها: اللي بالملف\n\nبعد ما تختار الملف، تنزل نسخة احتياطية من الحالي أول. نكمل؟')) return;
         document.getElementById('restoreFileInput').click();
     };
 
@@ -10718,6 +10979,7 @@ window.onload=async()=>{
         reader.onload=async function(e){
             try{
                 const payload=JSON.parse(e.target.result);
+                if(!(await window.safetyBackupThen('تستبدل البيانات بالملف المختار'))) return;
                 const r=await applyBackupPayload(payload);
                 alert(`✅ تم الاستعادة الشاملة\n• ${r.totalKeys||'?'} مفتاح\n• ${r.orders||'?'} طلبية\n• ${r.vendors||'?'} مكتب\n• ${r.auditRestored} صف تدقيق\n• ${r.sheetsRestored} sheet\n\nسيتم إعادة تحميل الصفحة`);
                 location.reload();
@@ -13431,6 +13693,8 @@ window.onload=async()=>{
                 if(statusEl) statusEl.textContent='✅ '+mergedRows.length.toLocaleString()+' صف ('+finalFrom+' → '+finalTo+')'+netNote;
                 showToast('✅ تمت مزامنة بيانات البونصات');
                 await qsShowStamp('qsBonusStamp','BX_Sale_Data');
+                // الكارتات بالذاكرة كانت تبقى قديمة لين تبديل التبويب أو F5 — مادة جديدة ما تطلع بالبحث بعد المزامنة (2026-10-31)
+                if(window.__bonusData || window.__bonusPools) await window.bonusTabInit();
                 // أمان: يرجّع الوضع "استبدال بالنطاق" تلقائياً بعد كل مزامنة — يمنع بقاء "مسح شامل"/"إضافة" فعّال بصمت بالمرة الجاية
                 const replaceRadio=document.querySelector('input[name="qsBonusMode"][value="replace"]');
                 if(replaceRadio) replaceRadio.checked=true;
@@ -13654,6 +13918,7 @@ window.onload=async()=>{
     // ===== سعر البيع — من تصدير product.template بأودو (عمودي Name + Sales Price). عرض فقط، بلا أي حساب.
     // المطابقة: الاسم بالضبط أولاً (فراغات/حالة الحروف)، وبعدها بلا @@ و&& — لأن «X» و«X @@» مادتان بسعرين مختلفين.
     const BONUS_PRICE_KEY='PT_Sale_Price';
+    const BONUS_NEW_KEY='BX_New_Bonus';   // 🆕 قائمة New bonus — رفع مستقل، مفتاح IndexedDB منفصل (2026-10-31)
     function bonusPriceKey(s, loose){
         let t=String(s==null?'':s);
         if(loose) t=t.replace(/[@&]+/g,' ');
@@ -13799,6 +14064,111 @@ window.onload=async()=>{
         return {total:rows.length, priced};
     }
     window.bonusPriceImport=bonusPriceImport;
+    // 🆕 قائمة New = مواد بكاتيكوري أودو مؤقتة «New bonus» = بعدها ما انرسلت للمورد. كل رفع يستبدل القائمة كاملة.
+    // تصدير أودو بيه Name، واختياري Internal Category/Name (ياخذ بس اللي بيها New). confirmNoCat=false بالاختبار.
+    async function bonusNewImport(wb, fileName, confirmNoCat, existing){
+        let f=null;
+        // نفس ملف ميمي اللي انسوّت بيه المزامنة: شيت BX_Sale_Data بس، وكل مواده New (2026-10-31)
+        const saleSn=wb.SheetNames.find(n=>n.trim().toLowerCase()==='bx_sale_data');
+        for(const sn of (saleSn ? [saleSn] : wb.SheetNames)){
+            const aoa=qsReadAoaRaw(wb, sn);
+            const hdr=(aoa[0]||[]).map(h=>String(h||'').trim());
+            let ni=hdr.findIndex(h=>/^name$/i.test(h));
+            if(ni<0) ni=hdr.findIndex(h=>/^key_product_name$/i.test(h));
+            if(ni<0) ni=hdr.findIndex(h=>/^product\/name$/i.test(h));
+            if(ni<0) continue;
+            let ci=hdr.findIndex(h=>/^(internal|product) category\/name$/i.test(h));
+            if(ci<0) ci=hdr.findIndex(h=>/^(internal|product) category$/i.test(h));
+            f={aoa, ni, ci, ei:hdr.findIndex(h=>/^external id$/i.test(h))}; break;
+        }
+        if(!f) throw new Error('الملف لازم بيه عمود Name');
+        const s=v=>String(v==null?'':v).trim();
+        let rows=f.aoa.slice(1).map(r=>({'Name':s(r[f.ni]), 'Category':f.ci>=0?s(r[f.ci]):'', 'External ID':f.ei>=0?s(r[f.ei]):''})).filter(r=>r['Name']);
+        const seen=new Set();   // شيت المبيعات بيه سطر لكل فاتورة — مادة وحدة مرة وحدة
+        rows=rows.filter(r=>{ const k=bonusPriceKey(r['Name'],false)+'|'+r['Category']; if(seen.has(k)) return false; seen.add(k); return true; });
+        // ملف ميمي: New = المواد اللي ما إلها مبيعات بالتطبيق قبل المزامنة؛ المسحوبة سابقاً تنتخطّى (2026-10-31)
+        let skipped=0;
+        if(saleSn && existing && existing.size){
+            const before=rows.length;
+            rows=rows.filter(r=>!existing.has(bonusPriceKey(r['Name'],false)));
+            skipped=before-rows.length;
+            if(!rows.length) throw new Error('كل مواد ملف ميمي ('+before+') إلها مبيعات بالتطبيق من قبل — يعني ⚡ المزامنة صارت قبل 🆕. القائمة القديمة بقت مثل ما هي');
+        }
+        if(f.ci>=0){
+            const cats=rows.map(r=>r['Category']).filter(Boolean);
+            if(cats.length && cats.every(c=>/^(__export__\.|product\.)/i.test(c))) throw new Error('عمود الكاتيكوري بيه External ID — صدّر اسم الكاتيكوري (Internal Category/Name)');
+            rows=rows.filter(r=>/\bnew\b/i.test(r['Category']));
+        } else if(confirmNoCat!==false && !confirm(saleSn && existing
+                ? ('🆕 ملف ميمي: '+rows.length.toLocaleString()+' مادة جديدة راح تنحسب New'+(skipped ? ' • تخطّيت '+skipped+' مسحوبة سابقاً (إلها مبيعات بالتطبيق)' : '')+'.\n\nمتأكد؟')
+                : ('🆕 الملف بلا عمود كاتيكوري — كل الـ'+rows.length.toLocaleString()+' مادة راح تنحسب New.\n\nمتأكد؟'))){
+            return {cancelled:true};
+        }
+        await excelDbPut(BONUS_NEW_KEY, {sheetName:BONUS_NEW_KEY, headers:['Name','Category','External ID'], rows,
+            rowCount:rows.length, importedAt:new Date().toISOString(), sourceFile:fileName||''});
+        return {rows, skipped};
+    }
+    window.bonusNewImport=bonusNewImport;
+    // المطابقة باسم المادة exact بس: «X @@» و«X &&» مادتان مختلفتان، فلا loose ولا fuzzy
+    function bonusNewLoad(rec){
+        window.__bonusNewSet=(rec && rec.rows) ? new Set(rec.rows.map(r=>bonusPriceKey(r['Name'],false)).filter(Boolean)) : null;
+        const n=window.__bonusNewSet ? window.__bonusNewSet.size : 0;
+        const cb=document.getElementById('bonusNewMode'), lab=document.getElementById('bonusNewOnlyLabel'), st=document.getElementById('qsNewBonusStamp');
+        if(cb){ cb.disabled=!n; if(!n) cb.value=''; }   // بلا قائمة الفلتر يرجع «الكل» وينقفل — ما يعرض قديم على أساس إنه جديد
+        if(lab) lab.textContent=n ? ('('+n.toLocaleString()+' مادة New)') : '— ارفع قائمة New أول';
+        if(st) st.textContent=rec ? ('قائمة New: آخر رفع '+fmtDateTime(rec.importedAt)+' • '+n.toLocaleString()+' مادة') : 'قائمة New: لم ترفع بعد';
+    }
+    function bonusIsNew(product){ const s=window.__bonusNewSet; return !!s && s.has(bonusPriceKey(product,false)); }
+    // فلتر 🆕 ثلاثي: '' الكل · 'new' New بس · 'old' القديم بس
+    function bonusNewModeOk(product){
+        const m=(document.getElementById('bonusNewMode')||{}).value||'';
+        return m==='new' ? bonusIsNew(product) : m==='old' ? !bonusIsNew(product) : true;
+    }
+    // 🆕 لكل مكتب: كم مادة New إلها مبيعات وياه (كل التواريخ) — كاش لين تتغيّر البيانات أو القائمة
+    function bonusNewOfficeCount(office){
+        const d=window.__bonusData, s=window.__bonusNewSet;
+        if(!d || !s || !s.size) return 0;
+        let c=window.__bonusNewOffCache;
+        if(!c || c.d!==d || c.s!==s){
+            const m=new Map();
+            d.rows.forEach(r=>{
+                const p=r[d.keys.product]; if(!p || !bonusIsNew(p)) return;
+                bonusRowOffices(r, d.keys).split(',').forEach(o=>{ const t=o.trim(); if(!t) return; if(!m.has(t)) m.set(t,new Set()); m.get(t).add(bonusPriceKey(p,false)); });
+            });
+            c=window.__bonusNewOffCache={d, s, m};
+        }
+        return (c.m.get(String(office).trim())||{size:0}).size;
+    }
+    function bonusNewOfficeTag(o){ const n=bonusNewOfficeCount(o); return n ? ` <b style="color:#b45309" title="مواد New إلها مبيعات ويا هذا المكتب">🆕 ${n}</b>` : ''; }
+    window.qsSyncNewBonus=function(){
+        const input=document.createElement('input');
+        input.type='file'; input.accept='.xlsx,.xls,.xlsm,.csv'; input.style.display='none';
+        input.addEventListener('change', async function(){
+            const file=input.files && input.files[0]; input.remove();
+            if(!file) return;
+            const statusEl=document.getElementById('qsNewBonusStatus');
+            try{
+                if(statusEl) statusEl.textContent='⏳ جاري القراءة...';
+                if(!window.__bonusAllProducts) await window.bonusTabInit();
+                const existing=new Set((window.__bonusAllProducts||[]).map(p=>bonusPriceKey(p,false)));
+                const res=await bonusNewImport(XLSX.read(await file.arrayBuffer(), {type:'array'}), file.name, undefined, existing);
+                if(res.cancelled){ if(statusEl) statusEl.textContent='⚠️ أُلغي — القائمة القديمة بلا تغيير'; return; }
+                // القائمة داخلة بـsrcSig = إعادة بناء + bonusApplyFilters، فالطباعتين يشوفن القائمة الجديدة فوراً
+                await window.bonusTabInit();
+                const known=new Set((window.__bonusAllProducts||[]).map(p=>bonusPriceKey(p,false)));
+                const miss=res.rows.filter(r=>!known.has(bonusPriceKey(r['Name'],false))).length;
+                const msg='✅ '+res.rows.length.toLocaleString()+' مادة New'+(res.skipped ? ' • تخطّيت '+res.skipped+' مسحوبة سابقاً' : '')
+                    +(miss ? ' • '+miss+' منها ما إلها مبيعات بعد ← سوّ ⚡ مزامنة بوضع ➕ إضافة' : '');
+                if(statusEl) statusEl.textContent=msg;
+                showToast(msg);
+            }catch(e){
+                if(statusEl) statusEl.textContent='❌ خطأ: '+e.message;
+                showToast('❌ خطأ: '+e.message);
+                console.error('new bonus upload failed', e);
+            }
+        });
+        document.body.appendChild(input);
+        input.click();
+    };
     window.qsSyncSalePrice=function(){
         const input=document.createElement('input');
         input.type='file'; input.accept='.xlsx,.xls,.xlsm'; input.style.display='none';
@@ -13851,6 +14221,7 @@ window.onload=async()=>{
         function bonusRowNonDateMatch(r){
             if(officesTerm && !bonusMultiMatch(bonusRowOffices(r, keys), officesTerm)) return false;
             if(materialsTerm && !bonusMultiMatch(r[keys.product], materialsTerm)) return false;
+            if(!bonusNewModeOk(r[keys.product])) return false;
             // الشركة من ملف الأسعار، أو مذكورة باسم المادة نفسه (مواد قديمة انحذفت/تغيّر اسمها ما إلها شركة بالملف)
             if(companyTerm && !bonusMultiMatch((bonusProductInfo(r[keys.product])||{}).company, companyTerm)
                 && !bonusMultiMatch(r[keys.product], companyTerm)) return false;
@@ -13915,17 +14286,28 @@ window.onload=async()=>{
         bonusRenderPools(poolList, filtered.length);
     };
 
-    window.bonusClearFilters=function(){
+    window.bonusClearFilters=function(noApply){
         ['bonusFromDate','bonusToDate','bonusOfficeFilter','bonusMaterialFilter','bonusCompanyFilter'].forEach(id=>{
             const el=document.getElementById(id); if(el) el.value='';
         });
+        const nb=document.getElementById('bonusNewMode'); if(nb) nb.value='';
         window.__bonusSelectedMonths=new Set();
         window.__bonusOfficeSelected=new Set();
         if(window.__bonusNetFilter) window.__bonusNetFilter.clear();
         bonusRenderMonthCards();
         bonusRenderOfficeChips();
         const resBox=document.getElementById('bonusOfficeResults'); if(resBox) resBox.classList.add('hidden');
+        if(noApply!==true) window.bonusApplyFilters();
+    };
+    // 🆕 كل مواد قائمة New لحالها: يمسح باقي الفلاتر (كل التواريخ) ويختار «New بس»
+    window.bonusShowAllNew=function(){
+        const n=window.__bonusNewSet ? window.__bonusNewSet.size : 0;
+        if(!n){ alert('ارفع قائمة New أول (زر 🆕 رفع قائمة New).'); return; }
+        window.bonusClearFilters(true);
+        const nb=document.getElementById('bonusNewMode'); if(nb) nb.value='new';
         window.bonusApplyFilters();
+        const cards=(window.__bonusPools||[]).length;
+        showToast('🆕 '+cards+' من '+n+' مادة New إلها كارت'+(n>cards ? ' • '+(n-cards)+' ما إلها مبيعات بالتطبيق ← سوّ ⚡ مزامنة بوضع ➕ إضافة' : ''));
     };
 
     // ================================================================
@@ -14059,7 +14441,7 @@ window.onload=async()=>{
         listEl.innerHTML=matches.map(o=>`
             <label class="flex items-center gap-1 text-xs">
                 <input type="checkbox" ${window.__bonusOfficeSelected.has(o)?'checked':''} onchange="window.bonusOfficeToggle('${o.replace(/'/g,"\\'")}', this.checked)">
-                <span class="truncate">${bonusEsc(o)}</span>
+                <span class="truncate">${bonusEsc(o)}${bonusNewOfficeTag(o)}</span>
             </label>`).join('');
     };
     window.bonusOfficeToggle=function(office, checked){
@@ -14090,7 +14472,7 @@ window.onload=async()=>{
         bar.classList.remove('hidden');
         chipsEl.innerHTML=selected.map(o=>`
             <span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style="background:#dbeafe;color:#1e40af">
-                ${bonusEsc(o)}
+                ${bonusEsc(o)}${bonusNewOfficeTag(o)}
                 <button onclick="window.bonusOfficeToggle('${o.replace(/'/g,"\\'")}', false); document.getElementById('bonusOfficeSearch') && window.bonusOfficeSearchGo();" style="color:#1e40af">✕</button>
             </span>`).join('');
     }
@@ -14107,6 +14489,8 @@ window.onload=async()=>{
         if(!window.__bonusUndoStack.length){ showToast('⚠️ ماكو خطوة نرجعلها'); return; }
         const snap=window.__bonusUndoStack.pop();
         window.__bonusPools=JSON.parse(snap);
+        // لقطة قبل إعادة رفع قائمة New ممكن بيها مادة انشالت منها — ما ترجع وفلتر New مشغّل (Codex 2026-10-31)
+        window.__bonusPools=window.__bonusPools.filter(p=>bonusNewModeOk(p.product));
         bonusRenderPools(window.__bonusPools, window.__bonusPools.reduce((s,p)=>s+p.rows.length,0));
         showToast('↶ تراجعت خطوة');
     };
@@ -14384,6 +14768,7 @@ window.onload=async()=>{
         const pctInp=document.getElementById('bonusAddMaterialPct');
         const name=(nameInp&&nameInp.value||'').trim();
         if(!name){ alert('اكتب اسم المادة.'); return; }
+        if(!bonusNewModeOk(name)){ alert('🆕 فلتر New/القديم مشغّل — «'+name+'» ما تطابقه.'+String.fromCharCode(10)+'رجّع الفلتر لـ«الكل» إذا تريد تضيفها.'); return; }
         const pools=window.__bonusPools=window.__bonusPools||[];
         const existing=pools.find(p=>p.product===name);
         if(existing){
@@ -15000,6 +15385,7 @@ window.onload=async()=>{
                         <input type="checkbox" ${p.enabled?'checked':''} data-bonus-material-check data-pidx="${pidx}" title="مؤشَّرة = تدخل بالطباعة والملخص">
                         <span class="font-black text-xs" style="min-width:22px;text-align:center;color:#6b7280;background:#f1f5f9;border-radius:6px;padding:2px 6px" title="تسلسل المادة">${pidx+1}</span>
                         <div class="font-bold text-sm">${bonusEsc(p.product)}</div>
+                        ${bonusIsNew(p.product) ? '<span class="text-[11px] font-black" style="background:#fef3c7;color:#b45309;border:1px solid #f59e0b;border-radius:999px;padding:1px 7px" title="بقائمة New — بعدها ما انرسلت للمورد">🆕 New</span>' : ''}
                         ${bonusSalePriceHtml(p.product, pidx)}
                         <span class="text-[11px] text-gray-500" dir="ltr" title="فترة البونص: من أول لآخر مبيع ببونص (ضمن فلتر التاريخ)">📅 ${bonusEsc(bonusSpan(p))}</span>
                     </div>
@@ -15060,10 +15446,11 @@ window.onload=async()=>{
                 return;
             }
         }
-        const all=await window.__excelStore.getSheets(['BX_Sale_Data',BONUS_PRICE_KEY,'Sheet2']);
+        const all=await window.__excelStore.getSheets(['BX_Sale_Data',BONUS_PRICE_KEY,'Sheet2',BONUS_NEW_KEY]);
         window.__bonusInitVer=ver;   // بعد القراءة الناجحة بس — قراءة فاشلة تنعاد بالفتحة الجاية
         const rec=all['BX_Sale_Data']||null;
         bonusLoadPrices(all[BONUS_PRICE_KEY]||null);
+        bonusNewLoad(all[BONUS_NEW_KEY]||null);
         await bonusNetRefresh();
         bonusRegLoad(all['Sheet2']||null);
         const empty=document.getElementById('bonusEmptyState');
@@ -15073,7 +15460,7 @@ window.onload=async()=>{
         // المصادر نفسها (نفس وقت المزامنة ونفس عدد الصفوف — حذف شهر يغيّر rowCount) → نعيد الرسم بس من __bonusPools الحالية.
         // مو __excelStoreVer: مزامنة شيت ثاني ما إله علاقة كانت راح تمسح التعديلات بلا سبب
         const sigOf=r=>r ? (r.importedAt||'')+'#'+(r.rowCount!=null ? r.rowCount : (r.rows||[]).length) : '-';
-        const srcSig=[sigOf(rec), sigOf(all[BONUS_PRICE_KEY]), sigOf(all['Sheet2'])].join('|');
+        const srcSig=[sigOf(rec), sigOf(all[BONUS_PRICE_KEY]), sigOf(all['Sheet2']), sigOf(all[BONUS_NEW_KEY])].join('|');
         if(rec && rec.rows && rec.rows.length && window.__bonusPools && window.__bonusSrcSig===srcSig && npSame()){
             empty.classList.add('hidden'); main.classList.remove('hidden');
             bonusRenderPools(window.__bonusPools, window.__bonusRowCount||0);
@@ -15366,6 +15753,7 @@ window.onload=async()=>{
         const pc=v=>(Math.round(v*1000)/10)+'%', rows=[], zHide=bonusZeroMatHidden();
         (window.__bonusPools||[]).forEach(p=>{
             if(zHide && bonusIsZeroMat(p)) return;   // زر «المواد بلا بونص: مخفية» يشملها هنا هم
+            if(p.enabled===false) return;   // غير مؤشَّرة (مثلاً «تحديد الكل عدا بونصها صفر») — مثل طباعة الصيدليات (2026-10-31)
             // البونص الطالع للمادة (طلب 2026-10-26) = الفعلي بالكارت (صفوف الصيدليات المؤشَّرة) + المقطوع على اسم المكتب
             const outOff=(p.rows||[]).reduce((s,r)=>s+(r.isOffice ? (r.bonus||0) : 0), 0), out=(p.bonus||0)+outOff, span=bonusSpan(p);
             (bonusNetOffices(p.product)||[]).forEach(o=>{
@@ -15609,7 +15997,7 @@ window.onload=async()=>{
         if(!window.__bonusNet){ alert('أسعار النت ما مزامَنة — سوّي ⚡ مزامنة سريعة أول (بعد زر «أسعار نت مع بونص» بالإكسل).'); return; }
         const all=bonusOfficeReportRows().filter(r=>!bonusOffIsHid(r.office)), zHide=bonusZeroMatHidden();
         const byName=(a,b)=>String(a.product).localeCompare(String(b.product),'en',{sensitivity:'base',numeric:true});
-        const noBuy=(window.__bonusPools||[]).filter(p=>!(zHide && bonusIsZeroMat(p)) && bonusNetKinds(p).has('nopurch')).map(p=>{
+        const noBuy=(window.__bonusPools||[]).filter(p=>p.enabled!==false && !(zHide && bonusIsZeroMat(p)) && bonusNetKinds(p).has('nopurch')).map(p=>{   // غير المؤشَّرة تنشال مثل bonusOfficeReportRows (Codex 2026-11-01)
             const outOff=(p.rows||[]).reduce((s,r)=>s+(r.isOffice ? (r.bonus||0) : 0), 0);
             return {product:p.product, out:(p.bonus||0)+outOff, outOff, card:p.pct>0 ? (Math.round(p.pct*1000)/10)+'%' : '—', span:bonusSpan(p)};
         }).sort(byName);
@@ -18513,6 +18901,26 @@ window.onload=async()=>{
         if(m<8) return '8m';
         return 'ok';
     }
+    // للداشبورد (2026-11-02) — قراءة بس: عدّ الشرائح على كل البيانات بلا فلاتر التبويب. null = الشيت مو محمّل.
+    // loadExpiryData يقرا IDB ويعبّي expState.data بس (بلا كتابة) — نفس اللي يصير لما ينفتح التبويب.
+    let urgVer=-1;   // نعيد القراءة إذا المخزن تغيّر (مزامنة هنا أو بتبويب ثاني) — Codex 11-02 diff #3
+    window.__expUrgCounts=async function(){
+        const ver=window.__excelStoreVer||0;
+        if(!expState.data.length || ver!==urgVer){ try{ await loadExpiryData(); urgVer=ver; }catch(_){ return null; } }
+        if(!expState.data.length) return null;
+        const c={total:expState.data.length, expired:0,'1m':0,'3m':0,'6m':0,'8m':0,ok:0};
+        expState.data.forEach(x=>{ const u=expUrgency(x); if(c[u]!==undefined) c[u]++; });
+        return c;
+    };
+    // دليل الألوان فوق الجدول — نفس EXP_URG_* + لون عمود الرصيد اللي يغلب الشريحة
+    (function legend(){
+        const el=document.getElementById('expLegend');
+        if(!el){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', legend, {once:true}); return; }
+        const sw=(bg,bd,txt)=>`<span style="background:${bg};border-right:4px solid ${bd};border-radius:6px;padding:3px 8px;font-weight:700;color:#1C1C1E">${txt}</span>`;
+        el.innerHTML='<span class="text-gray-500 font-bold ml-1">الألوان:</span>'
+            +Object.keys(EXP_URG_LABELS).map(k=>sw(EXP_URG_BG[k], EXP_URG_COLORS[k], EXP_URG_LABELS[k])).join('')
+            +sw('rgba(255,59,48,0.14)','#ef4444','خطأ صريح بالرصيد')+sw('rgba(255,149,0,0.12)','#d97706','رصيد مضخم');
+    })();
     function parseExpiryDate(val){
         if(val===''||val==null) return null;
         const s=String(val).trim();
@@ -23047,6 +23455,8 @@ function tfxSimplePass(c, s){
                 <button id="expClearSelBtn" class="ios-btn bg-gray-200 px-3 py-1.5 text-xs text-gray-700"><i class="fas fa-times ml-1"></i>إلغاء التحديد</button>
             </div>
 
+            <!-- دليل ألوان الصفوف (فكرة كبسولة 7) — يتولّد من EXP_URG_* حتى ما يختلف عن الجدول -->
+            <div id="expLegend" class="flex flex-wrap items-center gap-1.5 mb-2 text-[12px]" aria-label="دليل ألوان الصفوف"></div>
             <!-- Table -->
             <div class="overflow-auto border-2 border-gray-200 rounded-xl" style="max-height:60vh">
                 <table class="w-full" id="expTable" style="font-size:17px;table-layout:auto">
@@ -23772,6 +24182,8 @@ function tfxSimplePass(c, s){
                 <span id="qsBonusStatus" class="text-xs text-gray-500"></span>
                 <button onclick="window.qsSyncSalePrice()" class="ios-btn text-white px-3 py-2 text-sm font-bold" style="background:#047857" title="اختر تصدير product.template من أودو — لازم بيه عمود Name وعمود Sales Price"><i class="fas fa-tag ml-1"></i>💰 مزامنة سعر البيع</button>
                 <span id="qsSalePriceStatus" class="text-xs text-gray-500"></span>
+                <button onclick="window.qsSyncNewBonus()" class="ios-btn text-white px-3 py-2 text-sm font-bold" style="background:#b45309" title="نفس ملف ميمي اللي سويت بيه المزامنة (يقرا BX_Sale_Data وكل مواده New) — أو تصدير مواد من أودو بيه Name (ولو بيه Internal Category/Name ياخذ بس اللي بيها New). كل رفع يستبدل القائمة كاملة">🆕 رفع قائمة New</button>
+                <span id="qsNewBonusStatus" class="text-xs text-gray-500"></span>
                 <label class="flex items-center gap-1 text-xs font-bold" style="color:#047857" title="يخفي شارات السعر من الكاردات — الأسعار تبقى مخزونة">
                     <input type="checkbox" id="bonusShowPrice" checked onchange="window.bonusTogglePrice(this.checked)"> إظهار أسعار البيع
                 </label>
@@ -23789,6 +24201,7 @@ function tfxSimplePass(c, s){
             </div>
             <div id="qsBonusStamp" class="text-[10px] text-gray-400 mt-2">لم تتم المزامنة بعد</div>
             <div id="qsSalePriceStamp" class="text-[10px] text-gray-400">أسعار البيع: لم تتم المزامنة بعد</div>
+            <div id="qsNewBonusStamp" class="text-[10px] text-gray-400">قائمة New: لم ترفع بعد</div>
             <div id="qsNetStamp" class="text-[10px] text-gray-400">أسعار النت: لم تتم المزامنة بعد</div>
         </div>
 
@@ -23863,6 +24276,12 @@ function tfxSimplePass(c, s){
                         <input type="text" id="bonusCompanyFilter" list="bonusCompanyList" placeholder="مثلاً: PIONEER" class="ios-input text-sm w-full">
                         <datalist id="bonusCompanyList"></datalist>
                     </div>
+                    <label class="flex items-center gap-1 text-xs font-bold" style="color:#b45309;padding-bottom:8px" title="الكل · New بس (مواد زر 🆕 رفع قائمة New) · القديم بس — مطابقة باسم المادة بالضبط. العرض والطباعة يتبعونه">
+                        🆕 <select id="bonusNewMode" disabled onchange="window.bonusApplyFilters()" class="ios-input text-xs font-bold" style="padding:4px 6px;color:#b45309">
+                            <option value="">الكل (جديد + قديم)</option><option value="new">🆕 New بس</option><option value="old">القديم بس</option>
+                        </select> <span id="bonusNewOnlyLabel">— ارفع قائمة New أول</span>
+                    </label>
+                    <button onclick="window.bonusShowAllNew()" class="ios-btn text-xs px-3 py-2 font-bold" style="background:#fef3c7;color:#b45309;border:1px solid #f59e0b" title="يمسح باقي الفلاتر ويعرض كل مواد قائمة New لحالها">🆕 اعرض New كلها</button>
                     <button onclick="window.bonusApplyFilters()" class="ios-btn text-white px-4 py-2 text-sm font-bold" style="background:#7c3aed">فلترة</button>
                     <button onclick="window.bonusClearFilters()" class="ios-btn text-xs px-3 py-2" title="يمسح حقول الفلتر فقط">↺ مسح الفلتر</button>
                     <button onclick="window.bonusUndo()" class="ios-btn text-xs px-3 py-2" title="يرجع آخر تعديل (تأشير/إضافة/تغيير نسبة)">↶ تراجع</button>
