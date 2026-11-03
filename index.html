@@ -196,6 +196,18 @@
         .cmdk-it.on small { color:rgba(255,255,255,.75); }
         .cmdk-empty { padding:18px; text-align:center; color:var(--text-3); font-size:13.5px; }
         .cmdk-mob { display:none; }
+        /* 💊 بطاقة المادة (2026-11-02) — تنفتح من Ctrl+K، قراءة بس */
+        .ic-body { padding:4px 14px 14px; max-height:min(560px, 75vh); overflow-y:auto; }
+        .ic-head b { font-size:16px; } .ic-head small { display:block; color:var(--text-3); font-size:12px; }
+        .ic-cap { font-size:11px; color:var(--text-3); font-weight:700; margin:10px 0 4px; }
+        .ic-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+        .ic-tbl th, .ic-tbl td { padding:5px 6px; border-bottom:.5px solid var(--separator); text-align:start; }
+        .ic-tbl th { color:var(--text-3); font-weight:600; font-size:11.5px; }
+        .ic-tbl td:nth-child(2) { font-variant-numeric:tabular-nums; font-weight:700; }
+        .ic-cheap td { background:rgba(52,199,89,.12); }
+        .ic-na { color:var(--text-3); font-weight:400; }
+        .ic-line { margin-top:8px; font-size:13px; }
+        .ic-foot { margin-top:10px; font-size:11px; color:var(--text-3); }
         @media (max-width:1099.98px){
             .app-header .hdr-actions > .cmdk-open.ios-btn { display:none; }
             .cmdk-mob { display:grid; place-items:center; order:4; width:44px; height:44px; border:none; border-radius:22px; background:var(--fill); color:var(--text); font-size:16px; cursor:pointer; align-self:center; }
@@ -664,6 +676,10 @@
     <div class="cmdk-q"><i class="fas fa-magnifying-glass"></i><input id="cmdkInput" type="search" placeholder="دوّر على تبويب أو أمر…" autocomplete="off" aria-controls="cmdkList"><kbd>Esc</kbd></div>
     <div id="cmdkList" class="cmdk-list" role="listbox"></div>
 </dialog>
+<dialog id="itemCard" class="cmdk" aria-label="بطاقة المادة">
+    <div class="tab-sheet-head"><h3>💊 بطاقة المادة</h3><button type="button" class="tab-sheet-x" data-close aria-label="إغلاق"><span>✕</span></button></div>
+    <div id="itemCardBody" class="ic-body"></div>
+</dialog>
 <script>
 (function(){
     // toast الخطأ (❌) ينسد بالضغط عليه
@@ -723,6 +739,7 @@
     function render(){
         const t=norm(q.value.trim());
         shown=t ? items.filter(i=>norm(i.text+' '+i.sub).includes(t)) : items;
+        if(t.length>=2) shown=shown.concat(matHits(t));
         if(sel>=shown.length) sel=Math.max(0,shown.length-1);
         list.innerHTML='';
         if(!shown.length){ const e=document.createElement('div'); e.className='cmdk-empty'; e.textContent='ماكو نتيجة'; list.appendChild(e); return; }
@@ -737,7 +754,69 @@
         });
         mark();
     }
-    function run(it){ closeDlg(ck); it.el.click(); if(it.tab) window.scrollTo(0,0); }
+    function run(it){
+        if(it.na) return;
+        closeDlg(ck);
+        if(it.mat){ openCard(it.mat); return; }
+        it.el.click(); if(it.tab) window.scrollTo(0,0);
+    }
+
+    // 💊 المواد بـCtrl+K ← بطاقة المادة. المرحلة 1: أسعار النت بس (__npState).
+    // مطابقة exact على r.key (keyOf) — بلا loose/tight حتى «X» و«X@» يبقون مادتين (Codex 2026-11-02).
+    // قراءة بس: ما ينادي npNetFor/npOfficesFor (يكتبون cache) ولا يكتب ph_*.
+    function icIndex(rows){
+        const m=new Map();
+        (rows||[]).forEach(r=>{
+            if(!r || !r.key) return;
+            const o=m.get(r.key);
+            if(!o) m.set(r.key, {key:r.key, name:r.name, company:r.company||''});
+            else if(!o.company && r.company) o.company=r.company;
+        });
+        return [...m.values()];
+    }
+    function icCard(rows, log, key){
+        const mine=(rows||[]).filter(r=>r && r.key===key);
+        if(!mine.length) return null;
+        const priced=r=>r.net!=null && r.net>0;
+        // بلا سعر (بونص مقدماً) بالآخر — مو صفر
+        const offers=mine.map(r=>({vendor:r.vendor, net:priced(r) ? r.net : null, deal:r.deal||'', date:r.date||'', cheap:!!r.cheap && priced(r)}))   // r.cheap = الأرخص وأكثر من مكتب مسعّر (npParse) — مكتب وحيد ما ينوسم
+            .sort((a,b)=>(a.net==null)-(b.net==null) || (a.net-b.net) || String(a.vendor).localeCompare(String(b.vendor)));
+        const ents=(log && typeof log.get==='function' && log.get(key)) || [];   // مرتّب من الأحدث
+        const last=ents.find(e=>e.purchase) || null;
+        // السجل مرتّب بتاريخ الشراء — البونص المتأخر الأحدث ينختار بتاريخ **وصوله** (Codex 2026-11-02)
+        const lk=e=>String(e.lateDate||e.date||'');
+        const late=ents.filter(e=>e.late>0).reduce((b,e)=>(!b || lk(e)>lk(b)) ? e : b, null);
+        const co=mine.find(r=>r.company);
+        return { name:mine[0].name, company:co ? co.company : '', offers,
+            last:last ? {vendor:last.vendor, date:last.date, paid:last.paid||0, same:last.same||0} : null,
+            lateBonus:late ? {vendor:late.vendor, qty:late.late, date:late.lateDate||late.date||''} : null };
+    }
+    let matIdx=[], matFor=null;
+    function matHits(t){
+        const st=window.__npState, rows=st && st.rows;
+        if(!Array.isArray(rows)) return [{kind:'المواد', text:'أسعار النت ما محمّلة — افتح تبويب «أسعار نت» مرة', sub:'', na:true}];
+        if(matFor!==rows){ matFor=rows; matIdx=icIndex(rows).map(m=>({kind:'المواد', text:m.name, sub:m.company, mat:m.key, _n:norm(m.name+' '+m.company)})); }
+        return matIdx.filter(m=>m._n.includes(t)).slice(0,30);
+    }
+    const ic=document.getElementById('itemCard'), icBody=document.getElementById('itemCardBody');
+    const icEsc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const icN=v=>Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
+    function openCard(key){
+        const st=window.__npState, c=st && Array.isArray(st.rows) ? icCard(st.rows, st.log, key) : null;
+        if(!c) return;
+        const e=icEsc;
+        let h=`<div class="ic-head"><b>${e(c.name)}</b>${c.company ? `<small>${e(c.company)}</small>` : ''}</div>`
+            +'<div class="ic-cap">أسعار النت بالمكاتب — الأرخص أول</div>'
+            +'<table class="ic-tbl"><thead><tr><th>المكتب</th><th>النت</th><th>الديل</th><th>التاريخ</th></tr></thead><tbody>'
+            +c.offers.map(o=>`<tr${o.cheap ? ' class="ic-cheap"' : ''}><td>${e(o.vendor)}${o.cheap ? ' 🏷️' : ''}</td><td>${o.net==null ? '<span class="ic-na">بلا سعر</span>' : icN(o.net)}</td><td>${e(o.deal)}</td><td>${e(o.date)}</td></tr>`).join('')
+            +'</tbody></table>';
+        if(c.last) h+=`<div class="ic-line">🧾 آخر شراء: <b>${e(c.last.vendor)}</b> · ${e(c.last.date)} · ${icN(c.last.paid)}${c.last.same>0 ? ' + بونص '+icN(c.last.same) : ''}</div>`;
+        if(c.lateBonus) h+=`<div class="ic-line">⏱️ بونص وصل متأخر: ${icN(c.lateBonus.qty)} من <b>${e(c.lateBonus.vendor)}</b>${c.lateBonus.date ? ' · '+e(c.lateBonus.date) : ''}</div>`;
+        const d=st.importedAt ? new Date(st.importedAt) : null;   // fmtDateTime مو global
+        const imp=d ? (isNaN(d) ? st.importedAt : d.toLocaleString('en-GB',{dateStyle:'short', timeStyle:'short'})) : '';
+        h+=`<div class="ic-foot">المصدر: أسعار نت${imp ? ' · استيراد '+e(imp) : ''}</div>`;
+        icBody.innerHTML=h; openDlg(ic);
+    }
     function open(){ items=collect(); q.value=''; sel=0; render(); openDlg(ck); setTimeout(()=>q.focus(),0); }
     q.addEventListener('input',()=>{ sel=0; render(); });
     q.addEventListener('keydown',e=>{
@@ -752,7 +831,8 @@
         if(ck.open) closeDlg(ck); else if(!document.querySelector('dialog[open]')) open();
     });
     document.querySelectorAll('.cmdk-open').forEach(b=>b.addEventListener('click',open));
-    [set,ck].forEach(d=>d.addEventListener('click',e=>{ if(e.target===d) closeDlg(d); }));
+    [set,ck,ic].forEach(d=>d.addEventListener('click',e=>{ if(e.target===d) closeDlg(d); }));
+    ic.querySelector('[data-close]').onclick=()=>closeDlg(ic);
     set.querySelector('[data-close]').onclick=()=>closeDlg(set);
     const so=document.getElementById('settingsOpenBtn'); if(so) so.addEventListener('click',()=>{ buildSettings(); openDlg(set); });
 })();
@@ -937,6 +1017,10 @@
                         <label class="flex items-center gap-1" title="مواد ما موجودة عند مكتب ثاني"><input type="checkbox" data-sm="ov:none" checked onchange="sendModeToggle(this)"> بلا مكاتب أخرى</label>
                         <label class="flex items-center gap-1" title="مادة موجودة عند مكتب ثاني وهذا المكتب هو الأرخص أو مساوي"><input type="checkbox" data-sm="ov:cheap" checked onchange="sendModeToggle(this)"> بيها مكاتب — الأرخص</label>
                         <label class="flex items-center gap-1" title="مادة موجودة عند مكتب ثاني وهذا المكتب أغلى (هي اللي تتأجّل بـ«الأرخص فقط»)"><input type="checkbox" data-sm="ov:dear" checked onchange="sendModeToggle(this)"> بيها مكاتب — المؤجّلة</label>
+                        <span style="color:#9ca3af">|</span>
+                        <span title="نفس الصرف الشهري مال الفيندور الشامل (قطعة/شهر). المادة بلا حركة أو كميتها Check = صفر — المواد اللي تطابق الشرط ما تنرسل">🙈 أخفِ اللي صرفها الشهري</span>
+                        <select id="sendMonOp" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="sendMonSet('op',this.value)"><option value="">—</option><option value=">=">≥</option><option value="<=">≤</option><option value="=">=</option></select>
+                        <input type="number" min="0" id="sendMonVal" class="ios-input text-xs text-center" style="width:60px;padding:2px 4px" placeholder="رقم" oninput="sendMonSet('val',this.value)">
                     </div>
                     <div id="sendModeHint" class="hidden text-center mt-1" style="font-size:11px"></div>
                 </div>
@@ -1018,6 +1102,7 @@
                                 <th class="p-2">#</th>
                                 <th class="p-2 sortable" data-sort="itemName">اسم المادة <span class="sort-ind" id="sort-itemName"></span></th>
                                 <th class="p-2 sortable" data-sort="requiredQtyNum">الكمية <span class="sort-ind" id="sort-requiredQtyNum"></span></th>
+                                <th class="p-2 sortable" data-sort="monthlyNum" title="الصرف الشهري (قطعة/شهر) — نفس رقم الفيندور الشامل">الصرف الشهري <span class="sort-ind" id="sort-monthlyNum"></span></th>
                                 <th class="p-2">الرصيد</th>
                                 <th class="p-2 sortable" data-sort="hasOtherVendors">مكاتب أخرى <span class="sort-ind" id="sort-hasOtherVendors"></span></th>
                                 <th class="p-2 sortable" data-sort="share">الحصة <span class="sort-ind" id="sort-share"></span></th>
@@ -1078,8 +1163,7 @@
             </div>
           </div>
           <div class="fgrp" style="--c:#0d9488" title="عرض وطباعة هذا التبويب بس — ما يغيّر الطلبية ولا الإرسال ولا متابعة الوصول. فاضي = بلا حد"><span class="fgl">📈 الصرف والتغطية</span>
-            <label class="text-sm flex items-center gap-1">صرف شهري من <input type="number" min="0" id="globalMonFrom" class="ios-input w-16 text-sm" placeholder="—" oninput="gvRangeSet('monFrom',this.value)"></label>
-            <label class="text-sm flex items-center gap-1">إلى <input type="number" min="0" id="globalMonTo" class="ios-input w-16 text-sm" placeholder="—" oninput="gvRangeSet('monTo',this.value)"></label>
+            <label class="text-sm flex items-center gap-1" title="المادة بلا حركة أو كميتها Check = صفر (نفس فلتر المكاتب، بس مستقل عنه)">🙈 أخفِ اللي صرفها الشهري <select id="globalMonOp" class="ios-input text-sm" style="width:auto;padding:2px 4px" onchange="gvRangeSet('monOp',this.value)"><option value="">—</option><option value=">=">≥</option><option value="<=">≤</option><option value="=">=</option></select> <input type="number" min="0" id="globalMonVal" class="ios-input w-16 text-sm" placeholder="رقم" oninput="gvRangeSet('monVal',this.value)"></label>
             <label class="text-sm flex items-center gap-1" title="يخفي المواد اللي رصيدها يغطي أكثر من هذا العدد من الأيام (عمود التغطية من CompareSheet)">🙈 تغطية أكثر من <input type="number" min="0" id="globalCovMax" class="ios-input w-16 text-sm" placeholder="—" oninput="gvRangeSet('covMax',this.value)"> يوم</label>
           </div>
           <div class="fgrp" style="--c:#b91c1c"><span class="fgl">💲 أسعار النت</span>
@@ -2043,7 +2127,7 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
             push('expiry',L);
         }
         if(!b || b.state==='na') push('bonus',[{lv:2, tab:'netPrice', t:'أسعار نت مع بونص غير محمّلة', s:(b&&b.why)||''}]);
-        else push('bonus',[b.late ? {lv:1, tab:'netPrice', t:`${fmt(b.late)} سطر بونص متأخر`, s:'أسعار نت مع بونص · كل الأسطر'} : {lv:3, tab:'netPrice', t:'ماكو بونص متأخر', s:'أسعار نت مع بونص'}]);
+        else push('bonus',[b.late ? {lv:3, tab:'netPrice', t:`${fmt(b.late)} سطر بونص وصل متأخر`, s:'أسعار نت مع بونص · معلومة، مو نقص (Linked Bonus)'} : {lv:3, tab:'netPrice', t:'ماكو بونص وصل متأخر', s:'أسعار نت مع بونص'}]);
         return legacyAttention({orders:o, arrival:a, returns:r, sync:s}).concat(it);
     }
     function renderAttention(ks){
@@ -2105,7 +2189,7 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
         if(!st || !Array.isArray(st.rows)) return panel('netPrice','💲 بونص النت', NA('افتح تبويب «أسعار نت مع بونص» مرة حتى ينحمّل'), '__npState.rows');
         const c={arrived:0, late:0, advance:0}; st.rows.forEach(r=>{ if(c[r.type]!=null) c[r.type]++; });
         return panel('netPrice','💲 بونص النت', `<div class="db-big" style="color:#0f766e">${fmt(st.rows.length)} <span class="text-sm font-bold">سطر</span></div>
-            ${bar([{l:'بونص واصل',n:c.arrived,c:'#15803d'},{l:'بونص متأخر',n:c.late,c:'#b45309'},{l:'مقدماً',n:c.advance,c:'#475569'}])}
+            ${bar([{l:'بونص واصل',n:c.arrived,c:'#15803d'},{l:'وصل متأخر',n:c.late,c:'#b45309'},{l:'مقدماً',n:c.advance,c:'#475569'}])}
             <div class="text-[10px] text-gray-400">كل الأسطر — بلا فلاتر تبويب أسعار النت</div>`,
             '__npState.rows → type'+(st.importedAt?' · '+fmtDateTime(st.importedAt):''));
     }
@@ -2166,7 +2250,7 @@ function autoSave(){ if(autoSaveTimer) clearTimeout(autoSaveTimer); autoSaveTime
             ['notArr','📬 ما وصل', ok(a)?a.notArrived:null],
             ['ret','↩️ إرجاع', ok(r)?r.n:null],
             ['exp','⏳ منتهي أو خلال شهر', ok(e)?e.expired+e['1m']:null],
-            ['bonus','💲 بونص متأخر', ok(b)?b.late:null]
+            ['bonus','💲 بونص وصل متأخر', ok(b)?b.late:null]
         ];
         if(!list.some(x=>x[0]===dbUi.chip && (x[3] || x[2]!=null))) dbUi.chip='all';
         return list.map(([k,label,n,always])=>{
@@ -3775,7 +3859,8 @@ function initMultiselects(){
 function applySort(items,field,dir){
     if(!field) return items;
     return [...items].sort((a,b)=>{
-        let av=a[field], bv=b[field];
+        // monthlyNum = حقل محسوب (gvMonthly) — ما ينكتب على الصف. بلا رقم/Check = -1 حتى ينزل آخر بالتنازلي
+        let av=field==='monthlyNum' ? (monNum(a) ?? -1) : a[field], bv=field==='monthlyNum' ? (monNum(b) ?? -1) : b[field];
         if(typeof av==='string') av=av.toLowerCase(), bv=(bv||'').toLowerCase();
         if(typeof av==='boolean') av=av?1:0, bv=bv?1:0;
         return av<bv?-1*dir:av>bv?1*dir:0;
@@ -3795,10 +3880,26 @@ const SEND_OV_NAMES={none:'بلا مكاتب أخرى', cheap:'بيها مكات
 function sendMode(){ const m=appState.sendMode; return (m && m.at && m.ov && typeof m.at==='object') ? m : (appState.sendMode={at:{at:true,noat:true},ov:{none:true,cheap:true,dear:true}}); }
 function sendAtAll(){ const a=sendMode().at; return a.at && a.noat; }
 function sendOvAll(){ const o=sendMode().ov; return o.none && o.cheap && o.dear; }
-function sendModeOn(){ return !sendAtAll() || !sendOvAll(); }
+// 📈 بُعد ثالث: الصرف الشهري من–إلى (gvMonthly نفسها مال الفيندور الشامل). بلا حركة / Check / FAKE غير معروف = صفر (طلب مصطفى 2026-11-02).
+// ملف طلبية قديم بلا أعمدة التغطية (ولا صف بيه cv) ← الفلتر يتجاهَل بدل ما يخفي كل شي (التحذير بسطر الحالة)
+// 2026-11-02 (طلب مصطفى): «من–إلى» صار شرط إخفاء واحد — أخفِ اللي صرفها الشهري ≥ / ≤ / = رقم
+const SEND_MON_OPS={'>=':'≥','<=':'≤','=':'='};
+function sendMon(){ const m=sendMode(); return (m.mon && 'op' in m.mon) ? m.mon : (m.mon={op:'',val:null}); }
+function sendMonHasData(){ return appState.orders.some(o=>o.cv); }
+function sendMonArmed(){ const m=sendMon(); return !!SEND_MON_OPS[m.op] && m.val!=null; }
+function sendMonOn(){ return sendMonArmed() && sendMonHasData(); }
+function sendMonthly(o){ return o.isCheck ? 0 : (gvMonthly(o) ?? 0); }
+function sendMonLabel(){ const m=sendMon(); return sendMonOn() ? `أخفِ صرف شهري ${SEND_MON_OPS[m.op]} ${m.val}` : ''; }
+function sendMonHit(v, op, val){ return op==='>=' ? v>=val : op==='<=' ? v<=val : op==='=' ? v===val : false; }
+function sendHeldMon(o){
+    if(!sendMonOn()) return '';
+    const m=sendMon(), v=sendMonthly(o);
+    return sendMonHit(v, m.op, m.val) ? `صرفها ${v}/شهر` : '';
+}
+function sendModeOn(){ return !sendAtAll() || !sendOvAll() || sendMonOn(); }
 function sendAtLabel(){ const a=sendMode().at; return sendAtAll() ? '' : (a.at ? '@ فقط' : 'غير المفحوص فقط'); }
 function sendOvLabel(){ const o=sendMode().ov; return sendOvAll() ? '' : Object.keys(SEND_OV_NAMES).filter(k=>o[k]).map(k=>SEND_OV_NAMES[k]).join(' + '); }
-function sendModeLabel(){ return [sendAtLabel(), sendOvLabel()].filter(Boolean).join(' + '); }
+function sendModeLabel(){ return [sendAtLabel(), sendOvLabel(), sendMonLabel()].filter(Boolean).join(' + '); }
 function sendHeldAt(o){
     const a=sendMode().at; if(a.at && a.noat) return '';
     const isAt=String(o.itemName||'').includes('@');
@@ -3819,7 +3920,8 @@ function sendHeldOv(o){
     return dear ? '' : 'مو من المؤجّلة';
 }
 // keepOv = خلّي صفوف بُعد «مكاتب أخرى» ظاهرة (الفيندور الشامل يعرضها بشارة) — بُعد الفحص ينطبّق دائماً
-function sendHeld(o,keepOv){ return sendHeldAt(o) || (keepOv ? '' : sendHeldOv(o)); }
+// keepOv (الفيندور الشامل) يتجاوز الصرف الشهري هم — عنده فلتر «صرف شهري من–إلى» خاص بيه
+function sendHeld(o,keepOv){ return sendHeldAt(o) || (keepOv ? '' : (sendHeldMon(o) || sendHeldOv(o))); }
 function sendRows(rows){ if(!sendModeOn()) return rows; gvNetSync(); return rows.filter(o=>!sendHeld(o)); }
 // شارة الفيندور الشامل: ⏸ على الصف الموقوف دائماً · 📤 على أخوه المرسَل بس بفلتر «مواد المراجعة»
 function sendBadge(item, showSent){
@@ -3833,11 +3935,15 @@ function sendModeBarSync(kept){
     const bar=document.getElementById('sendModeBar'), hint=document.getElementById('sendModeHint'); if(!bar||!hint) return;
     const m=sendMode(), on=!!kept;
     document.querySelectorAll('input[data-sm]').forEach(cb=>{ const [g,k]=cb.dataset.sm.split(':'); cb.checked=!!m[g][k]; });
+    const mon=sendMon(), monNoData=sendMonArmed() && !sendMonHasData();
+    [['sendMonOp','op'],['sendMonVal','val']].forEach(([id,k])=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=mon[k]??''; });
     bar.style.borderColor=on ? '#4f46e5' : '#16a34a'; bar.style.background=on ? '#eef2ff' : '#fff';
     const v=m.ov, noNet=(v.cheap!==v.dear) && !gvNetRows();
-    hint.classList.toggle('hidden', !on);
-    hint.style.color=noNet ? '#b91c1c' : '#3730a3';
+    hint.classList.toggle('hidden', !on && !monNoData);
+    hint.style.color=(noNet||monNoData) ? '#b91c1c' : '#3730a3';
+    if(!on && monNoData) hint.textContent='📈 ملف الطلبية ما بيه أعمدة الصرف الشهري — فلتر الصرف متجاهَل (زامن CompareSheet جديد)';
     if(on) hint.textContent=(noNet ? '💲 أسعار النت ما محمّلة — المواد اللي بيها مكاتب أخرى موقوفة · ' : '')
+        +(monNoData ? '📈 ما بيه أعمدة صرف شهري — فلتر الصرف متجاهَل · ' : '')
         +`⏸ ${appState.orders.length-kept.length} من ${appState.orders.length} مادة ما تنرسل`+(!sendOvAll() ? ' — «🔍 مواد المراجعة» بالفيندور الشامل' : '')
         +(appState.phoneFilter==='with' && !sendOvAll() ? ' · 📞 الأرخص محسوب بين المكاتب اللي بيها رقم بس' : '');
 }
@@ -3856,7 +3962,19 @@ async function sendModeToggle(cb){
     if(typeof updateQueueCounter==='function') updateQueueCounter();
     renderGlobalView();
 }
-window.sendRows=sendRows; window.sendHeld=sendHeld; window.sendModeToggle=sendModeToggle;
+// 📈 خانات الصرف الشهري — نفس إعادة الرسم مال علامات الصح، بتأخير بسيط حتى ما يرسم ويا كل رقم ينكتب
+function sendMonSet(k, v){
+    if(k==='op') sendMon().op=SEND_MON_OPS[v] ? v : '';
+    else if(k==='val') sendMon().val=(v===''||v==null||!isFinite(Number(v))) ? null : Number(v);
+    else return;
+    clearTimeout(sendMonSet._t);
+    sendMonSet._t=setTimeout(()=>{
+        renderVendorsList();
+        if(appState.selectedVendor) renderItemsTable(appState.orders.filter(o=>o.vendor===appState.selectedVendor));
+        if(typeof updateQueueCounter==='function') updateQueueCounter();
+    }, 250);
+}
+window.sendRows=sendRows; window.sendHeld=sendHeld; window.sendModeToggle=sendModeToggle; window.sendMonSet=sendMonSet;
 
 // ======================== FILTER + RENDER ITEMS ========================
 function filterItems(items,filters){
@@ -3900,6 +4018,7 @@ function renderItemsTable(orders){
             <td class="p-2 text-gray-400">${i+1}</td>
             <td class="p-2">${escapeHtml(item.itemName)}${covBadge(item)}</td>
             <td contenteditable="true" class="editable-qty p-1 rounded bg-yellow-50 text-center font-bold" data-id="${item.id}" onblur="updateQty(this)">${escapeHtml(item.requiredQty)}</td>
+            <td class="p-2 text-center text-xs font-bold text-indigo-700">${monCell(item)}</td>
             <td class="p-2 text-xs text-gray-500">G1:${Math.round(item.currentGap1)}<br>G2:${Math.round(item.currentGap2)}</td>
             <td class="p-2 text-xs">${escapeHtml(item.otherVendors||'—')}</td>
             <td class="p-2 text-center">${item.share>0?`<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">${item.share}</span>`:'—'}</td>
@@ -4238,7 +4357,8 @@ function globalFilteredItems(){
         all=all.filter(o=>has(o.vendor)===(appState.phoneFilter==='with'));
     }
     // 📈 الصرف الشهري من–إلى + 🙈 التغطية — عرض وطباعة هذا التبويب بس (مو الطلبية/الإرسال/المتابعة — Codex 2026-11-02)
-    if(f.monFrom!=null||f.monTo!=null) all=all.filter(o=>{ const m=gvMonthly(o); return m!=null && (f.monFrom==null||m>=f.monFrom) && (f.monTo==null||m<=f.monTo); });
+    // 🙈 أخفِ اللي صرفها ≥/≤/= N — نفس قاعدة المكاتب (sendMonthly: بلا حركة/Check = صفر) بس حالة مستقلة (طلب مصطفى 2026-11-02)
+    if(gvMonOn()) all=all.filter(o=>!sendMonHit(sendMonthly(o), f.monOp, f.monVal));
     if(f.covMax!=null) all=all.filter(o=>!o.cv || !(o.cv.cov>f.covMax));
     // 🔍 مواد المراجعة: كل صفوف المادة اللي بيها صف موقوف بوضع الإرسال — المادة تنحسب على الطلبية كلها (مو المفلتر) حتى يطلع أخوها المرسَل وياها
     if(f.net==='review'){
@@ -4265,9 +4385,19 @@ function gvMonthly(o){
     }
     return Math.round((Number(c.avg)||0)*30);
 }
+// 📈 الصرف الشهري كحقل بالطلبية (طلب مصطفى 2026-11-02: الجدول + الرسالة + الصورة + PDF) — العرض بس، الفلتر يستعمل sendMonthly
+// null = ماكو رقم (بلا أعمدة تغطية / FAKE غير معروف / Check) ← «—» بالعرض، ولا شي بالرسالة
+// dtMon = صرف جاهز من تبويب المتابعة (Real Movement — dtMonthlyOf)، بدل cv مال الطلبية
+function monNum(o){ if(o && o.dtMon!==undefined) return o.dtMon; return (!o || o.isCheck) ? null : gvMonthly(o); }
+function monCell(o){ const v=monNum(o); return v==null ? '<span class="text-gray-300">—</span>' : gvNetFmt(v); }
+function monTxt(o){ const v=monNum(o); return v==null ? '—' : gvNetFmt(v); }
+// سطر الرسالة: الصرف قبل «:» لأن sender/main.py (_ITEM_LINE_RE) يعرف سطر المادة بس إذا ينتهي بـ[الكمية]
+function monTag(o){ const v=monNum(o); return v==null ? '' : ` (صرف ${gvNetFmt(v)}/شهر)`; }
+function gvMonOn(){ const f=appState.globalFilters; return !!SEND_MON_OPS[f.monOp] && f.monVal!=null && sendMonHasData(); }
 window.gvRangeSet=function(k, v){
     const f=appState.globalFilters, n=(v===''||v==null||!isFinite(Number(v))) ? null : Number(v);
-    if(k==='monFrom'||k==='monTo'||k==='covMax') f[k]=n;
+    if(k==='monOp') f.monOp=SEND_MON_OPS[v] ? v : '';
+    else if(k==='monVal'||k==='covMax') f[k]=n;
     appState.globalPage=1; clearTimeout(gvRangeSet._t); gvRangeSet._t=setTimeout(renderGlobalView, 200);
 };
 function renderGlobalView(){
@@ -4380,7 +4510,7 @@ function gvPdfNote(head){
     else if(f.net && gvNetRows()) tags.push({warn:`أرخص عند غيره ≥ ${gvNetThr()}%`, any:'أرخص عند غيره', odd:'فرق سعر كبير', hideDear:'بلا المكاتب الأغلى', best:'هذا الأرخص', nocmp:'بلا سعر للمقارنة'}[f.net]);
     if(typeof globalKanbanState!=='undefined' && globalKanbanState.active!=='all') tags.push('چبس: '+globalKanbanState.active);
     if(appState.phoneFilter==='with') tags.push('📞 بيها رقم (الأرخص بينها بس)'); else if(appState.phoneFilter==='without') tags.push('📞 بلا رقم');
-    if(f.monFrom!=null||f.monTo!=null) tags.push(`صرف شهري ${f.monFrom??'…'}–${f.monTo??'…'}`);
+    if(gvMonOn()) tags.push(`أخفِ صرف شهري ${SEND_MON_OPS[f.monOp]} ${f.monVal}`);
     if(f.covMax!=null) tags.push(`تغطية ≤ ${f.covMax} يوم`);
     if(!sendAtAll()) tags.push(sendAtLabel()); // الطباعة تتبع الجدول: بُعد الفحص بس (keepOv)
     if(p.covOn) tags.push(`تغطية ≤ ${p.covMaxAt}/${p.covMaxNo}`);
@@ -4497,7 +4627,7 @@ function generateMessage(){
     const vendorLine=`\u200E*${appState.selectedVendor}*`;
     const date=`\u200E${document.getElementById('orderDateInput').value}`;
     const alertNote=`\u200E⚠️ لا تستلم المواد المنتهية قبل ${document.getElementById('expiryAlertInput').value} (حتى لو كانت محمية)`;
-    const items=filtered.map((it,i)=>`\u200E${i+1}. ${it.itemName} : [${it.requiredQty}]`).join('\n');
+    const items=filtered.map((it,i)=>`\u200E${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`).join('\n');
     let footer=`\u200E✅ يرجى تجهيز الطلبية بالسرعة الممكنة`;
     if(filtered.some(i=>i.isCheck)) footer+='\n\u200Eملاحظة: مواد (Check) مقطوعة أكثر من ثلاثة أشهر — إذا موجودة يرجى الاتصال.';
     return `${header}\n${vendorLine}\n${date}\n${alertNote}\n\n${items}\n\n${footer}`;
@@ -4575,7 +4705,8 @@ async function buildImageCanvas(chunk,vendorName,chunkIdx,totalChunks,date,expir
     const HEAD=opt.headColor||'#1e3a8a';
     const FONT='Tajawal, Arial, sans-serif';
     const W=820, PAD=30, TABLE_L=PAD, TABLE_R=W-PAD, TABLE_W=TABLE_R-TABLE_L;
-    const QTY_COL_W=150, NAME_COL_W=TABLE_W-QTY_COL_W, ROW_H=56, TH_H=48;
+    // opt.monthly (صور طلبية المكاتب بس، 2026-11-02): عمود «الصرف الشهري» بين الكمية والاسم
+    const QTY_COL_W=150, MON_COL_W=opt.monthly ? 120 : 0, NAME_COL_W=TABLE_W-QTY_COL_W-MON_COL_W, ROW_H=56, TH_H=48;
     const footerLines=[];
     if(opt.footerLines) opt.footerLines.forEach(l=>footerLines.push(l));
     else footerLines.push({text:'✅ يرجى تجهيز الطلبية بالسرعة الممكنة',color:'#166534',bold:true,size:20});
@@ -4604,11 +4735,13 @@ async function buildImageCanvas(chunk,vendorName,chunkIdx,totalChunks,date,expir
     }
     ctx.strokeStyle='#64748b'; ctx.lineWidth=1.5;
     ctx.strokeRect(TABLE_L,y,TABLE_W,TH_H+chunk.length*ROW_H+2);
-    const DIVIDER_X=TABLE_L+QTY_COL_W;
+    const MON_X=TABLE_L+QTY_COL_W, DIVIDER_X=MON_X+MON_COL_W;
     ctx.beginPath(); ctx.moveTo(DIVIDER_X,y); ctx.lineTo(DIVIDER_X,y+TH_H+chunk.length*ROW_H+2); ctx.stroke();
+    if(MON_COL_W){ ctx.beginPath(); ctx.moveTo(MON_X,y); ctx.lineTo(MON_X,y+TH_H+chunk.length*ROW_H+2); ctx.stroke(); }
     ctx.fillStyle=HEAD; ctx.fillRect(TABLE_L+1,y+1,TABLE_W-2,TH_H-1);
     ctx.fillStyle='#ffffff'; ctx.font='bold 19px '+FONT; ctx.textAlign='center';
     ctx.fillText('الكمية المطلوبة',TABLE_L+QTY_COL_W/2,y+30);
+    if(MON_COL_W){ ctx.font='bold 17px '+FONT; ctx.fillText('الصرف الشهري',MON_X+MON_COL_W/2,y+30); ctx.font='bold 19px '+FONT; }
     ctx.fillText('اسم المادة',DIVIDER_X+NAME_COL_W/2,y+30);
     y+=TH_H;
     chunk.forEach(function(it,i){
@@ -4618,6 +4751,11 @@ async function buildImageCanvas(chunk,vendorName,chunkIdx,totalChunks,date,expir
         ctx.beginPath(); ctx.moveTo(TABLE_L,rowY+ROW_H); ctx.lineTo(TABLE_R,rowY+ROW_H); ctx.stroke();
         ctx.strokeStyle='#64748b'; ctx.lineWidth=1.2;
         ctx.beginPath(); ctx.moveTo(DIVIDER_X,rowY); ctx.lineTo(DIVIDER_X,rowY+ROW_H); ctx.stroke();
+        if(MON_COL_W){
+            ctx.beginPath(); ctx.moveTo(MON_X,rowY); ctx.lineTo(MON_X,rowY+ROW_H); ctx.stroke();
+            const mv=monTxt(it); ctx.fillStyle=mv==='—' ? '#cbd5e1' : '#4338ca'; ctx.font='bold 20px '+FONT; ctx.textAlign='center';
+            ctx.fillText(mv,MON_X+MON_COL_W/2,rowY+ROW_H/2+8);
+        }
         ctx.fillStyle='#94a3b8'; ctx.font='13px '+FONT; ctx.textAlign='right';
         ctx.fillText(String(i+1),TABLE_R-10,rowY+ROW_H/2+5);
         ctx.fillStyle='#0f172a'; ctx.font='bold 19px '+FONT; ctx.textAlign='right';
@@ -4663,7 +4801,7 @@ async function sendWhatsAppImage(){
         showToast('📸 صورة '+(idx+1)+' من '+chunks.length,true);
         const chunk=chunks[idx];
         const chunkHasCheck=chunk.some(i=>i.isCheck);
-        const canvas=await buildImageCanvas(chunk,vendorName,idx,chunks.length,date,expiry,false,chunkHasCheck);
+        const canvas=await buildImageCanvas(chunk,vendorName,idx,chunks.length,date,expiry,false,chunkHasCheck,{monthly:true});
         const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.92));
         blobs.push(blob);
     }
@@ -4729,7 +4867,7 @@ function generateMessageFor(vendorName){
     const vendorLine=`\u200E*${vendorName}*`;
     const dateLine=`\u200E${date}`;
     const alertNote=expiry?`\u200E⚠️ لا تستلم المواد المنتهية قبل ${expiry} (حتى لو كانت محمية)`:'';
-    const itemsText=items.map((it,i)=>`\u200E${i+1}. ${it.itemName} : [${it.requiredQty}]`).join('\n');
+    const itemsText=items.map((it,i)=>`\u200E${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`).join('\n');
     let footer=`\u200E✅ يرجى تجهيز الطلبية بالسرعة الممكنة`;
     if(items.some(i=>i.isCheck)) footer+='\n\u200Eملاحظة: مواد (Check) مقطوعة أكثر من ثلاثة أشهر — إذا موجودة يرجى الاتصال.';
     return [header,vendorLine,dateLine,alertNote,'',itemsText,'',footer].filter(Boolean).join('\n');
@@ -4776,7 +4914,7 @@ async function buildImagesForVendor(vendorName){
     for(let idx=0;idx<chunks.length;idx++){
         const chunk=chunks[idx];
         const chunkHasCheck=chunk.some(i=>i.isCheck);
-        const canvas=await buildImageCanvas(chunk,safeName,idx,chunks.length,date,expiry,false,chunkHasCheck);
+        const canvas=await buildImageCanvas(chunk,safeName,idx,chunks.length,date,expiry,false,chunkHasCheck,{monthly:true});
         const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.92));
         blobs.push({blob,name:`${safeName}_${idx+1}.jpg`});
     }
@@ -9601,7 +9739,7 @@ function dtAddCollect(){
         if(dtSoReviewBlocks(r) && !q.edited){ skippedReview++; return; }
         if(dtBoostActive(r)) return;   // احتياط — dtSoBaseRows أصلاً تشيلها (التذكير بدالها، بلا استثناء تعديل يدوي)
         if(!byOffice.has(r.office)) byOffice.set(r.office,[]);
-        byOffice.get(r.office).push({itemName:r.item, requiredQty:String(q.qty), requiredQtyNum:q.qty, isCheck:false});
+        byOffice.get(r.office).push({itemName:r.item, requiredQty:String(q.qty), requiredQtyNum:q.qty, isCheck:false, dtMon:dtMonthlyOf(r)});
     });
     const ready=[], noPhone=[];
     [...byOffice.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ar')).forEach(([office,items])=>{
@@ -9617,20 +9755,27 @@ function dtAddBuildText(office, items, date){
     // سطر «نفدت بعد استلامها» رجع بطلب المستخدم 2026-09-14 (يلغي قرار 09-13)
     return [L(`*${DT_ADD_TITLE}*`), L(`*${office}*`), L(date), '',
         L('المواد المبيّنة بالصورة نفدت بعد استلامها،'), L('نرجو تجهيز الكميات المذكورة.'), '',
-        items.map((it,i)=>L(`${i+1}. ${it.itemName} : [${it.requiredQty}]`)).join('\n'), '',
+        items.map((it,i)=>L(`${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`)).join('\n'), '',
         L(DT_ADD_FOOTER)].join('\n');
 }
 // ======== 🔔 التذكير — الباقي من تعزيز ⏳/◐ للمعروض بفلتر قسم 📦 (قرار المستخدم 2026-09-14) ========
 // ما يغيّر qty ولا base ولا رقم التعزيز — يسجّل تاريخ التذكير بس (e.rem).
 const DT_REM_TITLE='تذكير بطلبية إضافية — مذخر أدوية المنصور';
 const DT_REM_FOOTER='🔔 يرجى تأكيد موعد الوصول';
+// الصرف الشهري لرسائل المتابعة = Real Movement المعروض بالتبويب (مصحّح Fake Sale) — قرار مصطفى 2026-11-02. فاضي/مو رقم = null («—»)
+function dtMonthlyOf(r){
+    if(!r || r.movement==null || r.movement==='') return null;
+    const v=parseFloat(String(r.movement).replace(/,/g,''));
+    return isFinite(v) ? Math.round(v) : null;
+}
 function dtRemindCollect(){
     const shown=dtBoostGroups().shown.filter(s=>s.st==='transit' || s.st==='partial' || s.st==='orphan');
     const byOffice=new Map(), orphans=[];
     shown.forEach(s=>{
         if(s.st==='orphan'){ orphans.push(s.office+' — '+s.item); return; }   // ما نعرف الباقي — ينذكر بالتأكيد
         if(!byOffice.has(s.office)) byOffice.set(s.office,[]);
-        byOffice.get(s.office).push({itemName:s.item, requiredQty:String(s.remaining), requiredQtyNum:s.remaining, isCheck:false, key:s.office+'||'+s.item});
+        const row=dtState.data.find(x=>x.office===s.office && x.item===s.item && !x.isLinkedArrival);
+        byOffice.get(s.office).push({itemName:s.item, requiredQty:String(s.remaining), requiredQtyNum:s.remaining, isCheck:false, key:s.office+'||'+s.item, dtMon:row ? dtMonthlyOf(row) : null});
     });
     const ready=[], noPhone=[];
     [...byOffice.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ar')).forEach(([office,items])=>{
@@ -9643,7 +9788,7 @@ function dtRemindBuildText(office, items, date){
     const L=t=>'‎'+t;
     return [L(`*${DT_REM_TITLE}*`), L(`*${office}*`), L(date), '',
         L('نذكّركم بطلبية إضافية أُرسلت سابقاً ولم تصل كاملة.'), L('الكميات المتبقية مبيّنة بالصورة.'), '',
-        items.map((it,i)=>L(`${i+1}. ${it.itemName} : [${it.requiredQty}]`)).join('\n'), '',
+        items.map((it,i)=>L(`${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`)).join('\n'), '',
         L(DT_REM_FOOTER)].join('\n');
 }
 async function dtRemindConfirmSend(){
@@ -9663,7 +9808,7 @@ async function dtRemindConfirmSend(){
     if(!(await dtQueueConflictOk(folder))) return;
     const n=new Date();
     const date=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-    const opt={title:DT_REM_TITLE, headColor:'#1d4ed8', noExpiryBand:true, footerLines:[
+    const opt={title:DT_REM_TITLE, headColor:'#1d4ed8', noExpiryBand:true, monthly:true, footerLines:[
         {text:DT_REM_FOOTER, color:'#1d4ed8', bold:true, size:20}]};
     showToast('⏳ جاري بناء الصور...', true);
     try{
@@ -9717,7 +9862,7 @@ async function dtAddConfirmSend(){
     if(!(await dtQueueConflictOk(folder))) return;
     const n=new Date();
     const date=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-    const opt={title:DT_ADD_TITLE, headColor:'#c2410c', noExpiryBand:true, footerLines:[
+    const opt={title:DT_ADD_TITLE, headColor:'#c2410c', noExpiryBand:true, monthly:true, footerLines:[
         {text:DT_ADD_FOOTER, color:'#166534', bold:true, size:20}]};
     showToast('⏳ جاري بناء الصور...', true);
     try{
@@ -11736,6 +11881,7 @@ window.onload=async()=>{
             {key:'idx',     label:'#',            w:8,   align:'center'},
             {key:'name',    label:'اسم المادة',   w:75,  align:'right'},
             {key:'qty',     label:'الكمية',       w:22,  align:'center'},
+            {key:'monthly', label:'الصرف الشهري', w:22,  align:'center'},   // 2026-11-02 (طلب مصطفى)
             {key:'balance', label:'الرصيد',       w:28,  align:'center'},
             {key:'others',  label:'مكاتب أخرى',   w:55,  align:'right'},
             {key:'share',   label:'الحصة',        w:16,  align:'center'},
@@ -11818,6 +11964,7 @@ window.onload=async()=>{
                     color=it.isCheck?'#dc2626':(it.requiredQtyNum>=100?'#15803d':'#1d4ed8');
                     bold=true; fontSize=5.2;
                 }
+                else if(c.key==='monthly'){ val=monTxt(it); color=val==='—' ? '#cbd5e1' : '#4338ca'; bold=true; fontSize=4.8; }
                 else if(c.key==='share'){
                     val=(it.share&&it.share>0)?String(it.share):'—';
                     if(it.share&&it.share>0){ color='#7c3aed'; bold=true; }
@@ -19652,8 +19799,8 @@ window.onload=async()=>{
         document.getElementById('globalOtherFilter').value='';
         document.getElementById('globalFakeFilter').value=''; appState.globalFilters.fake='';
         document.getElementById('globalNetFilter').value=''; appState.globalFilters.net='';
-        ['globalMonFrom','globalMonTo','globalCovMax'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-        appState.globalFilters.monFrom=appState.globalFilters.monTo=appState.globalFilters.covMax=null;
+        ['globalMonOp','globalMonVal','globalCovMax'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+        appState.globalFilters.monOp=''; appState.globalFilters.monVal=appState.globalFilters.covMax=null;
         // 📞 الرقم مشترك ويه المكاتب — يرجع «الكل» من نفس زر هناك حتى تتحدث المقارنة والعدادات (Codex 2026-11-02)
         if(appState.phoneFilter && appState.phoneFilter!=='all'){ const pc=document.querySelector('#phoneFilterChips [data-pf="all"]'); if(pc) pc.click(); }
         appState.globalFilters.vendor=''; appState.globalFilters.item='';
