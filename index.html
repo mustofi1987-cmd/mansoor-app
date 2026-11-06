@@ -22275,8 +22275,10 @@ function oloKeyOf(name, normKey){
 // Log names that count for one office: its own name + old variants with the same key that are not active offices now.
 // Two names that are both active offices stay apart (e.g. «فينيسيا» and «فينيسيا (Maxiliv)» may be two offices),
 // unless the user linked them in «روابط المكاتب» (linked=true) — then every same-key variant counts.
-function oloPickParts(own, same, isActive, linked){
+function oloPickParts(own, same, isActive, linked, nActive){
     if(linked) return same.length ? same.slice() : (own ? [own] : []);
+    // key shared by ≥2 active offices → an old name can't be told apart, it merges with none (مصطفى 2026-11-06: بلادي/سيد حيدر · انانا)
+    if(nActive>=2) return own ? [own] : [];
     return (own ? [own] : []).concat(same.filter(v=>v!==own && !isActive(v)));
 }
 (function(){
@@ -22305,6 +22307,7 @@ function oloPickParts(own, same, isActive, linked){
         idx.forEach((_,v)=>{ const key=okey(v); let a=byNorm.get(key); if(!a) byNorm.set(key, a=[]); a.push(v); });
         os.idx=idx; os.byNorm=byNorm; os.asOf=asOf; os.cache=new Map(); os.idxFor=log;
         os.active=new Set((appState.orders||[]).map(o=>ws(o.vendor))); os.ordersRef=appState.orders; os.sig=linkSig();
+        os.activeByKey=new Map(); os.active.forEach(v=>{ if(!v) return; const key=okey(v); os.activeByKey.set(key, (os.activeByKey.get(key)||0)+1); });
     }
     function ready(){
         const st=window.__npState, ver=window.__excelStoreVer||0;
@@ -22323,7 +22326,8 @@ function oloPickParts(own, same, isActive, linked){
         if(os.cache.has(name)) return os.cache.get(name);
         const own=ws(name);
         let linked=false; try{ linked=!!(appState.officeLinks||[]).length && _officeGroupMap().has(_smNorm(own)); }catch(_){}
-        const parts=oloPickParts(os.idx.has(own) ? own : '', os.byNorm.get(okey(name))||[], v=>os.active.has(v), linked);
+        const key=okey(name);
+        const parts=oloPickParts(os.idx.has(own) ? own : '', os.byNorm.get(key)||[], v=>os.active.has(v), linked, os.activeByKey.get(key)||0);
         let r=null;
         if(parts.length){
             const days=new Map();
