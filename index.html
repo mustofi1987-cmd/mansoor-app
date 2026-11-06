@@ -4278,7 +4278,7 @@ function renderVendorsList(){
             <span class="vendor-num">${seqNo}</span>
             <div class="flex-1 min-w-0">
                 <div class="font-bold truncate flex items-baseline gap-1.5">
-                    <span class="truncate">${escapeHtml(v.name)}</span>
+                    <span class="truncate"${window.oloNameColor&&window.oloNameColor(v.name)?` style="color:${window.oloNameColor(v.name)}"`:''}>${escapeHtml(v.name)}</span>
                     ${isSent?'<span class="sent-badge">✓</span>':''}
                     <span onclick="event.stopPropagation();showOfficeArchiveDiff(${JSON.stringify(v.name).replace(/"/g,'&quot;')})" title="قارن مواد هذا المكتب مع الأرشيف — يوضّح ليش صار التصنيف هيك" style="cursor:pointer;color:#9ca3af;font-size:10px"><i class="fas fa-magnifying-glass"></i></span>
                     ${v.classification==='same_no_add'?`<span style="font-size:9px;background:#f59e0b;color:#fff;border-radius:10px;padding:1px 6px;font-weight:700" title="مقارنة مع: ${escapeHtml(v.matchedArchiveLabel)}">نفس القديمة</span>`:''}
@@ -10165,7 +10165,8 @@ async function dtPdfGrouped(cfg){
                 ctx.fillStyle=c.bg||'#ffffff'; ctx.fillRect(x,y,col.w*S,c.h);
                 ctx.strokeStyle='#475569'; ctx.lineWidth=1; ctx.strokeRect(x,y,col.w*S,c.h);
                 const l=c.lines[col.key];
-                ctx.fillStyle = c.skip ? '#6b7280' : (col.key==='qty' ? '#0f172a' : (col.key==='note'||col.key==='status') && c.v[col.key]!=='—' ? '#9a3412' : '#111827');
+                // c.fg اختياري: {مفتاح العمود: لون النص} — مثل اسم المكتب حسب آخر وصول
+                ctx.fillStyle = c.skip ? '#6b7280' : (c.fg && c.fg[col.key]) ? c.fg[col.key] : (col.key==='qty' ? '#0f172a' : (col.key==='note'||col.key==='status') && c.v[col.key]!=='—' ? '#9a3412' : '#111827');
                 if(col.key==='qty') ctx.font=`bold ${5*S}px ${FONT}`; else ctx.font=`bold ${FS}px ${FONT}`;
                 ctx.textAlign=col.align==='right'?'right':col.align==='left'?'left':'center';
                 const tx=col.align==='right' ? x+col.w*S-1.5*S : col.align==='left' ? x+1.5*S : x+col.w*S/2;
@@ -22342,6 +22343,11 @@ function oloPickParts(own, same, isActive, linked, nActive){
         const c=LV[r.level];
         return `<span style="background:${c.bg};color:${c.fg};border-radius:10px;padding:0 6px;font-weight:800">قبل ${r.days} يوم</span>`;
     }
+    // office name color by last arrival: ≤30 green · 31–60 orange · >60 red (same levels as the pill)
+    function oloNameColor(name){
+        const r=oloFor(name);
+        return r ? LV[r.level].fg : '';
+    }
     function oloBadge(name){
         const r=oloFor(name);
         if(r===undefined) return '';
@@ -22429,14 +22435,14 @@ function oloPickParts(own, same, isActive, linked, nActive){
             if(!r){ v.last='—'; v.days='ما مربوط'; v.li='—'; mos.forEach((_,j)=>v['m'+j]='—'); return {v}; }
             v.last=fmtD(r.last); v.days=String(r.days); v.li=String(r.lastItems);
             r.months.forEach((m,j)=>v['m'+j]=m.orders ? m.orders+' / '+m.items : '—');
-            return {v, bg:LV[r.level].pdf};
+            return {v, bg:LV[r.level].pdf, fg:{office:LV[r.level].fg}};
         });
         const f=[]; if(os.minDays!=null) f.push('أكثر من '+os.minDays+' يوم'); if(os.unlinked) f.push('ما مربوط'); if(os.sort) f.push(os.sort==='old' ? 'الأقدم أولاً' : 'الأحدث أولاً');
         await window.dtPdfGrouped({ title:'Mansoor Pharmacy Report — آخر وصول المكاتب', cols, groups:[['offices', items]], fileName:'office_last_arrival',
             note:'كل شهر: طلبيات / أصناف · سجل الشراء لحد '+fmtD(os.asOf)+(f.length ? ' · '+f.join(' · ') : ''),
             bandText:(g,n)=>n+' مكتب · طلبيات نفس اليوم = طلبية وحدة · ≤30 أخضر · 31–60 برتقالي · >60 أحمر', repeatGroup:true });
     }
-    Object.assign(window, { oloFor, oloBadge, oloFilter, oloSort, oloSet, oloQuick, oloReset, oloRenderDetail, oloExportPDF });
+    Object.assign(window, { oloFor, oloNameColor, oloBadge, oloFilter, oloSort, oloSet, oloQuick, oloReset, oloRenderDetail, oloExportPDF });
 })();
 // ===== Offers & Big Quotas tab (2026-10-13)
 // Source: Sheet3 (all items) + Sheet2 (vendors). Same join as CreateSheet4 (Module70) without its DRUGS / 35-day filter.
