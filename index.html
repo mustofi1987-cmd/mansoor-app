@@ -1536,8 +1536,9 @@
                     <div class="flex items-center gap-1.5 flex-wrap mt-1">
                         <select id="oloSort" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="oloSet('sort',this.value)"><option value="">ترتيب: الافتراضي</option><option value="old">الأقدم وصولاً أولاً</option><option value="new">الأحدث وصولاً أولاً</option></select>
                         <button type="button" class="ios-btn bg-[#c2410c] text-white px-2 py-1 text-xs" onclick="oloExportPDF()" title="PDF مستقل للمكاتب الظاهرة — ما إله علاقة بالإرسال"><i class="fas fa-file-pdf ml-1"></i> PDF آخر وصول</button>
-                        <select id="ovdFilterSel" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="ovdSet(this.value)" title="الحكم على المكتب من شيت الديلفري: طلبت شنو ووصل شنو"><option value="">⚖️ الحكم: الكل</option><option value="ok">🟢 ملتزم</option><option value="over">🟠 يزيّد</option><option value="honest">🟡 صادق بس ناقص</option><option value="short">🟤 مقصّر</option><option value="own">🔴 على كيفه</option><option value="extra">🔵 بلا طلب</option><option value="none">⚪ ماكو حكم</option></select>
+                        <select id="ovdFilterSel" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="ovdSet(this.value)" title="الحكم على المكتب من شيت الديلفري: طلبت شنو ووصل شنو"><option value="">⚖️ الحكم: الكل</option><option value="ok">🟢 ملتزم</option><option value="over">🟠 يزيّد</option><option value="honest">🟡 صادق بس ناقص</option><option value="short">🟤 مقصّر</option><option value="zero">⚫ ما جاب ولا شي</option><option value="weak">🔸 ناقص (السبب ما معروف)</option><option value="block">⛔ بلوك / وقّف التجهيز</option><option value="liar">🔴 كذاب</option><option value="own">🟣 على كيفه (ترانزيت)</option><option value="norep">⚪ بلا رقم مندوب</option><option value="none">— ماكو حكم</option></select>
                     </div>
+                    <div id="ovdTagBar" class="flex items-center gap-1 flex-wrap mt-1"></div>
                     <div id="oloStatus" class="text-[10px] text-gray-500 mt-1"></div>
                 </div>
                 <!-- ======== درج الفلاتر (2026-10-19): مشاركة/الفحص @/التكرار/الموقف منقولة لـ<dialog> بنفس الـids — المستمعين والعدّادات ما تغيّرت.
@@ -4022,7 +4023,8 @@ function invalidateStancesOnArrivalChange(){
         if(cur===undefined) return;
         // صار واصل → الموقف ينمسح (قرار مصطفى 2026-10-26؛ يعكس جزء من 49f0447). المواقف للغير واصل بس،
         // فبلا شرط الختم القديم — حتى المكاتب اللي الكود القديم ختمها «واصل» وخلّى موقفها (مراجعة Codex). النص يبقى.
-        if(st.stance && officeArrived(cur)){ st.stance=''; cleared++; changed=true; }
+        // the cleared stance is kept as prevStance — the office verdict (ovd) still needs «he blocked me, then sent a bit» (مصطفى 2026-11-06)
+        if(st.stance && officeArrived(cur)){ st.prevStance=st.stance; st.prevStanceAt=new Date().toISOString(); st.stance=''; cleared++; changed=true; }
         // غير هذا: تغيّر وصول الإكسل يحدّث الختم فقط
         if(st.arrivalSrc!=='dt' || st.arrivalStateAtSet!==cur){
             st.arrivalStateAtSet=cur;
@@ -5975,6 +5977,8 @@ function archiveSaveSnapshot(orders, orderDateOverride, skipJsonExport){
             hasOtherVendors: o.hasOtherVendors || false
         }))
     };
+    // per-office delivery summary of the cycle being archived — the office verdict judges several cycles from these (2026-11-06)
+    try{ if(window.ovdSnapshotSummary) snap.ovd=window.ovdSnapshotSummary([...vendorSet]); }catch(e){ console.warn('ovd summary', e); }
     const all = archiveGetAll();
     all.unshift(snap); // newest first
     // يبقى آخر 5 للسجل (العرض/تنزيل JSON) — المقارنة ويه المرجع بس
@@ -22455,35 +22459,75 @@ function oloPickParts(own, same, isActive, linked, nActive){
     }
     Object.assign(window, { oloFor, oloNameColor, oloBadge, oloFilter, oloSort, oloSet, oloQuick, oloReset, oloRenderDetail, oloExportPDF });
 })();
-// ===== Office verdict «الحكم» (2026-11-06) — display only, not the order or sending.
-// Current cycle = DeliveryReportMgmt rows: requested vs arrived per item (dtEffectiveStatus) + Real Movement for unrequested items.
-// «غيره جابها» = the same item (_matNorm) arrived at another office group in the same delivery sheet; otherwise it counts as a market shortage.
-// History = item statuses stamped into the archive snapshots (the app keeps the last 5).
+// ===== Office verdict «الحكم» (2026-11-06, v2 after مصطفى's review) — display only, not the order or sending.
+// Sources: (1) DeliveryReportMgmt = this cycle: requested vs arrived per item + Real Movement of unrequested items;
+// (2) per-office summaries saved into each archive snapshot (snap.ovd) — older snapshots give the arrival rate only;
+// (3) the office stance — current, or prevStance kept when an arrival clears it. A block always comes FROM the office;
+// (4) the 6-month purchase-log study (oloFor) for the drip / falling tags.
+// One main verdict (first rule that matches, in V order) + every tag that applies. Both are filterable.
 (function(){
     const V={
-        ok:    {t:'ملتزم',         e:'🟢', fg:'#15803d', bg:'#dcfce7', d:'جاب 70% أو أكثر من طلبي'},
-        over:  {t:'يزيّد',         e:'🟠', fg:'#c2410c', bg:'#ffedd5', d:'جاب طلبي، بس 30% أو أكثر من اللي جابه بكمية أكثر من المطلوب'},
-        honest:{t:'صادق بس ناقص', e:'🟡', fg:'#a16207', bg:'#fef9c3', d:'ناقصه أكثر من 30%، بس أغلب الناقص محد جابه بنفس الدورة (نفاذ)'},
-        short: {t:'مقصّر',         e:'🟤', fg:'#7c2d12', bg:'#fde4cf', d:'ناقصه أكثر من 30%، وأغلب الناقص جابه مكتب ثاني بنفس الدورة'},
-        own:   {t:'على كيفه',      e:'🔴', fg:'#b91c1c', bg:'#fee2e2', d:'جاب مواد واكفة ما طالبها أكثر من اللي جابه من طلبي'},
-        extra: {t:'بلا طلب',       e:'🔵', fg:'#1d4ed8', bg:'#dbeafe', d:'ما عنده طلبية بهالدورة، وصلت منه مواد متحركة'}
+        block: {t:'بلوك / وقّف التجهيز', e:'⛔', fg:'#7f1d1d', bg:'#fecaca', d:'موقفه «بلوك تسديد ديون» أو «التجهيز متوقف» — بهالدورة أو بدورة مؤرشفة. ينحسب تقصير حتى لو رسل شي بعدين'},
+        liar:  {t:'كذاب',               e:'🔴', fg:'#b91c1c', bg:'#fee2e2', d:'كال «المواد غير متوفرة» أو «راح توصل قريباً» أو «إكسباير قريب»، ومكتب ثاني جاب نفس المواد بنفس الدورة'},
+        norep: {t:'بلا رقم مندوب',      e:'⚪', fg:'#4b5563', bg:'#f3f4f6', d:'ماكو رقم مندوب (أو موقفه «الرقم غير متوفر") — التعامل شبه مقطوع، ما ينحكم عليه'},
+        own:   {t:'على كيفه (ترانزيت)', e:'🟣', fg:'#6b21a8', bg:'#f3e8ff', d:'اللي يجيبه بلا طلب (ترانزيت صيدليات أو مواده هو) أكثر من اللي يجيبه من طلبي، ومن طلبي يجيب أقل من النص'},
+        zero:  {t:'ما جاب ولا شي',      e:'⚫', fg:'#111827', bg:'#e5e7eb', d:'طلبت منه وما جاب ولا مادة — تقصير، مو صدق'},
+        short: {t:'مقصّر',               e:'🟤', fg:'#7c2d12', bg:'#fde4cf', d:'جاب أقل من 70% من طلبي، والناقص موجود بالسوق (مكتب ثاني جابه أو انشرى من غيره بآخر 45 يوم)'},
+        honest:{t:'صادق بس ناقص',       e:'🟡', fg:'#a16207', bg:'#fef9c3', d:'جاب شي من طلبي، والناقص 60%+ منه نفاذ مؤكد: محد باعه بآخر 45 يوم حسب سجل الشراء'},
+        weak:  {t:'ناقص (السبب ما معروف)', e:'🔸', fg:'#9a3412', bg:'#ffedd5', d:'جاب أقل من 70% من طلبي، وما عندي دليل على النفاذ ولا على وجود المادة (سجل الشراء مو محمّل أو دورات قديمة)'},
+        over:  {t:'يزيّد',               e:'🟠', fg:'#c2410c', bg:'#ffedd5', d:'جاب 70%+ من طلبي، بس 30%+ من اللي جابه بكمية أكثر من المطلوب'},
+        ok:    {t:'ملتزم',               e:'🟢', fg:'#15803d', bg:'#dcfce7', d:'جاب 70% أو أكثر من طلبي'}
+    };
+    const TAGS={
+        block:   {t:'بلوك',              e:'⛔', d:'عليه أو كان عليه موقف بلوك تسديد / التجهيز متوقف'},
+        liar:    {t:'كذاب',              e:'🔴', d:'موقفه «غير متوفرة / راح توصل / إكسباير» وغيره جاب المواد'},
+        transit: {t:'ترانزيت / بلا طلب', e:'🟣', d:'اللي يجيبه بلا طلب يساوي أو أكثر من اللي يجيبه من طلبي'},
+        still:   {t:'يجيب واكف',         e:'🧊', d:'جاب مادتين أو أكثر بلا طلب وصرفها الشهري أقل من 1'},
+        norep:   {t:'بلا رقم مندوب',     e:'⚪', d:'ماكو رقم مندوب أو موقفه «الرقم غير متوفر»'},
+        zero:    {t:'ما جاب شي',         e:'⚫', d:'طلبت منه وما جاب ولا مادة من طلبي'},
+        short:   {t:'الناقص موجود بالسوق', e:'🟤', d:'من اللي ما جابه: النص أو أكثر جابه مكتب ثاني أو انشرى من غيره بآخر 45 يوم'},
+        shortage:{t:'نفاذ مؤكد',         e:'🌫️', d:'أغلب اللي ما جابه محد باعه بآخر 45 يوم (سجل الشراء)'},
+        over:    {t:'يزيّد',              e:'🟠', d:'30%+ من اللي جابه من طلبي بكمية أكثر'},
+        partial: {t:'ينقّص الكمية',      e:'➖', d:'30%+ من اللي جابه من طلبي بكمية أقل'},
+        ok:      {t:'يجيب طلبي',         e:'🟢', d:'جاب 70%+ من طلبي'},
+        drip:    {t:'بالقطارة',          e:'💧', d:'دراسة 6 أشهر: يجي 4 أشهر أو أكثر، بس بمعدل أقل من 2.5 صنف بالوصولة'},
+        falling: {t:'نازل',              e:'📉', d:'دراسة 6 أشهر: وصولاته بآخر شهرين ثلث أول شهرين أو أقل'}
     };
     const ARR=new Set(['Matched','Partial','Over']);
+    const BLOCK=new Set(['debt_block','supply_stopped']), CLAIM=new Set(['not_available','coming_soon','expiry_near']);
     const STILL=1;   // monthly movement below 1 = still item (no real sales)
-    const st={sig:'', byOff:null, arrivedAt:null, cache:new Map(), hist:null, histAt:0, filter:''};
+    const MARKET_DAYS=45;   // an item bought from anyone in the last 45 days of the purchase log = available in the market
+    const st={sig:'', byOff:null, arrivedAt:null, npSold:null, npRef:null, cache:new Map(), hist:null, histAt:0, latestDt:'', filter:'', tags:new Set()};
+    const npKey=s=>String(s||'').replace(/\s+/g,' ').trim().toUpperCase();   // same key as the net-price module (CleanKey)
     const esc=s=>String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const okey=n=>{ const s=String(n||'').trim(); try{ return _smNorm(resolveOffice(s)); }catch(_){ return s.toLowerCase(); } };
     const mov=r=>{ const x=parseFloat(r.movement); return isFinite(x) ? x : 0; };
     const rows=()=>{ const d=window.__dtState; return (d && d.data) || []; };
+    const dtSig=()=>{ const R=rows(); return R.length ? R.length+'|'+R[0].office+'|'+R[0].item+'|'+R[R.length-1].item : ''; };
+    const stanceOf=k=>{ const s=(appState.officeStance||{})[k]||{}; return s.stance||s.prevStance||''; };
+    const stanceLabel=s=>(typeof OFFICE_STANCE_LABEL!=='undefined' && OFFICE_STANCE_LABEL[s]) || s;
+    // item key → office keys that sold it to us in the last MARKET_DAYS (null = purchase log not loaded)
+    function buildNp(){
+        const np=window.__npState, log=np && np.loaded && np.log && np.log.size ? np.log : null;
+        if(st.npRef===log && st.npInit) return;
+        st.npInit=true; st.npRef=log; st.npSold=null; st.cache=new Map();
+        if(!log){ if(!st.npAsked){ st.npAsked=true; try{ if(window.npBonusReady) window.npBonusReady(); }catch(_){} } return; }
+        let asOf=''; log.forEach(a=>a.forEach(e=>{ if(e.purchase && e.date>asOf) asOf=e.date; }));
+        const from=new Date(Date.parse(asOf+'T00:00:00Z')-MARKET_DAYS*86400000).toISOString().slice(0,10);
+        const m=new Map();
+        log.forEach((a,k)=>a.forEach(e=>{ if(!e.purchase || !e.date || e.date<from) return; let s=m.get(k); if(!s) m.set(k, s=new Set()); s.add(okey(e.vendor)); }));
+        st.npSold=m; st.cache=new Map();
+    }
     function build(){
+        buildNp();
         const R=rows(), L=appState.officeLinks||[];
-        const sig=R.length+'|'+(R[0] ? R[0].office+R[0].item : '')+'|'+L.length+'|'+JSON.stringify(L[L.length-1]||0);
+        const sig=dtSig()+'|'+L.length+'|'+JSON.stringify(L[L.length-1]||0);
         if(st.byOff && st.sig===sig) return;
         const byOff=new Map(), arrivedAt=new Map();
         R.forEach(r=>{
             const k=okey(r.office); if(!k) return;
             let a=byOff.get(k); if(!a) byOff.set(k, a=[]); a.push(r);
-            const es=dtEffectiveStatus(r);
+            const es=window.dtEffectiveStatus(r);
             if(!r.isLinkedArrival && (ARR.has(es) || es==='Not Requested')){
                 const ik=_matNorm(r.item); let m=arrivedAt.get(ik); if(!m) arrivedAt.set(ik, m=new Map());
                 if(!m.has(k)) m.set(k, r.office);
@@ -22491,83 +22535,180 @@ function oloPickParts(own, same, isActive, linked, nActive){
         });
         st.byOff=byOff; st.arrivedAt=arrivedAt; st.sig=sig; st.cache=new Map();
     }
+    // this cycle's counts for one office group (null = no delivery rows)
+    function countsFor(k){
+        const list=st.byOff.get(k)||[];
+        if(!list.length) return null;
+        const c={req:0, arr:0, matched:0, partial:0, over:0, others:0, nobody:0, unknown:0, extra:0, extraMov:0, extraStill:0,
+                 L:{others:[], nobody:[], unknown:[], over:[], partial:[], extraMov:[], extraStill:[]}};
+        list.forEach(x=>{
+            const es=window.dtEffectiveStatus(x), req=window.dtQtyReqText(x);
+            if(es==='Not Requested'){
+                const m=mov(x), e={item:x.item, arr:x.qtyArr, mov:m};
+                if(m>=STILL){ c.extraMov++; c.L.extraMov.push(e); } else { c.extraStill++; c.L.extraStill.push(e); }
+                return;
+            }
+            c.req++;
+            if(es==='Matched') c.matched++;
+            else if(es==='Partial'){ c.partial++; c.L.partial.push({item:x.item, req, arr:x.qtyArr}); }
+            else if(es==='Over'){ c.over++; c.L.over.push({item:x.item, req, arr:x.qtyArr}); }
+            else {
+                // the app gives each item to ONE office, so «nobody else brought it» proves nothing by itself —
+                // a shortage needs the purchase log: nobody sold it to us in the last MARKET_DAYS
+                const at=st.arrivedAt.get(_matNorm(x.item)), who=[];
+                if(at) at.forEach((nm,ok)=>{ if(ok!==k) who.push(nm); });
+                const sold=st.npSold ? st.npSold.get(npKey(x.item)) : null;
+                const soldOther=sold ? [...sold].some(ok=>ok!==k) : false;
+                if(who.length || soldOther){ c.others++; c.L.others.push({item:x.item, req, who:who.length ? who : ['سجل الشراء: انشرى من مكتب ثاني بآخر '+MARKET_DAYS+' يوم']}); }
+                else if(st.npSold){ c.nobody++; c.L.nobody.push({item:x.item, req}); }
+                else { c.unknown++; c.L.unknown.push({item:x.item, req}); }
+            }
+        });
+        c.arr=c.matched+c.partial+c.over; c.extra=c.extraMov+c.extraStill;
+        return c;
+    }
+    // cycle row = [req, arr, over, partial, others, nobody(confirmed shortage), extra, extraStill, stance, unknown]
+    const rowOf=(c,s)=>[c?c.req:0, c?c.arr:0, c?c.over:0, c?c.partial:0, c?c.others:0, c?c.nobody:0, c?c.extra:0, c?c.extraStill:0, s||'', c?c.unknown:0];
+    // called by archiveSaveSnapshot: this delivery sheet's summary for every office in it or in the archived order
+    function ovdSnapshotSummary(vendors){
+        build();
+        const o={}, keys=new Set(st.byOff.keys());
+        (vendors||[]).forEach(v=>keys.add(okey(v)));
+        keys.forEach(k=>{ if(!k) return; const c=countsFor(k), s=stanceOf(k); if(c || s) o[k]=rowOf(c, s); });
+        return {dt:dtSig(), at:new Date().toISOString(), o};
+    }
     // the archive lives in localStorage (~2MB JSON) — parse it at most every 15 s, not once per office card
     function hist(){
         if(st.hist && Date.now()-st.histAt<15000) return st.hist;
         const m=new Map(); let all=[];
         try{ all=(typeof archiveGetAll==='function') ? archiveGetAll() : []; }catch(_){}
-        all.forEach((snap,si)=>(snap.orders||[]).forEach(o=>{
-            const s=String(o.itemStatus||'');
-            if(!ARR.has(s) && s!=='Not Arrived') return;   // older snapshots carry other words — skipped
-            const k=okey(o.vendor); let h=m.get(k); if(!h) m.set(k, h={req:0, arr:0, cycles:new Set()});
-            h.req++; if(ARR.has(s)) h.arr++; h.cycles.add(si);
-        }));
+        const push=(k,c)=>{ let a=m.get(k); if(!a) m.set(k, a=[]); a.push(c); };
+        all.forEach(snap=>{
+            const day=String(snap.orderDate||snap.date||'').slice(0,10);
+            if(snap.ovd && snap.ovd.o){ Object.entries(snap.ovd.o).forEach(([k,a])=>push(k, {full:true, a, day})); return; }
+            const per=new Map();   // older snapshot: requested items and their stamped arrival only
+            (snap.orders||[]).forEach(o=>{
+                const s=String(o.itemStatus||''); if(!ARR.has(s) && s!=='Not Arrived') return;
+                const k=okey(o.vendor); let p=per.get(k); if(!p) per.set(k, p=[0,0]); p[0]++; if(ARR.has(s)) p[1]++;
+            });
+            per.forEach((p,k)=>push(k, {full:false, a:[p[0],p[1],0,0,0,0,0,0,'',p[0]-p[1]], day}));
+        });
+        st.latestDt=(all[0] && all[0].ovd) ? all[0].ovd.dt : '';
         st.hist=m; st.histAt=Date.now(); st.cache=new Map();
         return m;
     }
-    function verdict(r){
-        if(!r.req && !r.extra) return '';
-        if(!r.req) return r.extraStill>=r.extraMov ? 'own' : 'extra';
-        if(r.extraStill>=2 && r.extraStill>r.arr) return 'own';
-        if(r.arr/r.req>=0.7) return (r.over>=2 && r.over/r.arr>=0.3) ? 'over' : 'ok';
-        return r.others>r.nobody ? 'short' : 'honest';
+    function verdict(T){
+        if(T.blocks) return 'block';
+        if(T.liar) return 'liar';
+        if(T.noRep) return 'norep';
+        if(!T.req && !T.extra) return '';
+        const fill=T.req ? T.arr/T.req : 0;
+        if(T.extra && T.extra>=T.arr && fill<0.5 && (T.extra>=2 || !T.req)) return 'own';
+        if(!T.req) return '';
+        if(!T.arr) return 'zero';
+        if(fill>=0.7) return (T.over>=2 && T.over/T.arr>=0.3) ? 'over' : 'ok';
+        const miss=T.others+T.nobody+T.unknown;
+        if(T.nobody && T.nobody>=0.6*miss) return 'honest';
+        if(T.others && T.others>=T.unknown) return 'short';
+        return 'weak';
     }
-    // undefined = delivery sheet and archive both empty · null = nothing for this office · object = counts + verdict key (r.v, '' = no verdict)
+    function tagsOf(T, name){
+        const t=[];
+        if(T.blocks) t.push('block');
+        if(T.liar) t.push('liar');
+        if(T.noRep) t.push('norep');
+        if(T.req && !T.arr) t.push('zero');
+        if(T.extra && (T.extra>=T.arr || !T.req)) t.push('transit');
+        if(T.extraStill>=2) t.push('still');
+        if(T.others && T.others>=T.nobody) t.push('short');
+        if(T.nobody && T.nobody>T.others && T.nobody>=T.unknown) t.push('shortage');
+        if(T.over>=2 && T.arr && T.over/T.arr>=0.3) t.push('over');
+        if(T.partial>=2 && T.arr && T.partial/T.arr>=0.3) t.push('partial');
+        if(T.req && T.arr/T.req>=0.7) t.push('ok');
+        let o=null; try{ o=window.oloFor ? window.oloFor(name) : null; }catch(_){}
+        if(o && o.months && o.months.length>2){
+            const f=o.months.slice(0,-1);   // the newest month is still running
+            const ords=f.reduce((a,m)=>a+m.orders,0), its=f.reduce((a,m)=>a+m.items,0), act=f.filter(m=>m.orders).length;
+            if(act>=4 && ords && its/ords<2.5) t.push('drip');
+            const e=f.slice(0,2).reduce((a,m)=>a+m.orders,0), l=f.slice(-2).reduce((a,m)=>a+m.orders,0);
+            if(e>=4 && l<=e/3) t.push('falling');
+        }
+        return t;
+    }
+    // undefined = delivery sheet and archive both empty · null = nothing for this office · object = totals + verdict (r.v) + tags (r.tags)
     function ovdFor(name){
         build(); const H=hist();
         if(!rows().length && !H.size) return undefined;
         const k=okey(name);
         if(st.cache.has(k)) return st.cache.get(k);
-        const list=st.byOff.get(k)||[], h=H.get(k)||null;
+        const cur=countsFor(k), past=H.get(k)||[], nowStance=stanceOf(k);
+        const curDup=!!(cur && st.latestDt && st.latestDt===dtSig());   // this sheet is already inside the newest snapshot
+        const cycles=[];
+        if(cur && !curDup) cycles.push({full:true, cur:true, a:rowOf(cur, nowStance), day:'الدورة الحالية'});
+        past.forEach(p=>cycles.push(p));
         let r=null;
-        if(list.length || h){
-            r={req:0, arr:0, matched:0, partial:0, over:0, notArr:0, others:0, nobody:0, extra:0, extraMov:0, extraStill:0, hist:h, v:'',
-               L:{others:[], nobody:[], over:[], partial:[], extraMov:[], extraStill:[]}};
-            list.forEach(x=>{
-                const es=dtEffectiveStatus(x), req=dtQtyReqText(x);
-                if(es==='Not Requested'){
-                    const m=mov(x), e={item:x.item, arr:x.qtyArr, mov:m};
-                    if(m>=STILL){ r.extraMov++; r.L.extraMov.push(e); } else { r.extraStill++; r.L.extraStill.push(e); }
-                    return;
-                }
-                r.req++;
-                if(es==='Matched') r.matched++;
-                else if(es==='Partial'){ r.partial++; r.L.partial.push({item:x.item, req, arr:x.qtyArr}); }
-                else if(es==='Over'){ r.over++; r.L.over.push({item:x.item, req, arr:x.qtyArr}); }
-                else {
-                    r.notArr++;
-                    const at=st.arrivedAt.get(_matNorm(x.item)), who=[];
-                    if(at) at.forEach((nm,ok)=>{ if(ok!==k) who.push(nm); });
-                    if(who.length){ r.others++; r.L.others.push({item:x.item, req, who}); }
-                    else { r.nobody++; r.L.nobody.push({item:x.item, req}); }
-                }
+        if(cycles.length || nowStance){
+            let rep=null; try{ rep=window.repForOffice ? window.repForOffice(name) : null; }catch(_){}
+            const T={req:0, arr:0, over:0, partial:0, others:0, nobody:0, unknown:0, extra:0, extraStill:0, blocks:0, liar:0,
+                     noRep:!(rep && rep.phone) || nowStance==='no_phone'};
+            cycles.forEach(c=>{
+                const a=c.a; T.req+=a[0]; T.arr+=a[1]; T.over+=a[2]; T.partial+=a[3]; T.others+=a[4]; T.nobody+=a[5]; T.extra+=a[6]; T.extraStill+=a[7]; T.unknown+=a[9]||0;
+                if(BLOCK.has(a[8])) T.blocks++;
+                if(CLAIM.has(a[8]) && a[4] && a[4]>=a[5]) T.liar++;
             });
-            r.arr=r.matched+r.partial+r.over; r.extra=r.extraMov+r.extraStill;
-            r.v=verdict(r);
+            if(BLOCK.has(nowStance) && !cycles.some(c=>c.a[8]===nowStance)) T.blocks++;
+            r={...T, cycles, nCycles:cycles.length, nFull:cycles.filter(c=>c.full).length, stance:nowStance, cur};
+            r.v=verdict(r); r.tags=tagsOf(r, name);
         }
         st.cache.set(k, r);
         return r;
     }
     const chip=v=>{ const c=V[v]; return c ? `<span style="background:${c.bg};color:${c.fg};border-radius:10px;padding:0 6px;font-weight:800" title="${esc(c.d)}">${c.e} ${c.t}</span>` : ''; };
-    const histTxt=h=>h && h.req ? `الأرشيف (${h.cycles.size} دورة): جاب ${Math.round(h.arr*100/h.req)}% من طلبي` : '';
+    const SAME_AS={own:'transit', zero:'zero', block:'block', liar:'liar', norep:'norep', over:'over', ok:'ok'};   // tag already shown by the main chip
+    const tagIcons=r=>r.tags.filter(t=>t!==SAME_AS[r.v] && t!=='ok').map(t=>`<span title="${esc(TAGS[t].t+' — '+TAGS[t].d)}">${TAGS[t].e}</span>`).join('');
     function ovdBadge(name){
         const r=ovdFor(name); if(!r) return '';
         const p=[];
         if(r.v) p.push(chip(r.v));
+        const ic=tagIcons(r); if(ic) p.push(ic);
         if(r.req) p.push(`جاب ${r.arr}/${r.req}`);
         if(r.others) p.push(`غيره جاب ${r.others}`);
-        if(r.extra) p.push(`غير مطلوب ${r.extra}${r.extraStill ? ` (واكف ${r.extraStill})` : ''}`);
-        const ht=histTxt(r.hist); if(ht) p.push(ht);
+        if(r.extra) p.push(`بلا طلب ${r.extra}${r.extraStill ? ` (واكف ${r.extraStill})` : ''}`);
+        if(r.nCycles>1) p.push(`على ${r.nCycles} دورات`);
         return p.length ? `<div class="text-[10px] mt-0.5" style="color:#4b5563">⚖️ ${p.join(' · ')}</div>` : '';
     }
-    function ovdFilter(list){
-        if(!st.filter) return list;
-        if(ovdFor('')===undefined) return list;   // nothing loaded → the filter would hide everything
-        return list.filter(v=>{ const r=ovdFor(v.name); return st.filter==='none' ? !(r && r.v) : !!(r && r.v===st.filter); });
+    // tag chips with counts over the list the other filters left (AND between pressed chips)
+    function syncBar(list){
+        const bar=document.getElementById('ovdTagBar'); if(!bar) return;
+        const ready=ovdFor('')!==undefined;
+        if(!ready){ bar.innerHTML=''; return; }
+        const n={}; Object.keys(TAGS).forEach(t=>n[t]=0);
+        list.forEach(v=>{ const r=ovdFor(v.name); if(r) r.tags.forEach(t=>n[t]++); });
+        bar.innerHTML='<span class="font-bold">⚖️ إشارات:</span>'+Object.keys(TAGS).map(t=>{
+            const on=st.tags.has(t);
+            return `<button type="button" onclick="ovdTag('${t}')" title="${esc(TAGS[t].d)}" class="px-1.5 rounded border ${on?'border-gray-800 bg-gray-800 text-white':'border-gray-300 bg-white'}" style="${n[t]||on?'':'opacity:.45'}">${TAGS[t].e} ${TAGS[t].t} <b>${n[t]}</b></button>`;
+        }).join('');
     }
-    function ovdSet(val){ st.filter=val||''; try{ if(typeof window.__oloRerender==='function') window.__oloRerender(); }catch(e){ console.error('ovd rerender', e); } }
+    function ovdFilter(list){
+        syncBar(list);
+        if(!st.filter && !st.tags.size) return list;
+        if(ovdFor('')===undefined) return list;   // nothing loaded → the filter would hide everything
+        return list.filter(v=>{
+            const r=ovdFor(v.name);
+            if(st.filter && (st.filter==='none' ? (r && r.v) : !(r && r.v===st.filter))) return false;
+            for(const t of st.tags) if(!(r && r.tags.includes(t))) return false;
+            return true;
+        });
+    }
+    const rerender=()=>{ try{ if(typeof window.__oloRerender==='function') window.__oloRerender(); }catch(e){ console.error('ovd rerender', e); } };
+    function ovdSet(val){ st.filter=val||''; rerender(); }
+    function ovdTag(t){ st.tags.has(t) ? st.tags.delete(t) : st.tags.add(t); rerender(); }
     function ovdLabel(v){ const c=V[v]; return c ? c.t : '—'; }
-    function ovdFilterText(){ return st.filter ? 'الحكم: '+(st.filter==='none' ? 'ماكو حكم' : V[st.filter].t) : ''; }
+    function ovdFilterText(){
+        const f=[]; if(st.filter) f.push('الحكم: '+(st.filter==='none' ? 'ماكو حكم' : V[st.filter].t));
+        if(st.tags.size) f.push('إشارات: '+[...st.tags].map(t=>TAGS[t].t).join(' + '));
+        return f.join(' · ');
+    }
     function ovdRenderDetail(){
         const box=document.getElementById('ovdDetail'); if(!box) return;
         const name=appState.selectedVendor;
@@ -22576,28 +22717,44 @@ function oloPickParts(own, same, isActive, linked, nActive){
         box.classList.remove('hidden');
         if(r===undefined){ box.innerHTML='<div class="text-xs" style="color:#b45309">⚖️ شيت الديلفري والأرشيف فاضيين — زامن الديلفري حتى يطلع الحكم</div>'; return; }
         if(!r){ box.innerHTML='<div class="text-xs" style="color:#6b7280">⚖️ هذا المكتب ما إله صفوف بشيت الديلفري ولا بالأرشيف</div>'; return; }
-        const c=V[r.v];
+        const c=V[r.v], cur=r.cur;
         const cell=(t,n,fg)=>`<td style="padding:3px 6px;border:1px solid #e5e7eb;text-align:center"><div style="font-size:10px;color:#6b7280">${t}</div><div style="font-weight:800;color:${n ? fg : '#9ca3af'}">${n}</div></td>`;
-        const sec=(title,arr,fn)=>arr.length ? `<details class="mt-1"><summary class="cursor-pointer text-xs font-bold">${title} (${arr.length})</summary><div class="text-xs mt-1" style="line-height:1.7">${arr.map(fn).join('<br>')}</div></details>` : '';
+        const sec=(title,arr,fn)=>arr && arr.length ? `<details class="mt-1"><summary class="cursor-pointer text-xs font-bold">${title} (${arr.length})</summary><div class="text-xs mt-1" style="line-height:1.7">${arr.map(fn).join('<br>')}</div></details>` : '';
+        const th=s=>`<th style="padding:2px 5px;border:1px solid #e5e7eb;background:#f3f4f6;font-weight:700">${s}</th>`;
+        const td=s=>`<td style="padding:2px 5px;border:1px solid #e5e7eb;text-align:center">${s}</td>`;
+        const cyc=r.cycles.map(x=>{ const a=x.a, q=v=>x.full ? v : '—';
+            return `<tr>${td(esc(x.day))}${td(a[0])}${td(a[1])}${td(q(a[4]))}${td(q(a[5]))}${td(q(a[6]))}${td(a[8] ? esc(stanceLabel(a[8])) : '—')}</tr>`; }).join('');
+        const tags=r.tags.map(t=>`<span class="px-1.5 rounded border border-gray-300 bg-white" title="${esc(TAGS[t].d)}">${TAGS[t].e} ${TAGS[t].t}</span>`).join(' ');
         const defs=Object.keys(V).map(k=>`${V[k].e} <b>${V[k].t}</b>: ${esc(V[k].d)}`).join('<br>');
+        const tdefs=Object.keys(TAGS).map(k=>`${TAGS[k].e} <b>${TAGS[k].t}</b>: ${esc(TAGS[k].d)}`).join('<br>');
         box.innerHTML=`<div style="border:1px solid ${c ? c.fg+'44' : '#e5e7eb'};background:${c ? c.bg+'66' : '#f9fafb'};border-radius:12px;padding:8px 10px">
-            <div class="flex flex-wrap items-center gap-2 text-sm"><b>⚖️ الحكم:</b> ${c ? chip(r.v)+` <span class="text-xs">${esc(c.d)}</span>` : '<span class="text-xs text-gray-500">ماكو حكم — هالدورة ما بيها طلبية ولا وصولات من هذا المكتب</span>'}</div>
+            <div class="flex flex-wrap items-center gap-2 text-sm"><b>⚖️ الحكم:</b> ${c ? chip(r.v)+` <span class="text-xs">${esc(c.d)}</span>` : '<span class="text-xs text-gray-500">ماكو حكم — ماكو طلبية ولا وصولات محسوبة لهذا المكتب</span>'}</div>
+            ${tags ? `<div class="flex flex-wrap gap-1 text-xs mt-1"><b>إشارات:</b> ${tags}</div>` : ''}
+            ${r.stance ? `<div class="text-xs mt-1">📌 الموقف: <b>${esc(stanceLabel(r.stance))}</b>${(appState.officeStance||{})[okey(name)] && !(appState.officeStance[okey(name)]||{}).stance ? ' (قديم — انمسح لما وصل شي)' : ''}</div>` : ''}
             ${r.req || r.extra ? `<div class="overflow-auto mt-2"><table class="text-xs" style="border-collapse:collapse;min-width:100%"><tr>
-                ${cell('طلبت', r.req, '#111827')}${cell('مطابق', r.matched, '#15803d')}${cell('ناقص', r.partial, '#a16207')}${cell('زايد', r.over, '#1d4ed8')}
-                ${cell('ما وصل — غيره جابه', r.others, '#7c2d12')}${cell('ما وصل — محد جابه', r.nobody, '#6b7280')}
-                ${cell('غير مطلوب متحرك', r.extraMov, '#1d4ed8')}${cell('غير مطلوب واكف', r.extraStill, '#b91c1c')}</tr></table></div>` : ''}
-            ${histTxt(r.hist) ? `<div class="text-xs mt-1">📚 ${histTxt(r.hist)} — ${r.hist.arr} من ${r.hist.req} مادة</div>` : ''}
-            ${sec('⛔ ما جابها وغيره جابها', r.L.others, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} — جابها: ${esc(e.who.join('، '))})</span>`)}
-            ${sec('⚫ ما جابها ومحد جابها (نفاذ)', r.L.nobody, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
-            ${sec('🔴 غير مطلوبة وواكفة', r.L.extraStill, e=>`${esc(e.item)} <span style="color:#6b7280">(وصل ${esc(e.arr)} · صرف شهري ${e.mov})</span>`)}
-            ${sec('🔵 غير مطلوبة بس متحركة', r.L.extraMov, e=>`${esc(e.item)} <span style="color:#6b7280">(وصل ${esc(e.arr)} · صرف شهري ${e.mov})</span>`)}
-            ${sec('➕ زايدة عن المطلوب', r.L.over, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} ← وصل ${esc(e.arr)})</span>`)}
-            ${sec('➖ ناقصة الكمية', r.L.partial, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} ← وصل ${esc(e.arr)})</span>`)}
-            <details class="mt-1"><summary class="cursor-pointer text-[11px] text-gray-500">شلون ينحسب الحكم؟</summary><div class="text-[11px] mt-1" style="line-height:1.7">${defs}<br>
-            «غيره جابها» = نفس المادة وصلت من مكتب ثاني بنفس شيت الديلفري · «واكف» = صرف شهري أقل من ${STILL} · الأرشيف = آخر الدورات المؤرشفة (التطبيق يحتفظ بـ5)</div></details>
+                ${cell('طلبت', r.req, '#111827')}${cell('جاب منه', r.arr, '#15803d')}${cell('زايد', r.over, '#1d4ed8')}${cell('ناقص الكمية', r.partial, '#a16207')}
+                ${cell('ما جاب — موجود بالسوق', r.others, '#7c2d12')}${cell('ما جاب — نفاذ مؤكد', r.nobody, '#6b7280')}${cell('ما جاب — ما معروف', r.unknown, '#9a3412')}
+                ${cell('بلا طلب', r.extra, '#6b21a8')}${cell('بلا طلب واكف', r.extraStill, '#b91c1c')}</tr></table></div>
+                <div class="text-[10px] text-gray-500 mt-0.5">مجموع ${r.nCycles} دورة${r.nCycles>r.nFull ? ` (${r.nCycles-r.nFull} منها قديمة: بيها طلبت/جاب بس)` : ''}</div>` : ''}
+            ${r.cycles.length>1 ? `<details class="mt-1"><summary class="cursor-pointer text-xs font-bold">📚 كل دورة لحالها (${r.cycles.length})</summary><div class="overflow-auto mt-1"><table class="text-xs" style="border-collapse:collapse;min-width:100%">
+                <tr>${th('الدورة')}${th('طلبت')}${th('جاب')}${th('غيره جاب')}${th('محد جاب')}${th('بلا طلب')}${th('الموقف')}</tr>${cyc}</table></div></details>` : ''}
+            ${cur ? `<div class="text-xs font-bold mt-2">🧾 مواد الدورة الحالية (شيت الديلفري):</div>
+            ${sec('🟤 ما جابها وهي موجودة بالسوق', cur.L.others, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} — ${esc(e.who.join('، '))})</span>`)}
+            ${sec('🌫️ ما جابها ومحد باعها بآخر '+MARKET_DAYS+' يوم (نفاذ مؤكد)', cur.L.nobody, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
+            ${sec('❔ ما جابها والسبب ما معروف (سجل الشراء مو محمّل)', cur.L.unknown, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
+            ${sec('🧊 بلا طلب وواكفة', cur.L.extraStill, e=>`${esc(e.item)} <span style="color:#6b7280">(وصل ${esc(e.arr)} · صرف شهري ${e.mov})</span>`)}
+            ${sec('🟣 بلا طلب بس متحركة', cur.L.extraMov, e=>`${esc(e.item)} <span style="color:#6b7280">(وصل ${esc(e.arr)} · صرف شهري ${e.mov})</span>`)}
+            ${sec('🟠 زايدة عن المطلوب', cur.L.over, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} ← وصل ${esc(e.arr)})</span>`)}
+            ${sec('➖ ناقصة الكمية', cur.L.partial, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} ← وصل ${esc(e.arr)})</span>`)}` : ''}
+            <details class="mt-1"><summary class="cursor-pointer text-[11px] text-gray-500">شلون ينحسب الحكم؟</summary><div class="text-[11px] mt-1" style="line-height:1.7">
+            <b>الحكم الرئيسي</b> = أول قاعدة تنطبق بهالترتيب:<br>${defs}<br><br><b>الإشارات</b> (تنطبق أكثر من وحدة):<br>${tdefs}<br><br>
+            «موجود بالسوق» = نفس المادة وصلت من مكتب ثاني بنفس شيت الديلفري، أو انشرت من مكتب ثاني بآخر ${MARKET_DAYS} يوم (سجل الشراء) ·
+            «نفاذ مؤكد» = محد باعها بآخر ${MARKET_DAYS} يوم — التطبيق يوزّع كل مادة على مكتب واحد، فـ«محد ثاني جابها» وحدها ما تثبت نفاذ ·
+            «واكف» = صرف شهري أقل من ${STILL} ·
+            الدورات = الدورة الحالية + كل أرشفة (التطبيق يحتفظ بآخر 5). الأرشفات القديمة قبل هذا التحديث بيها «طلبت / جاب» بس.</div></details>
         </div>`;
     }
-    Object.assign(window, { ovdFor, ovdBadge, ovdFilter, ovdSet, ovdLabel, ovdFilterText, ovdRenderDetail });
+    Object.assign(window, { ovdFor, ovdBadge, ovdFilter, ovdSet, ovdTag, ovdLabel, ovdFilterText, ovdRenderDetail, ovdSnapshotSummary });
 })();
 // ===== Offers & Big Quotas tab (2026-10-13)
 // Source: Sheet3 (all items) + Sheet2 (vendors). Same join as CreateSheet4 (Module70) without its DRUGS / 35-day filter.
