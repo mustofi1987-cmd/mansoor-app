@@ -2,6 +2,28 @@
 <html dir="rtl" lang="ar">
 <head>
     <meta charset="UTF-8">
+    <script>
+    // 🩺 مصيدة أخطاء (2026-11-03) — أول script حتى تلگف أخطاء التحميل. ذاكرة + sessionStorage (مو localStorage: النسخة الاحتياطية تاخذ كل localStorage)
+    (function(){
+        const K='mz_local_errlog', MAX=20;
+        let log=[]; try{ log=JSON.parse(sessionStorage.getItem(K)||'[]'); if(!Array.isArray(log)) log=[]; log=log.filter(e=>e && !/ResizeObserver loop/i.test(e.msg)); }catch(_){ log=[]; }
+        window.__errLog=log;
+        const now=()=>new Date().toISOString();
+        const stk=s=>String(s||'').split('\n').slice(0,4).join('\n');
+        // ResizeObserver loop = تحذير من كروم نفسه، ما يأذي — كان يعبّي السجل ويغطّي الأخطاء الحقيقية (تقرير مصطفى 11-03)
+        // نفس الخطأ ورا بعض ← سطر واحد بعدّاد n
+        const push=e=>{ if(/ResizeObserver loop/i.test(e.msg)) return;
+            const p=log[log.length-1]; if(p && p.msg===e.msg && p.at===e.at){ p.n=(p.n||1)+1; p.t=e.t; } else log.push(e);
+            while(log.length>MAX) log.shift(); try{ sessionStorage.setItem(K, JSON.stringify(log)); }catch(_){} try{ window.dispatchEvent(new Event('mz-err')); }catch(_){} };
+        window.addEventListener('error', ev=>{
+            const t=ev.target;
+            if(t && t!==window && (t.src||t.href)){ if(/\/vendor\//.test(t.src||t.href)) return;   // نسخة محلية ناقصة (مثل الموبايل) ← يجي الـCDN بدالها، مو خطأ
+                push({t:now(), msg:'تحميل فشل: '+(t.tagName||'')+' '+(t.src||t.href), at:''}); return; }
+            push({t:now(), msg:String(ev.message||'خطأ'), at:(ev.filename||'')+':'+(ev.lineno||0)+':'+(ev.colno||0), stack:stk(ev.error && ev.error.stack)});
+        }, true);
+        window.addEventListener('unhandledrejection', ev=>{ const r=ev.reason; push({t:now(), msg:'Promise: '+String((r && r.message) || r), at:'', stack:stk(r && r.stack)}); });
+    })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>مذخر أدوية المنصور</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -9,10 +31,13 @@
     <meta name="apple-mobile-web-app-title" content="مذخر المنصور">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#007AFF">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2026-11-05: Tailwind وSheetJS من vendor/ أول (يشتغل حتى لو الـCDN واگف)، والـCDN احتياط إذا الملف المحلي ماكو -->
+    <script src="vendor/tailwindcss-3.4.17.js"></script>
+    <script>window.tailwind || document.write('<script src="https://cdn.tailwindcss.com"><\/script>');</script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="vendor/xlsx-0.20.1.full.min.js"></script>
+    <script>window.XLSX || document.write('<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"><\/script>');</script>
     <style>
         /* 2026-10-19 هوية التصميم (المرحلة 1) — tokens من mockups/phase1-design.html. --ios-* القديمة تبقى aliases */
         :root {
@@ -208,6 +233,24 @@
         .ic-na { color:var(--text-3); font-weight:400; }
         .ic-line { margin-top:8px; font-size:13px; }
         .ic-foot { margin-top:10px; font-size:11px; color:var(--text-3); }
+        .ic-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:6px; margin-top:10px; font-size:13px; }
+        .ic-grid span { background:var(--fill); border-radius:8px; padding:6px 8px; }
+        .ic-neg { color:#FF3B30; } .ic-pos { color:#34C759; }
+        .ic-hist { margin-top:10px; font-size:12.5px; } .ic-hist summary { cursor:pointer; font-weight:700; }
+        .ic-go { border:none; background:none; color:var(--accent); cursor:pointer; padding:0; font:inherit; text-decoration:underline; }
+        .ask-row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+        .ask-out { margin-top:10px; font-size:13.5px; line-height:1.7; }
+        .ask-out:empty { display:none; }
+        .ask-out .ask-pick { display:inline-block; margin:3px; padding:4px 10px; border:none; border-radius:999px; background:var(--fill); color:var(--text); cursor:pointer; font:inherit; font-size:12.5px; }
+        .ask-quick { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+        .ask-quick button { border:none; border-radius:999px; padding:5px 11px; background:var(--fill); color:var(--text); cursor:pointer; font-size:12.5px; }
+        .ask-set { margin-top:12px; font-size:12.5px; color:var(--text-2, var(--text)); } .ask-set summary { cursor:pointer; font-weight:700; } .ask-set p { margin:6px 0; }
+        .ask-tbl td, .ask-tbl th { white-space:nowrap; }
+        .bk-badge { display:inline-block; min-width:18px; padding:0 5px; margin-inline-start:6px; border-radius:9px; background:#FF3B30; color:#fff; font-size:11px; line-height:18px; text-align:center; }
+        .bk-badge[hidden] { display:none; }
+        .bk-txt { width:100%; min-height:260px; font:12px/1.5 ui-monospace,Consolas,monospace; direction:ltr; text-align:left; border:.5px solid var(--separator); border-radius:8px; padding:8px; background:var(--fill); color:var(--text); }
+        .bk-acts { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+        .bk-acts small { color:var(--text-3); font-size:11.5px; }
         @media (max-width:1099.98px){
             .app-header .hdr-actions > .cmdk-open.ios-btn { display:none; }
             .cmdk-mob { display:grid; place-items:center; order:4; width:44px; height:44px; border:none; border-radius:22px; background:var(--fill); color:var(--text); font-size:16px; cursor:pointer; align-self:center; }
@@ -550,6 +593,10 @@
                     <button id="excludeListBtn" class="ios-btn bg-[#FF3B30] text-white px-4 py-2 text-sm" title="استثناء مادة من مكتب معيّن — تختفي من كشف الرصيد والطلبية/الإرسال"><i class="fas fa-ban ml-1"></i> استثناءات</button>
                     <button id="archiveModalBtn" class="ios-btn bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white px-4 py-2 text-sm" title="أرشيف الطلبيات"><i class="fas fa-box-archive ml-1"></i> الأرشيف</button>
                 </div>
+                <div><h4>المساعدة</h4>
+                    <button type="button" id="bkOpenBtn" class="ios-btn bg-[#0f766e] text-white px-4 py-2 text-sm" title="تقرير جاهز للنسخ: التبويب + الفلاتر + آخر الأخطاء — تلصقه لكلود"><i class="fas fa-stethoscope ml-1"></i> بلّغ كلود<span id="bkBadge" class="bk-badge" hidden></span></button>
+                    <button type="button" id="askOpenBtn" class="ios-btn bg-[#5856D6] text-white px-4 py-2 text-sm" title="اكتب سؤالك (مثل: شكد نت أدول؟ · افتح المنتهية) — يشتغل بلا إنترنت، وGemini اختياري"><i class="fas fa-robot ml-1"></i> اسأل المساعد</button>
+                </div>
             </div>
         </div>
         <input type="file" id="restoreFileInput" accept=".json" class="hidden">
@@ -680,6 +727,30 @@
     <div class="tab-sheet-head"><h3>💊 بطاقة المادة</h3><button type="button" class="tab-sheet-x" data-close aria-label="إغلاق"><span>✕</span></button></div>
     <div id="itemCardBody" class="ic-body"></div>
 </dialog>
+<dialog id="bkDlg" class="cmdk" aria-label="بلّغ كلود">
+    <div class="tab-sheet-head"><h3>🩺 بلّغ كلود</h3><button type="button" class="tab-sheet-x" data-close aria-label="إغلاق"><span>✕</span></button></div>
+    <div class="ic-body">
+        <textarea id="bkText" class="bk-txt" readonly spellcheck="false"></textarea>
+        <div class="bk-acts"><button type="button" id="bkCopyBtn" class="ios-btn bg-[#007AFF] text-white px-4 py-2 text-sm">📋 نسخ</button><small>الصقه لكلود. ماكو أسعار ولا أرقام هواتف ولا مفاتيح.</small></div>
+    </div>
+</dialog>
+<dialog id="askDlg" class="cmdk" aria-label="المساعد">
+    <div class="tab-sheet-head"><h3>🤖 اسأل المساعد</h3><button type="button" class="tab-sheet-x" data-close aria-label="إغلاق"><span>✕</span></button></div>
+    <div class="ic-body">
+        <form id="askForm" class="ask-row"><input id="askQ" type="text" autocomplete="off" placeholder="مثل: شكد نت أدول؟ · دققلي ساوة من 8 الى 10 لا تصرف · عندي مشكلة" class="ios-input flex-1 text-sm"><button type="submit" class="ios-btn bg-[#5856D6] text-white px-4 py-2 text-sm">اسأل</button></form>
+        <div id="askOut" class="ask-out" aria-live="polite"></div>
+        <div class="ask-quick">
+            <button type="button" data-ask-tab="offices">🏢 المكاتب</button><button type="button" data-ask-tab="netPrice">💲 أسعار نت</button><button type="button" data-ask-tab="deliveryTracking">📬 متابعة الوصول</button><button type="button" data-ask-tab="expiry">⏳ المنتهية</button><button type="button" data-ask-act="report">🩺 بلّغ كلود</button><button type="button" data-ask-act="img">📷 عرض مكتب من صورة</button>
+        </div>
+        <input type="file" id="askImg" accept="image/png,image/jpeg,image/webp,image/heic,image/gif" hidden>
+        <div id="askImgOut" class="ask-out"></div>
+        <details class="ask-set"><summary>⚙️ مفتاح Gemini (اختياري)</summary>
+            <p>بلا مفتاح: المساعد يفهم الأسئلة البسيطة محلياً. المفتاح يلزم لـ«📷 عرض من صورة» والأسئلة الصعبة. سوّيه من <b>مشروع Google منفصل</b> عن أدوات كلود: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. ينحفظ بهذا الجهاز بس — ما يدخل النسخة الاحتياطية.</p>
+            <div class="ask-row"><input id="askKey" type="password" autocomplete="off" placeholder="AIza…" class="ios-input flex-1 text-sm"><button type="button" id="askKeySave" class="ios-btn bg-[#007AFF] text-white px-3 py-2 text-sm">حفظ</button><button type="button" id="askKeyDel" class="ios-btn bg-gray-300 text-gray-800 px-3 py-2 text-sm">مسح</button></div>
+            <small id="askKeyState"></small>
+        </details>
+    </div>
+</dialog>
 <script>
 (function(){
     // toast الخطأ (❌) ينسد بالضغط عليه
@@ -740,6 +811,7 @@
         const t=norm(q.value.trim());
         shown=t ? items.filter(i=>norm(i.text+' '+i.sub).includes(t)) : items;
         if(t.length>=2) shown=shown.concat(matHits(t));
+        if(t.length>=2 && !shown.some(i=>!i.na)) shown=shown.concat([{kind:'المساعد', text:'🤖 اسأل: '+q.value.trim(), sub:'', ask:q.value.trim()}]);
         if(sel>=shown.length) sel=Math.max(0,shown.length-1);
         list.innerHTML='';
         if(!shown.length){ const e=document.createElement('div'); e.className='cmdk-empty'; e.textContent='ماكو نتيجة'; list.appendChild(e); return; }
@@ -758,6 +830,7 @@
         if(it.na) return;
         closeDlg(ck);
         if(it.mat){ openCard(it.mat); return; }
+        if(it.ask!=null){ askOpen(it.ask); return; }
         it.el.click(); if(it.tab) window.scrollTo(0,0);
     }
 
@@ -779,17 +852,60 @@
         if(!mine.length) return null;
         const priced=r=>r.net!=null && r.net>0;
         // بلا سعر (بونص مقدماً) بالآخر — مو صفر
-        const offers=mine.map(r=>({vendor:r.vendor, net:priced(r) ? r.net : null, deal:r.deal||'', date:r.date||'', cheap:!!r.cheap && priced(r)}))   // r.cheap = الأرخص وأكثر من مكتب مسعّر (npParse) — مكتب وحيد ما ينوسم
+        const offers=mine.map(r=>({vendor:r.vendor, net:priced(r) ? r.net : null, deal:r.deal||'', date:r.date||'', cheap:!!r.cheap && priced(r), company:r.company||''}))   // r.cheap = الأرخص وأكثر من مكتب مسعّر (npParse) — مكتب وحيد ما ينوسم
             .sort((a,b)=>(a.net==null)-(b.net==null) || (a.net-b.net) || String(a.vendor).localeCompare(String(b.vendor)));
         const ents=(log && typeof log.get==='function' && log.get(key)) || [];   // مرتّب من الأحدث
         const last=ents.find(e=>e.purchase) || null;
         // السجل مرتّب بتاريخ الشراء — البونص المتأخر الأحدث ينختار بتاريخ **وصوله** (Codex 2026-11-02)
         const lk=e=>String(e.lateDate||e.date||'');
         const late=ents.filter(e=>e.late>0).reduce((b,e)=>(!b || lk(e)>lk(b)) ? e : b, null);
-        const co=mine.find(r=>r.company);
-        return { name:mine[0].name, company:co ? co.company : '', offers,
+        // الشركة: وحدة متفق عليها بس — أكثر من شركة بنفس الاسم = mixedCo، والبطاقة ما تربط رصيد/هامش بشركة وحدة (Codex task-mw0zf9br-4cval9 #1)
+        const cos=new Map(); mine.forEach(r=>{ const k=String(r.company||'').replace(/\s+/g,' ').trim().toLowerCase(); if(k && !cos.has(k)) cos.set(k, r.company); });
+        return { name:mine[0].name, company:cos.size===1 ? [...cos.values()][0] : '', mixedCo:cos.size>1, offers,
             last:last ? {vendor:last.vendor, date:last.date, paid:last.paid||0, same:last.same||0} : null,
             lateBonus:late ? {vendor:late.vendor, qty:late.late, date:late.lateDate||late.date||''} : null };
+    }
+    // المرحلة 2 (2026-11-03): الرصيد والصرف من Sheet3 · تاريخ السعر · سعر البيع مقابل النت.
+    // كل الربط exact، والشركة لازم تتوافق (فاضية بطرف = مقبول) — التعارض يطلّع «—» مو أرقام مادة ثانية (Codex task-mw0yqfo4-hokadb #4)
+    function icCo(s){ return String(s||'').replace(/\s+/g,' ').trim().toLowerCase(); }
+    function icCoOk(a, b){ const x=icCo(a), y=icCo(b); return !x || !y || x===y; }
+    // mvRows = __mvState.rows (Sheet3: أرقام جاهزة من الشيت، بلا تجميع سالب) · kf = keyOf مال النت
+    function icStock(mvRows, key, kf, company){
+        let hit=(mvRows||[]).filter(r=>r && kf(r.name)===key);
+        if(!hit.length) return {state:'none'};
+        if(hit.length>1){ const m=hit.filter(r=>icCo(company) && icCo(r.company)===icCo(company)); if(m.length!==1) return {state:'ambig', n:hit.length}; hit=m; }
+        const r=hit[0];
+        if(!icCoOk(company, r.company)) return {state:'conflict', company:r.company};
+        return {state:'ok', monthly:r.monthly, mansour:r.mansour, apple:r.apple, cov:r.cov, total:r.total};
+    }
+    // تاريخ السعر لكل مكتب: مشتريات بس (purchase) بنت > 0، آخر 6، الأحدث أول؛ نفس اليوم ← ترتيب السجل (ثابت)
+    function icPriceHist(log, key){
+        const ents=(log && typeof log.get==='function' && log.get(key)) || [];
+        const by=new Map();
+        ents.forEach((e,i)=>{ if(!e || !e.purchase || !(e.net>0)) return; let a=by.get(e.vendor); if(!a) by.set(e.vendor, a=[]); a.push({date:String(e.date||''), net:e.net, i}); });
+        const out=[];
+        by.forEach((a,vendor)=>{
+            a.sort((x,y)=>y.date.localeCompare(x.date) || x.i-y.i);
+            const pts=a.slice(0,6).map((p,j,arr)=>{ const pr=arr[j+1]; return {date:p.date, net:p.net, dir:pr ? (p.net>pr.net ? 'up' : p.net<pr.net ? 'down' : 'same') : ''}; });
+            out.push({vendor, pts});
+        });
+        return out.sort((a,b)=>b.pts[0].date.localeCompare(a.pts[0].date) || String(a.vendor).localeCompare(String(b.vendor)));
+    }
+    // سعر البيع (product.template) مقابل أرخص نت — pk = bonusPriceKey. أسعار مختلفة أو شركة متعارضة ← ماكو سطر
+    // الهامش يقارن بأرخص نت **من نفس الشركة** بس — أرخص عرض بكل الشركات ممكن مادة ثانية بنفس الاسم (Codex task-mw0zf9br-4cval9 #1)
+    function icSale(priceMap, name, company, offers, pk){
+        if(!priceMap || !priceMap.exact || typeof pk!=='function') return {state:'na'};
+        const a=priceMap.exact.get(pk(name,false)) || [];
+        if(!a.length) return {state:'none'};
+        if(a.some(e=>!icCoOk(company, e.company))) return {state:'conflict'};
+        const ps=new Set(a.map(e=>Number(e.price)||0).filter(p=>p>0));
+        if(ps.size!==1) return {state:ps.size ? 'ambig' : 'none'};
+        const price=[...ps][0], sc=(a.find(e=>icCo(e.company))||{}).company || company || '';
+        const pr=(offers||[]).filter(o=>o && o.net>0);
+        const cos=new Set(pr.map(o=>icCo(o.company)).filter(Boolean));
+        const elig=icCo(sc) ? pr.filter(o=>icCoOk(sc, o.company)) : (cos.size>1 ? [] : pr);
+        const minNet=elig.length ? Math.min(...elig.map(o=>o.net)) : 0;
+        return {state:'ok', price, minNet, margin:minNet>0 ? (price-minNet)/price : null};
     }
     let matIdx=[], matFor=null;
     function matHits(t){
@@ -805,6 +921,12 @@
         const st=window.__npState, c=st && Array.isArray(st.rows) ? icCard(st.rows, st.log, key) : null;
         if(!c) return;
         const e=icEsc;
+        // أسعار نت قديمة (مزامنة بعد تحميل التبويب) ← ما تنعرض أبد، بس الرابط (Codex task-mw0zskut-8uh2by #2)
+        if(st.ver!=null && st.ver!==(window.__excelStoreVer||0)){
+            icBody.innerHTML=`<div class="ic-head"><b>${e(c.name)}</b></div><div class="ic-line">⚠️ البيانات اتحدّثت بعد آخر فتحة لأسعار النت — الأرقام القديمة ما تنعرض.</div>`
+                +'<div class="ic-foot"><button type="button" class="ic-go" data-tab="netPrice">افتح 💲 أسعار نت يحدّثها</button></div>';
+            openDlg(ic); return;
+        }
         let h=`<div class="ic-head"><b>${e(c.name)}</b>${c.company ? `<small>${e(c.company)}</small>` : ''}</div>`
             +'<div class="ic-cap">أسعار النت بالمكاتب — الأرخص أول</div>'
             +'<table class="ic-tbl"><thead><tr><th>المكتب</th><th>النت</th><th>الديل</th><th>التاريخ</th></tr></thead><tbody>'
@@ -812,11 +934,436 @@
             +'</tbody></table>';
         if(c.last) h+=`<div class="ic-line">🧾 آخر شراء: <b>${e(c.last.vendor)}</b> · ${e(c.last.date)} · ${icN(c.last.paid)}${c.last.same>0 ? ' + بونص '+icN(c.last.same) : ''}</div>`;
         if(c.lateBonus) h+=`<div class="ic-line">⏱️ بونص وصل متأخر: ${icN(c.lateBonus.qty)} من <b>${e(c.lateBonus.vendor)}</b>${c.lateBonus.date ? ' · '+e(c.lateBonus.date) : ''}</div>`;
+        // 📦 الرصيد والصرف — Sheet3 (تبويب الحركة والأرصدة)
+        // ver: التبويب يحفظ __excelStoreVer وقت التحميل — مزامنة بعدها (حتى من تبويب متصفح ثاني) = أرقام قديمة ← ما تنعرض (Codex #2)
+        const xv=window.__excelStoreVer||0, npOld=false;   // القديم انرجع فوق قبل الرسم
+        const mv=window.__mvState, kf=window.npKeyOf, mvHas=!!(mv && Array.isArray(mv.rows) && typeof kf==='function'), mvOld=mvHas && mv.ver!=null && mv.ver!==xv, mvOn=mvHas && !mvOld;
+        if(mvOn){
+            const s=c.mixedCo ? {state:'ambig'} : icStock(mv.rows, key, kf, c.company);
+            if(s.state==='ok') h+=`<div class="ic-grid"><span>📈 صرف شهري <b>${icN(s.monthly)}</b></span><span>🏪 منصور <b>${icN(s.mansour)}</b></span><span>🍎 تفاح <b>${icN(s.apple)}</b></span><span>⏳ تغطية <b>${s.cov ? icN(s.cov)+' يوم' : '—'}</b></span></div>`;
+            else h+=`<div class="ic-line ic-na">📦 الرصيد والصرف: — ${s.state==='ambig' ? '(أكثر من مادة بنفس الاسم بـSheet3)' : s.state==='conflict' ? '(الشركة بـSheet3 مختلفة: '+e(s.company)+')' : '(ما انلگت بـSheet3 بنفس الاسم بالضبط)'}</div>`;
+        }
+        // 💵 سعر البيع مقابل أرخص نت
+        const pm=window.__bonusPriceMap, pk=window.bonusPriceKey, pmOn=!!(pm && pm.exact && typeof pk==='function') && window.__bonusPriceVer===xv;   // نفس فحص القِدم
+        if(pmOn){
+            const sl=icSale(pm, c.name, c.company, c.offers, pk);
+            if(sl.state==='ok') h+=`<div class="ic-line">💵 سعر البيع: <b>${icN(sl.price)}</b>${sl.margin!=null ? ` · هامش على أرخص نت (${icN(sl.minNet)}): <b class="${sl.margin<0 ? 'ic-neg' : ''}">${(sl.margin*100).toFixed(1)}%</b>` : ''}</div>`;
+        }
+        // 📈 تاريخ السعر لكل مكتب
+        const ph=icPriceHist(st.log, key);
+        if(ph.length){
+            const ar={up:'<span class="ic-neg">▲</span>', down:'<span class="ic-pos">▼</span>', same:'=', '':''};
+            h+=`<details class="ic-hist"><summary>📈 تاريخ سعر الشراء (${ph.length} مكتب)</summary><table class="ic-tbl"><tbody>`
+                +ph.map(v=>`<tr><td>${e(v.vendor)}</td><td>${v.pts.map(p=>`${icN(p.net)}${ar[p.dir]} <small>${e(p.date)}</small>`).join(' · ')}</td></tr>`).join('')
+                +'</tbody></table></details>';
+        }
         const d=st.importedAt ? new Date(st.importedAt) : null;   // fmtDateTime مو global
         const imp=d ? (isNaN(d) ? st.importedAt : d.toLocaleString('en-GB',{dateStyle:'short', timeStyle:'short'})) : '';
-        h+=`<div class="ic-foot">المصدر: أسعار نت${imp ? ' · استيراد '+e(imp) : ''}</div>`;
+        const miss=[npOld && ['netPrice','💲 أسعار نت','أسعار النت','اتحدّثت'], !mvOn && ['movement','📋 الحركة والأرصدة','الرصيد والصرف', mvOld ? 'اتحدّث' : 'ما محمّل'], !pmOn && ['bonus','🎁 البونصات','سعر البيع','ما محمّل']].filter(Boolean);
+        h+=`<div class="ic-foot">المصدر: أسعار نت${imp ? ' · استيراد '+e(imp) : ''}${mvOn ? ' · Sheet3 ✅' : ''}${pmOn ? ' · أسعار البيع (من آخر فتحة للبونصات)' : ''}${c.mixedCo ? '<br>⚠️ الاسم موجود بأكثر من شركة — الرصيد ما ينربط، والهامش بس على نفس شركة سعر البيع' : ''}`
+            +miss.map(([t,l,w,why])=>`<br>⚠️ ${w} ${why} — <button type="button" class="ic-go" data-tab="${t}">افتح ${l}</button>`).join('')+'</div>';
         icBody.innerHTML=h; openDlg(ic);
     }
+    icBody.addEventListener('click',ev=>{
+        const b=ev.target.closest('.ic-go'); if(!b) return;
+        const t=document.querySelector('#sideNav .segmented-btn[data-tab="'+b.dataset.tab+'"]');
+        closeDlg(ic); if(t){ t.click(); window.scrollTo(0,0); }
+    });
+
+    // 🩺 بلّغ كلود (2026-11-03) — تقرير نصي للنسخ، بلا AI. قراءة بس: ما يقرا ph_* ولا محتوى البيانات.
+    // bkScrub على كل نص جاي من برّه (رسالة الخطأ · stack · قيمة فلتر) — Codex: حجب أسماء الحقول ما يكفي
+    function bkScrub(s){
+        return String(s==null ? '' : s)
+            .replace(/file:\/\/\/[^\s'")?#]*\/([^\/\s'")?#]+)(?:[?#][^\s'")]*)?/g, '$1')
+            .replace(/(https?:\/\/[^\s?#'")]+)[?#][^\s'")]*/g, '$1')
+            .replace(/\b(?:ghp|gho|ghs|ghu|github_pat)_[A-Za-z0-9_]{10,}/g, '[token]')
+            .replace(/AIza[0-9A-Za-z_\-]{20,}/g, '[key]')
+            .replace(/[A-Za-z0-9+\/_\-]{32,}={0,2}/g, '[…]')
+            // أي سلسلة أرقام (بمسافات/شرطات بأي تقسيم) مجموعها ≥7 خانات = رقم هاتف محتمل — إلا شكل التاريخ/الوقت
+            .replace(/\+?\(?\d(?:[\s\-()]{0,3}\d)+/g, m=>{
+                if(m.replace(/\D/g,'').length<7) return m;
+                if(/^\d{4}-\d{1,2}-\d{1,2}(?:\s+\d{1,2})?$/.test(m.trim())) return m;
+                return '[رقم]';
+            });
+    }
+    // allowlist للفلاتر (Codex): select · checkbox · search/number/date · text بس إذا id/name بيه search/filter
+    function bkAllow(el){
+        const tag=String(el.tag||'').toLowerCase(), type=String(el.type||'').toLowerCase(), id=String(el.id||'')+' '+String(el.name||'');
+        if(/token|key|github|phone|pass|cfg|secret|mobile|tel/i.test(id)) return false;
+        if(tag==='select') return true;
+        if(tag!=='input') return false;
+        if(type==='checkbox' || type==='search' || type==='number' || type==='date') return true;
+        return (type==='text' || type==='') && /search|filter/i.test(id);
+    }
+    function bkReport(ctx){
+        const c=ctx||{}, L=[];
+        L.push('🩺 تقرير لكلود — مذخر المنصور v8');
+        L.push('الوقت: '+(c.now||''));
+        L.push('الشاشة: '+(c.screen||'')+(c.ua ? ' · '+c.ua : ''));
+        L.push('التبويب: '+(c.tab ? bkScrub(c.tab.label)+' ('+bkScrub(c.tab.id)+')' : '—'));
+        const fl=c.filters||[];
+        L.push('الفلاتر المتغيّرة ('+fl.length+'):'+(fl.length ? '' : ' ماكو'));
+        fl.forEach(f=>L.push('- '+bkScrub(f.id)+(f.label ? ' «'+bkScrub(f.label).slice(0,30)+'»' : '')+': '+bkScrub(f.val).slice(0,40)));
+        L.push('المصادر:');
+        (c.src||[]).forEach(s=>L.push('- '+s.name+': '+(s.n==null ? 'غير محمّل' : s.n+' صف')+(s.at ? ' · استيراد '+bkScrub(s.at) : '')));
+        const er=c.errors||[], last=er.slice(-10);
+        L.push('الأخطاء (آخر '+last.length+' من '+er.length+'):'+(er.length ? '' : ' ماكو'));
+        last.forEach((e,i)=>{
+            const d=new Date(e.t), tm=isNaN(d) ? String(e.t||'') : d.toLocaleString('en-GB');   // المصيدة تخزن ISO (UTC) — العرض محلي مثل «الوقت»
+            let at=bkScrub(e.at); try{ at=decodeURIComponent(at); }catch(_){}   // اسم الملف العربي يطلع مقروء
+            L.push((i+1)+'. ['+tm+'] '+bkScrub(e.msg)+(e.n>1 ? ' (×'+e.n+')' : '')+(e.at ? ' @ '+at : ''));
+            if(e.stack) bkScrub(e.stack).split('\n').slice(1,4).forEach(x=>{ if(x.trim()) L.push('     '+x.trim()); });
+        });
+        return L.join('\n');
+    }
+    function bkCollect(){
+        const a=document.querySelector('#sideNav .segmented-btn.active');
+        const tab=a ? {id:a.dataset.tab||'', label:label(a)} : null;
+        const panel=(tab && document.getElementById(tab.id+'Tab')) || null;
+        const filters=[];
+        if(panel) panel.querySelectorAll('input, select').forEach(el=>{
+            const d={tag:el.tagName, type:el.type, id:el.id, name:el.name};
+            if(!bkAllow(d) || !(el.id||el.name)) return;
+            let val=null;
+            if(el.tagName==='SELECT'){ const def=[...el.options].findIndex(o=>o.defaultSelected); if(el.selectedIndex!==Math.max(0,def)) val=el.value; }
+            else if(el.type==='checkbox'){ if(el.checked!==el.defaultChecked) val=el.checked ? '✓' : '✗'; }
+            else if(el.value!==el.defaultValue && el.value!=='') val=(el.type==='number' || el.type==='date') ? el.value : 'مكتوب ('+el.value.length+' حرف)';   // نص البحث ممكن اسم شخص (Codex) — طوله بس
+            if(val!=null) filters.push({id:el.id||el.name, label:el.getAttribute('aria-label')||el.placeholder||el.title||'', val});
+        });
+        const S=(name,st,f)=>{ const a=st && st[f||'rows']; return {name, n:Array.isArray(a) && (a.length || f!=='data') ? a.length : null, at:(st && st.importedAt) || ''}; };   // dtState.data تبدي [] = غير محمّل
+        const m=/(Chrome|Edg|Firefox|Safari)\/(\d+)/.exec(navigator.userAgent||'');
+        return { now:new Date().toLocaleString('en-GB'), screen:innerWidth+'×'+innerHeight, ua:m ? m[1]+' '+m[2] : '', tab, filters,
+            src:[S('أسعار نت',window.__npState), S('حركة المواد (Sheet3)',window.__mvState), S('قطع العروض',window.__qtState), S('متابعة الوصول',window.__dtState,'data')],
+            errors:Array.isArray(window.__errLog) ? window.__errLog : [] };
+    }
+    const bk=document.getElementById('bkDlg'), bkText=document.getElementById('bkText'), bkBadge=document.getElementById('bkBadge');
+    function bkBadgeSync(){ const n=Array.isArray(window.__errLog) ? window.__errLog.length : 0; if(bkBadge){ bkBadge.textContent=n ? String(n) : ''; bkBadge.hidden=!n; } }
+    function bkOpen(){ bkText.value=bkReport(bkCollect()); openDlg(bk); }
+    window.addEventListener('mz-err', bkBadgeSync); bkBadgeSync();
+    const bkBtn=document.getElementById('bkOpenBtn'); if(bkBtn) bkBtn.addEventListener('click', bkOpen);
+    document.getElementById('bkCopyBtn').addEventListener('click', async()=>{
+        let ok=false;
+        try{ await navigator.clipboard.writeText(bkText.value); ok=true; }catch(_){ try{ bkText.select(); ok=document.execCommand('copy'); }catch(__){} }
+        if(typeof showToast==='function') showToast(ok ? '📋 انتسخ — الصقه لكلود' : '⚠️ ما انتسخ — حدّد النص وانسخه بيدك');
+    });
+    // 🤖 المساعد (2026-11-03) — محلي أول (بلا مفتاح ولا إنترنت)؛ Gemini بس بضغطة صريحة.
+    // لـGemini ينرسل: السؤال + أسماء التبويبات والأوامر — لا صفوف ولا أسعار ولا مكاتب من بياناتنا (Codex task-mw0yqfo4-hokadb #2)
+    const ASK_SYN={ offices:['مكاتب','المكاتب','طلبيه','طلبيات','ارسال'], netPrice:['نت','اسعار نت','الاسعار'], movement:['حركه','ارصده','الرصيد','رصيد'],
+        expiry:['منتهيه','المنتهيه','اكسباير','expiry'], deliveryTracking:['وصول','متابعه','متابعه الوصول'], bonus:['البونصات'], quotaShare:['حصص','الحصص'],
+        quota:['كوتات','قطع العروض'], dashboard:['لوحه','داشبورد','التحليل','dashboard'], soldOut:['وصل وخلص','خلص'], returns:['مرتجعات','مرتجع'],
+        audit:['تدقيق','فواتير'], tuffahXfer:['تفاح','قطع منصور'], global:['الفيندور','فيندور','الشامل'], allocated:['مخصصه','المخصصه'], repliesStudy:['موقف','ردود'] };
+    // nf = norm. tabs = [{id,label}]. يرجّع action أو null (= ما فهم ← Gemini بضغطة)
+    // «دققلي مكاتب ساوة من 8 الى 10 لا تصرف» ← {action:'audit_dont', office, from, to} (2026-11-05)
+    // t مطبّع بـnorm (ى→ي، ة→ه، أ→ا). بلا كلمة «لا تصرف» = null — حتى «تدقيق» لحاله يبقى يفتح التبويب. pure (tests/ask-audit.test.js)
+    function askAuditParse(t){
+        t=' '+String(t||'').replace(/[؟?!.،,]+/g,' ').replace(/\s+/g,' ').trim()+' ';
+        const DONT=/\s(?:لا ?تصرف|لا ?تنصرف|ما ?تنصرف|ما ?ينصرف|ما ?تصرف|نوت ?دي?س?بي?ن[سص]|not ?dispen[sc]ed?|don'?t(?: ?dispen[sc]e)?)(?=\s)/;
+        if(!DONT.test(t)) return null;
+        t=t.replace(DONT,' ');
+        const MON=[['كانون الثاني','يناير','january'],['شباط','فبراير','february'],['اذار','مارس','march'],['نيسان','ابريل','april'],['ايار','مايس','مايو'],['حزيران','يونيو','june'],
+            ['تموز','يوليو','july'],['اب','اغسطس','august'],['ايلول','سبتمبر','september'],['تشرين الاول','اكتوبر','october'],['تشرين الثاني','نوفمبر','november'],['كانون الاول','ديسمبر','december']];
+        MON.forEach((ns,i)=>ns.forEach(nm=>{ t=t.split(' '+nm+' ').join(' '+(i+1)+' '); }));
+        let from=null, to=null, year=null;
+        const ym=/\s(?:سنه\s+)?(20\d{2})(?=\s)/.exec(t); if(ym){ year=+ym[1]; t=t.replace(ym[0],' '); }   // «من 8 الى 10 2025» ← السنة مو جزء من اسم المكتب
+        const P='\\s(?:من\\s+)?(?:ال)?(?:شهر\\s+)?(\\d{1,2})\\s*(?:الي|الى|لغايه|لحد|حتي|حتى|لل|ل|-|–)\\s*(?:ال)?(?:شهر\\s+)?(\\d{1,2})(?=\\s)';
+        let m=new RegExp(P).exec(t);
+        if(m){ from=+m[1]; to=+m[2]; t=t.replace(m[0],' '); }
+        else if((m=/\s(?:ب?شهر|الشهر|لشهر|من)\s+(\d{1,2})(?=\s)/.exec(t))){ from=to=+m[1]; t=t.replace(m[0],' '); }
+        if(from!=null && !(from>=1 && from<=12 && to>=1 && to<=12)) from=to=null;
+        const STOP=new Set(['دققلي','دقق','دققي','دققلنا','تدقيق','فواتير','الفواتير','فاتوره','مكاتب','المكاتب','مكتب','المكتب','لمكتب','بمكتب','من','الي','الى','شهر','الشهر','اشهر',
+            'مواد','المواد','ماده','الماده','اطبع','اطبعلي','طباعه','متتاليه','متتالي','pdf','بي','دي','اف','ردزلي','دزلي','سويلي','طلعلي','جيبلي','اريد','ابي','لل','ال','و','بل','بال','كل','اللي','عن']);
+        const office=t.trim().split(' ').filter(w=>w && !STOP.has(w)).join(' ');
+        return year ? {action:'audit_dont', office, from, to, year} : {action:'audit_dont', office, from, to};
+    }
+    // أي كلمة من أسماء المكاتب المعروفة (التدقيق + الطلبيات) بالسؤال ← «مكتب1…» قبل Gemini، وترجع محلياً (Codex task-mw3hwlsh-le3dxn #1)
+    // الحجب على النص المطبّع وبالكلمة (مو الاسم الكامل بس) — «ساوه» لحالها تنحجب مقابل «مكتب ساوة الصوف». الكلمات العامة تبقى.
+    const ASK_MASK_KEEP=new Set(['مكتب','مكاتب','المكتب','المكاتب','صيدليه','الصيدليه','شركه','الشركه','مذخر','ادويه','الادويه','للادويه','العلميه','التجاريه','بغداد']);
+    async function askMask(q){
+        const A=window.__auditAsk; let vs=[];
+        try{ if(A){ await A.load(); vs=A.vendors(); } }catch(_){}
+        try{ ((window.appState && window.appState.ordersRaw) || []).forEach(o=>{ if(o && o.vendor) vs.push(o.vendor); }); }catch(_){}
+        return askMaskText(q, vs);
+    }
+    // ٠-٩ and ۰-۹ → 0-9, before parsing, phone scrubbing and masking — «من ٨ الى ١٠» must parse, and an Arabic-digit phone must not slip past bkScrub
+    function askDigits(s){ return String(s==null ? '' : s).replace(/[٠-٩]/g, d=>String(d.charCodeAt(0)-0x660)).replace(/[۰-۹]/g, d=>String(d.charCodeAt(0)-0x6F0)); }   // pure
+    function askMaskText(q, vs){   // pure (tests/ask-audit.test.js)
+        const toks=new Set();
+        // same word runs as the question below (names with «؛» «،» «:» tokenize the same way) · month words and plain numbers are never masked:
+        // «مكتب كانون» must not eat «كانون الثاني», «مكتب النور 2025» must not eat the year (Codex RES-2026-11-05-askaudit r2)
+        const MON_W=new Set(['كانون','الثاني','الاول','شباط','اذار','نيسان','ايار','حزيران','تموز','ايلول','تشرين','يناير','فبراير','مارس','ابريل','مايو','مايس','يونيو','يوليو','اغسطس','سبتمبر','اكتوبر','نوفمبر','ديسمبر','سنه','شهر']);
+        vs.forEach(v=>(norm(askDigits(v)).match(/[ء-يٮ-ۓa-z0-9]+/g)||[]).forEach(w=>{ if(w.length>=3 && !/^\d+$/.test(w) && !MON_W.has(w) && !ASK_MASK_KEEP.has(w)) toks.add(w); }));
+        const map=[];
+        // word runs (letters/digits) — so «(ساوه)» · «ساوه:» · «ساوه؛» still get masked (Codex RES-2026-11-05-askaudit #1)
+        const text=norm(askDigits(String(q||''))).replace(/[؟?!.،,]+/g,' ').replace(/[ء-يٮ-ۓa-z0-9]+/g, w=>{
+            const hit=x=>toks.has(x) || toks.has(x.replace(/^ال(?=...)/,'')) || toks.has('ال'+x);
+            if(!(hit(w) || hit(w.replace(/^[وبل](?=...)/,'')))) return w;   // «والنور» · «بساوه» · «لساوه»
+            let e=map.find(x=>x[1]===w); if(!e){ e=['مكتب'+(map.length+1), w]; map.push(e); } return e[0];
+        });
+        return {text, map};
+    }
+    function askLocal(q, tabs, nf, syn){
+        let t=nf(String(q||'')).replace(/[؟?!.،,]+/g,' ').replace(/\s+/g,' ').trim();
+        if(!t) return null;
+        if(/(خطا|خطأ|مشكل|عطل|عله|ما يشتغل|مايشتغل|ما يفتح|علق|bug|error)/.test(t)) return {action:'report'};
+        const au=askAuditParse(t); if(au) return au;
+        const m=/(?:^|\s)(?:شكد|شكثر|بيش|كم|سعر|اسعار|نت|بطاقه|ماده|دواء)\s+(.+)$/.exec(t);
+        if(m){
+            let it=m[1].replace(/^(?:(?:نت|سعر|ال|مال|هسه|اليوم)\s+)+/,'').replace(/\s+(?:بكم|هسه|اليوم|شكد|شكثر)$/,'').trim();
+            if(it.length>=2 && !(syn && Object.keys(syn).some(k=>(syn[k]||[]).includes(it)))) return {action:'open_item', item:it};
+        }
+        const w=t.replace(/^(?:افتح|روح|وديني|ودني|اريد|ابي|شوف|تبويب)\s+/,'').replace(/^تبويب\s+/,'').trim();
+        if(w.length<2) return null;
+        const hits=(tabs||[]).filter(tb=>{
+            const lab=nf(tb.label).replace(/[^؀-ۿa-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+            return lab===w || lab.includes(w) || ((syn && syn[tb.id]) || []).some(s=>s===w || w===s || (w.length>=3 && s.includes(w)));
+        });
+        if(hits.length===1) return {action:'open_tab', tab:hits[0].id};
+        if(hits.length>1) return {action:'choose_tab', tabs:hits.map(h=>h.id)};
+        return null;
+    }
+    function gemAskBody(q, tabs, cmds){
+        const sys='أنت مساعد داخل تطبيق مذخر أدوية عراقي (مشتريات من المكاتب). رجّع JSON بس: '
+            +'open_tab مع tab = id من القائمة · open_item مع item = اسم المادة التجاري بحروف إنگليزية (مثل أدول ← ADOL) · report إذا يشتكي من خطأ أو مشكلة · '
+            +'answer مع text قصير (جملتين، عراقي) إذا سؤال عن استعمال التطبيق · '
+            +'audit_dont مع office = اسم المكتب مثل ما مكتوب بالسؤال و from_month و to_month (1-12) و year (بس إذا السنة مذكورة بالسؤال) إذا يريد يدقق أو يطبع فواتير/مواد «لا تصرف» (not dispense) لمكتب لفترة أشهر. '
+            +'لا تخترع أرقام ولا أسعار ولا أسماء تبويبات.';
+        return {
+            systemInstruction:{parts:[{text:sys}]},
+            contents:[{role:'user', parts:[{text:JSON.stringify({question:String(q||'').slice(0,300), tabs:(tabs||[]).map(t=>({id:t.id, label:t.label})), commands:(cmds||[]).slice(0,60)})}]}],
+            generationConfig:{temperature:0.1, maxOutputTokens:300, responseMimeType:'application/json',
+                responseSchema:{type:'OBJECT', properties:{action:{type:'STRING', enum:['open_tab','open_item','report','answer','audit_dont']}, tab:{type:'STRING'}, item:{type:'STRING'}, text:{type:'STRING'}, office:{type:'STRING'}, from_month:{type:'INTEGER'}, to_month:{type:'INTEGER'}, year:{type:'INTEGER'}}, required:['action']}}
+        };
+    }
+    // جواب Gemini ما ينصدّق: tab لازم من الموجود، والنصوص تتقص (Codex #7)
+    function askValidate(raw, tabIds){
+        let o=raw; if(typeof o==='string'){ try{ o=JSON.parse(o); }catch(_){ return null; } }
+        if(!o || typeof o!=='object') return null;
+        const s=v=>typeof v==='string' ? v.trim() : '';
+        if(o.action==='open_tab') return (tabIds||[]).includes(s(o.tab)) ? {action:'open_tab', tab:s(o.tab)} : null;
+        if(o.action==='open_item') return s(o.item).length>=2 ? {action:'open_item', item:s(o.item).slice(0,80)} : null;
+        if(o.action==='report') return {action:'report'};
+        if(o.action==='answer') return s(o.text) ? {action:'answer', text:s(o.text).slice(0,400)} : null;
+        if(o.action==='audit_dont'){
+            const mo=v=>{ const n=Number(v); return Number.isInteger(n) && n>=1 && n<=12 ? n : null; };
+            const f=mo(o.from_month), t=o.to_month==null ? f : mo(o.to_month);
+            const r={action:'audit_dont', office:s(o.office).slice(0,60), from:(f==null || t==null) ? null : f, to:(f==null || t==null) ? null : t};
+            const y=Number(o.year); if(Number.isInteger(y) && y>=2000 && y<=2100) r.year=y;   // a stated year is kept, never swapped for the newest one (Codex #3)
+            return r;
+        }
+        return null;
+    }
+    // 404 للموديل ← أول flash نصي يدعم generateContent من القائمة
+    function gemPickModel(models){
+        const ok=(models||[]).filter(m=>m && /flash/i.test(m.name||'') && !/image|tts|audio|live|embed|thinking-exp/i.test(m.name||'') && (m.supportedGenerationMethods||[]).includes('generateContent'));
+        const stable=ok.find(m=>/^models\/gemini-[\d.]+-flash$/.test(m.name)) || ok[0];
+        return stable ? String(stable.name).replace(/^models\//,'') : null;
+    }
+    // 📷 عرض مكتب من صورة — Codex #1: لازم الكمية المدفوعة والبونص والعملة، وإلا «غير قابل للمقارنة»
+    function ofNet(l){
+        const n=v=>(typeof v==='number' && isFinite(v)) ? v : (typeof v==='string' && v.trim()!=='' && isFinite(+v.replace(/,/g,''))) ? +v.replace(/,/g,'') : null;
+        const price=n(l && l.price), paid=n(l && l.paid), bonus=n(l && l.bonus);
+        const cur=String((l && l.currency) || '').trim();
+        if(cur && !/^(iqd|د\.?ع|دينار)/i.test(cur)) return {ok:false, why:'عملة '+cur, price};   // السعر الخام يبقى للعرض
+        if(!(price>0)) return {ok:false, why:'ماكو سعر', price};
+        if(!(paid>0) || bonus==null || bonus<0) return {ok:false, why:'العرض مو واضح', price};
+        return {ok:true, net:price*paid/(paid+bonus), price, paid, bonus};
+    }
+    function ofMatch(lines, rows, kf, nf){
+        // الاسم بأكثر من شركة ← ماكو «أرخص نت» واحد للمقارنة (Codex task-mw0zskut-8uh2by #3)
+        const best=new Map(), names=new Map(), cos=new Map();
+        (rows||[]).forEach(r=>{ if(!r || !r.key) return; if(!names.has(r.key)) names.set(r.key, r.name);
+            const co=String(r.company||'').replace(/\s+/g,' ').trim().toLowerCase(); if(co){ let s=cos.get(r.key); if(!s) cos.set(r.key, s=new Set()); s.add(co); }
+            if(r.net>0){ const b=best.get(r.key); if(!b || r.net<b.net) best.set(r.key, {net:r.net, vendor:r.vendor}); } });
+        return (lines||[]).map(l=>{
+            const o=ofNet(l), key=kf(l && l.name), mixed=(cos.get(key)||{size:0}).size>1;
+            const out={name:String((l && l.name)||''), pack:String((l && l.pack)||''), off:o, key:names.has(key) ? key : null, ours:mixed ? null : (best.get(key)||null), mixed, diff:null, sugg:[]};
+            if(out.key && out.ours && o.ok) out.diff=(o.net-out.ours.net)/out.ours.net;
+            if(!out.key){
+                const w=nf(out.name).split(/\s+/).find(x=>x.length>=3);
+                if(w){ for(const [k,nm] of names){ if(nf(nm).includes(w)){ out.sugg.push({key:k, name:nm}); if(out.sugg.length>=3) break; } } }
+            }
+            return out;
+        });
+    }
+    function gemOfferBody(b64, mime){
+        const pr='هذي صورة عرض أو قائمة أسعار من مكتب أدوية بالعراق. استخرج كل سطر مادة: name = الاسم مثل ما مكتوب (بالإنگليزي إذا موجود) · '
+            +'price = سعر الوحدة رقم · paid = الكمية المدفوعة بالعرض (مثل 10 بعرض 10+2؛ إذا ماكو عرض = 1) · bonus = البونص (إذا ماكو عرض = 0) · '
+            +'pack = التعبئة إذا مكتوبة · currency = IQD أو USD أو فارغ · note = أي ملاحظة. لا تخمّن: إذا مو واضح خلي الحقل null.';
+        const S='STRING', N='NUMBER';
+        return { contents:[{role:'user', parts:[{inline_data:{mime_type:mime||'image/jpeg', data:b64}}, {text:pr}]}],
+            generationConfig:{temperature:0, maxOutputTokens:4000, responseMimeType:'application/json',
+                responseSchema:{type:'ARRAY', items:{type:'OBJECT', properties:{name:{type:S}, price:{type:N, nullable:true}, paid:{type:N, nullable:true}, bonus:{type:N, nullable:true}, pack:{type:S, nullable:true}, currency:{type:S, nullable:true}, note:{type:S, nullable:true}}, required:['name']}}} };
+    }
+
+    // إعدادات الجهاز بـIndexedDB منفصلة — النسخة الاحتياطية تقرا DBs بأسمائها، والاستعادة تمسح localStorage بس (v8 restore)
+    const mzDb=()=>new Promise((res,rej)=>{ const r=indexedDB.open('mz_local_db',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+    const mzGet=async k=>{ try{ const db=await mzDb(); return await new Promise(res=>{ const q=db.transaction('kv').objectStore('kv').get(k); q.onsuccess=()=>res(q.result==null ? null : q.result); q.onerror=()=>res(null); }); }catch(_){ return null; } };
+    const mzSet=async(k,v)=>{ const db=await mzDb(); await new Promise((res,rej)=>{ const tx=db.transaction('kv','readwrite'); if(v==null) tx.objectStore('kv').delete(k); else tx.objectStore('kv').put(v,k); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); };
+    const GEM='https://generativelanguage.googleapis.com/v1beta/';
+    async function gemCall(body){
+        const key=await mzGet('gemini_key'); if(!key) throw {code:'nokey'};
+        let model=(await mzGet('gemini_model')) || 'gemini-2.5-flash';
+        const post=m=>fetch(GEM+'models/'+encodeURIComponent(m)+':generateContent', {method:'POST', headers:{'Content-Type':'application/json', 'x-goog-api-key':key}, body:JSON.stringify(body)});
+        let r;
+        try{ r=await post(model); }catch(_){ throw {code:'net'}; }
+        if(r.status===404){
+            try{ const l=await fetch(GEM+'models?pageSize=200', {headers:{'x-goog-api-key':key}}); const j=await l.json(); const pick=gemPickModel(j.models);
+                if(pick && pick!==model){ model=pick; r=await post(model); if(r.ok) await mzSet('gemini_model', model); } }catch(_){ throw {code:'net'}; }
+        }
+        if(!r.ok){ let msg=''; try{ msg=((await r.json()).error||{}).message||''; }catch(_){} throw {code:r.status, msg}; }
+        const j=await r.json(), p=j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
+        const txt=(p||[]).map(x=>x.text||'').join('');
+        try{ return JSON.parse(txt); }catch(_){ throw {code:'parse'}; }
+    }
+    const gemErr=e=>{ const c=e && e.code;
+        return c==='nokey' ? 'حط مفتاح Gemini أول (⚙️ تحت).' : c===429 ? 'خلصت حصة Gemini هسه — جرّب بعدين، أو استعمل الأزرار تحت.'
+            : (c===400 && /key/i.test(e.msg||'')) ? 'مفتاح Gemini غلط.' : c===403 ? 'المفتاح مو مسموح له (فعّل Generative Language API بالمشروع).'
+            : c==='net' ? 'Gemini مو متاح هسه (ماكو اتصال أو المتصفح منع النداء).' : c==='parse' ? 'Gemini رجّع جواب مو مفهوم.' : 'Gemini مو متاح هسه ('+String(c)+').'; };
+
+    const ask=document.getElementById('askDlg'), askQ=document.getElementById('askQ'), askOut=document.getElementById('askOut');
+    const askImgOut=document.getElementById('askImgOut'), askImg=document.getElementById('askImg');
+    const ce=(tag, txt, cls)=>{ const x=document.createElement(tag); if(txt!=null) x.textContent=txt; if(cls) x.className=cls; return x; };
+    const askTabs=()=>[...document.querySelectorAll('#sideNav .segmented-btn[data-tab]')].map(b=>({id:b.dataset.tab, label:label(b)}));
+    const askGoTab=id=>{ const b=document.querySelector('#sideNav .segmented-btn[data-tab="'+id+'"]'); if(!b) return false; closeDlg(ask); b.click(); window.scrollTo(0,0); return true; };
+    function askItem(text, q){
+        const st=window.__npState;
+        if(!st || !Array.isArray(st.rows)){ askOut.replaceChildren(ce('div','أسعار النت ما محمّلة — افتح تبويب «💲 أسعار نت» مرة وارجع اسأل.')); return; }
+        const hits=matHits(norm(text)).filter(h=>h.mat);
+        if(hits.length===1){ closeDlg(ask); openCard(hits[0].mat); return; }
+        if(!hits.length){
+            const d=ce('div','ما لگيت مادة باسم «'+text+'».');
+            // الأسماء بالإنگليزي — اسم عربي يحتاج Gemini يكتبه بالإنگليزي (بضغطة، والسؤال بس ينرسل)
+            if(q && /[؀-ۿ]/.test(text)){ d.appendChild(ce('br')); const b=ce('button','🤖 خلّي Gemini يكتب الاسم بالإنگليزي','ask-pick'); b.type='button'; b.onclick=()=>askGemini(q); d.appendChild(b); }
+            askOut.replaceChildren(d); return;
+        }
+        const d=ce('div','لگيت '+hits.length+(hits.length>=30 ? '+' : '')+' مادة — اختار:');
+        hits.slice(0,12).forEach(h=>{ const b=ce('button', h.text+(h.sub ? ' · '+h.sub : ''), 'ask-pick'); b.type='button'; b.onclick=()=>{ closeDlg(ask); openCard(h.mat); }; d.appendChild(ce('br')); d.appendChild(b); });
+        askOut.replaceChildren(d);
+    }
+    // «لا تصرف» متتالي: يجهّز التدقيق ← معاينة (مكتب · فترة · عدد فواتير) ← الطباعة بضغطة بس. الحساب كله بتبويب التدقيق (window.__auditAsk)
+    async function askAuditDo(a, list){
+        const A=window.__auditAsk, say=t=>askOut.replaceChildren(ce('div',t));
+        if(!A){ say('تبويب التدقيق مو جاهز.'); return; }
+        say('⏳ أجهّز التدقيق…');
+        let p; try{ p=await A.plan(a.office, a.from, a.to, list, a.year); }catch(e){ say('⚠️ '+((e && e.message) || e)); return; }
+        if(p.err){ say(p.err); return; }
+        if(p.choose){
+            const d=ce('div', p.choose.length ? 'أكثر من مكتب يطابق «'+a.office+'» — اختار:' : (a.office ? 'ما لگيت مكتب باسم «'+a.office+'» ببيانات التدقيق — اكتب الاسم مثل ما بالقائمة.' : 'أي مكتب؟ اكتب اسمه — مثل: دققلي ساوة من 8 الى 10 لا تصرف'));
+            p.choose.slice(0,15).forEach(v=>{ const b=ce('button', v, 'ask-pick'); b.type='button'; b.onclick=()=>askAuditDo(a, [v]); d.appendChild(ce('br')); d.appendChild(b); });
+            if(p.choose.length>1){ const b=ce('button','الكل ('+p.choose.length+') — PDF لكل مكتب','ask-pick'); b.type='button'; b.onclick=()=>askAuditDo(a, p.choose); d.appendChild(ce('br')); d.appendChild(b); }
+            askOut.replaceChildren(d); return;
+        }
+        const d=ce('div'), total=p.items.reduce((s,x)=>s+x.n,0);
+        p.items.forEach(x=>{
+            const miss=x.seq.filter(k=>!x.keys.includes(k));
+            d.appendChild(ce('div','📄 '+x.vendor+' · '+x.seq[0]+' ← '+x.seq[x.seq.length-1]+' · لا تصرف · '+x.n+' فاتورة'+(miss.length ? ' (ماكو بيانات لـ '+miss.join('، ')+')' : '')));
+        });
+        if(!total){ d.appendChild(ce('div','ماكو فواتير «لا تصرف» بهالفترة — ما راح أطبع شي.')); askOut.replaceChildren(d); return; }
+        const b=ce('button','🖨️ اطبع متتالي ('+total+' فاتورة)','ask-pick'); b.type='button';
+        b.onclick=async()=>{ b.disabled=true; try{ await A.print(p.items); d.appendChild(ce('div','✅ انطبع — شوف التنزيلات.')); }catch(e){ d.appendChild(ce('div','⚠️ '+((e && e.message) || e))); } b.disabled=false; };
+        d.appendChild(b); askOut.replaceChildren(d);
+    }
+    function askDo(a, q){
+        if(!a) return false;
+        if(a.action==='report'){ closeDlg(ask); bkOpen(); return true; }
+        if(a.action==='audit_dont'){ askAuditDo(a); return true; }
+        if(a.action==='open_tab') return askGoTab(a.tab);
+        if(a.action==='open_item'){ askItem(a.item, q); return true; }
+        if(a.action==='answer'){ askOut.replaceChildren(ce('div','🤖 '+a.text)); return true; }
+        if(a.action==='choose_tab'){
+            const tabs=askTabs(), d=ce('div','أكثر من تبويب يطابق — أي واحد؟');
+            a.tabs.forEach(id=>{ const t=tabs.find(x=>x.id===id); if(!t) return; const b=ce('button', t.label, 'ask-pick'); b.type='button'; b.onclick=()=>askGoTab(id); d.appendChild(b); });
+            askOut.replaceChildren(d); return true;
+        }
+        return false;
+    }
+    async function askGemini(q){
+        askOut.replaceChildren(ce('div','🤖 أسأل Gemini…'));
+        try{
+            const tabs=askTabs(), cmds=collect().filter(i=>i.kind==='الأوامر').map(i=>i.text);
+            const mk=await askMask(bkScrub(q));   // أي رقم هاتف أو اسم مكتب معروف بالسؤال ينحجب قبل الإرسال
+            const a=askValidate(await gemCall(gemAskBody(mk.text, tabs, cmds)), tabs.map(t=>t.id));
+            if(a && a.action==='audit_dont' && a.office) mk.map.forEach(([ph,v])=>{ a.office=a.office.split(ph).join(v); });
+            if(!askDo(a)) askOut.replaceChildren(ce('div','🤖 ما فهمت — جرّب تكتبها بشكل ثاني، أو استعمل الأزرار تحت.'));
+        }catch(e){ askOut.replaceChildren(ce('div','⚠️ '+gemErr(e))); }
+    }
+    function askRun(q){
+        q=askDigits(String(q||'')).trim(); if(!q){ askOut.replaceChildren(); return; }
+        if(askDo(askLocal(q, askTabs(), norm, ASK_SYN), q)) return;
+        // ما فهم محلياً ← يعرض شنو راح ينرسل، والإرسال بضغطة بس
+        const d=ce('div','ما فهمت محلياً. Gemini يقدر يحاول — ينرسل له بس هذا السؤال + أسماء التبويبات (بلا بيانات): ');
+        const qb=ce('b','…'); d.appendChild(qb); d.appendChild(ce('br'));
+        askMask(bkScrub(q)).then(mk=>{ qb.textContent='«'+mk.text+'»'; });   // نفس النص اللي ينرسل بالضبط
+        const b=ce('button','🤖 اسأل Gemini','ask-pick'); b.type='button'; b.onclick=()=>askGemini(q); d.appendChild(b);
+        askOut.replaceChildren(d);
+    }
+    async function askKeyState(){ const k=await mzGet('gemini_key'); document.getElementById('askKeyState').textContent=k ? '✅ محفوظ (…'+String(k).slice(-4)+')' : 'ماكو مفتاح.'; }
+    function askOpen(q){ askQ.value=q||''; askOut.replaceChildren(); openDlg(ask); askKeyState(); if(q) askRun(q); setTimeout(()=>askQ.focus(),0); }
+    document.getElementById('askForm').addEventListener('submit',e=>{ e.preventDefault(); askRun(askQ.value); });
+    const askBtn=document.getElementById('askOpenBtn'); if(askBtn) askBtn.addEventListener('click',()=>askOpen(''));
+    document.getElementById('askKeySave').onclick=async()=>{ const v=document.getElementById('askKey').value.trim(); if(!v) return;
+        try{ await mzSet('gemini_key', v); await mzSet('gemini_model', null); document.getElementById('askKey').value=''; }catch(_){ showToast('⚠️ ما انحفظ المفتاح'); } askKeyState(); };
+    document.getElementById('askKeyDel').onclick=async()=>{ try{ await mzSet('gemini_key', null); }catch(_){} askKeyState(); };
+    ask.querySelector('.ask-quick').addEventListener('click',e=>{
+        const b=e.target.closest('button'); if(!b) return;
+        if(b.dataset.askTab) askGoTab(b.dataset.askTab);
+        else if(b.dataset.askAct==='report'){ closeDlg(ask); bkOpen(); }
+        else if(b.dataset.askAct==='img') askImg.click();
+    });
+
+    // 📷 الصورة: تصغير ≤1600px JPEG ← تأكيد ← Gemini ← جدول مقارنة. قراءة بس، ولا كتابة.
+    async function ofImage(file){
+        if(!file || !/^image\//.test(file.type)) return;
+        if(!(await mzGet('gemini_key'))){ askImgOut.replaceChildren(ce('div','⚠️ '+gemErr({code:'nokey'}))); ask.querySelector('.ask-set').open=true; return; }
+        if(!confirm('الصورة راح تنرسل لـGoogle Gemini حتى يقرا العرض.\nإذا بيها رقم هاتف المندوب، قصّه من الصورة أول.\n\nتكمل؟')) return;
+        askImgOut.replaceChildren(ce('div','📷 أقرا العرض…'));
+        let b64;
+        try{
+            const url=URL.createObjectURL(file), img=new Image();
+            await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
+            const sc=Math.min(1, 1600/Math.max(img.naturalWidth, img.naturalHeight)), cv=document.createElement('canvas');
+            cv.width=Math.round(img.naturalWidth*sc); cv.height=Math.round(img.naturalHeight*sc);
+            cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(url);
+            b64=cv.toDataURL('image/jpeg',0.85).split(',')[1];
+        }catch(_){ askImgOut.replaceChildren(ce('div','⚠️ ما گدرت أفتح الصورة.')); return; }
+        let lines;
+        try{ lines=await gemCall(gemOfferBody(b64,'image/jpeg')); }catch(e){ askImgOut.replaceChildren(ce('div','⚠️ '+gemErr(e))); return; }
+        if(!Array.isArray(lines) || !lines.length){ askImgOut.replaceChildren(ce('div','🤖 ما لگيت أسطر مواد بالصورة.')); return; }
+        const nps=window.__npState, npFresh=!!(nps && Array.isArray(nps.rows) && (nps.ver==null || nps.ver===(window.__excelStoreVer||0)));   // قديم = ماكو مقارنة
+        ofRender(ofMatch(lines.slice(0,200), npFresh ? nps.rows : [], window.npKeyOf || (s=>String(s||'').replace(/\s+/g,' ').trim().toUpperCase()), norm));
+    }
+    function ofRender(res){
+        const pct=v=>(v>0 ? '+' : '')+(v*100).toFixed(1)+'%';
+        const wrap=ce('div'); wrap.appendChild(ce('div','📷 '+res.length+' سطر — تأكد من القراءة (الأرقام من الصورة) قبل ما تعتمد عليها. الفرق = نت العرض مقابل أرخص نت عندنا.'));
+        const nps=window.__npState;
+        if(!(nps && Array.isArray(nps.rows)) || (nps.ver!=null && nps.ver!==(window.__excelStoreVer||0))) wrap.appendChild(ce('div','⚠️ أسعار النت ما محمّلة أو قديمة — المقارنة فاضية. افتح «💲 أسعار نت» مرة.'));
+        if(res.some(r=>r.pack)) wrap.appendChild(ce('div','⚠️ التعبئة بالصورة ما تنفحص مقابل تعبئتنا — إذا مختلفة، الفرق مو صحيح.'));
+        const tb=ce('table',null,'ic-tbl ask-tbl'), hd=ce('tr');
+        ['المادة بالصورة','السعر','العرض','نت العرض','أرخص نت عندنا','الفرق'].forEach(x=>hd.appendChild(ce('th',x)));
+        const th=ce('thead'); th.appendChild(hd); tb.appendChild(th); const body=ce('tbody');
+        res.forEach(r=>{
+            const tr=ce('tr'), o=r.off;
+            tr.appendChild(ce('td', r.name+(r.pack ? ' · '+r.pack : '')));
+            tr.appendChild(ce('td', o.price!=null ? icN(o.price) : '—'));
+            tr.appendChild(ce('td', o.ok ? icN(o.paid)+(o.bonus ? '+'+icN(o.bonus) : '') : o.why));
+            tr.appendChild(ce('td', o.ok ? icN(Math.round(o.net)) : 'غير قابل للمقارنة'));
+            const us=ce('td');
+            if(r.key){ const b=ce('button', r.ours ? icN(r.ours.net)+' · '+r.ours.vendor : r.mixed ? 'أكثر من شركة — افتح البطاقة' : 'بلا سعر', 'ic-go'); b.type='button'; b.onclick=()=>{ closeDlg(ask); openCard(r.key); }; us.appendChild(b); }
+            else{ us.appendChild(ce('span','ما انطابق')); r.sugg.forEach(s=>{ const b=ce('button', s.name, 'ask-pick'); b.type='button'; b.onclick=()=>{ closeDlg(ask); openCard(s.key); }; us.appendChild(b); }); }
+            tr.appendChild(us);
+            tr.appendChild(ce('td', r.diff==null ? '—' : pct(r.diff), r.diff==null ? '' : r.diff<0 ? 'ic-pos' : r.diff>0 ? 'ic-neg' : ''));
+            body.appendChild(tr);
+        });
+        tb.appendChild(body); const sc=ce('div',null,'ic-body'); sc.style.padding='0'; sc.style.overflowX='auto'; sc.appendChild(tb); wrap.appendChild(sc);
+        const cp=ce('button','📋 نسخ TSV','ask-pick'); cp.type='button';
+        cp.onclick=async()=>{ const tsv=['name\tprice\tpaid\tbonus\toffer_net\tour_net\tour_vendor\tdiff'].concat(res.map(r=>[r.name, r.off.price??'', r.off.paid??'', r.off.bonus??'', r.off.ok ? Math.round(r.off.net) : '', r.ours ? r.ours.net : '', r.ours ? r.ours.vendor : '', r.diff==null ? '' : (r.diff*100).toFixed(1)+'%'].map(x=>String(x).replace(/[\t\n]/g,' ')).join('\t'))).join('\n');
+            try{ await navigator.clipboard.writeText(tsv); showToast('📋 انتسخ'); }catch(_){ showToast('⚠️ ما انتسخ'); } };
+        wrap.appendChild(cp);
+        askImgOut.replaceChildren(wrap);
+    }
+    askImg.addEventListener('change',()=>{ const f=askImg.files && askImg.files[0]; askImg.value=''; ofImage(f); });
+    ask.addEventListener('paste',e=>{ const it=[...((e.clipboardData && e.clipboardData.items) || [])].find(x=>/^image\//.test(x.type)); if(it){ e.preventDefault(); ofImage(it.getAsFile()); } });
+
     function open(){ items=collect(); q.value=''; sel=0; render(); openDlg(ck); setTimeout(()=>q.focus(),0); }
     q.addEventListener('input',()=>{ sel=0; render(); });
     q.addEventListener('keydown',e=>{
@@ -831,8 +1378,10 @@
         if(ck.open) closeDlg(ck); else if(!document.querySelector('dialog[open]')) open();
     });
     document.querySelectorAll('.cmdk-open').forEach(b=>b.addEventListener('click',open));
-    [set,ck,ic].forEach(d=>d.addEventListener('click',e=>{ if(e.target===d) closeDlg(d); }));
+    [set,ck,ic,bk,ask].forEach(d=>d.addEventListener('click',e=>{ if(e.target===d) closeDlg(d); }));
+    ask.querySelector('[data-close]').onclick=()=>closeDlg(ask);
     ic.querySelector('[data-close]').onclick=()=>closeDlg(ic);
+    bk.querySelector('[data-close]').onclick=()=>closeDlg(bk);
     set.querySelector('[data-close]').onclick=()=>closeDlg(set);
     const so=document.getElementById('settingsOpenBtn'); if(so) so.addEventListener('click',()=>{ buildSettings(); openDlg(set); });
 })();
@@ -969,6 +1518,27 @@
                     <button class="phone-chip" data-pf="with" title="مكاتب لها رقم مندوب"><i class="fas fa-check-circle"></i> بيها رقم <span class="cnt" id="pfWithCnt">0</span></button>
                     <button class="phone-chip" data-pf="without" title="مكاتب بلا رقم مندوب"><i class="fas fa-exclamation-circle"></i> بدون <span class="cnt" id="pfWithoutCnt">0</span></button>
                 </div>
+                <!-- ======== Last arrival filter / sort / PDF (2026-11-05, oloFilter) — display only, not the order or sending ======== -->
+                <div id="oloBar" class="mb-2 rounded-xl px-2 py-1.5 text-xs" style="border:1px solid #e5e7eb;background:#f9fafb">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-bold">📦 آخر وصول:</span>
+                        <span>ما دز من أكثر من</span>
+                        <input type="number" min="0" id="oloMinDays" class="ios-input text-xs text-center" style="width:56px;padding:2px 4px" placeholder="30" oninput="oloSet('minDays',this.value)">
+                        <span>يوم</span>
+                        <span class="flex items-center gap-1">
+                            <button type="button" class="px-1.5 rounded border border-gray-300 bg-white" onclick="oloQuick(30)">30</button>
+                            <button type="button" class="px-1.5 rounded border border-gray-300 bg-white" onclick="oloQuick(60)">60</button>
+                            <button type="button" class="px-1.5 rounded border border-gray-300 bg-white" onclick="oloQuick(90)">90</button>
+                            <button type="button" class="px-1.5 rounded border border-gray-300 bg-white" onclick="oloQuick(120)">120</button>
+                        </span>
+                        <label class="flex items-center gap-1" title="مكاتب اسمها ما يطابق سجل الشراء"><input type="checkbox" id="oloUnlinked" onchange="oloSet('unlinked',this.checked)"> ما مربوط</label>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-wrap mt-1">
+                        <select id="oloSort" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="oloSet('sort',this.value)"><option value="">ترتيب: الافتراضي</option><option value="old">الأقدم وصولاً أولاً</option><option value="new">الأحدث وصولاً أولاً</option></select>
+                        <button type="button" class="ios-btn bg-[#c2410c] text-white px-2 py-1 text-xs" onclick="oloExportPDF()" title="PDF مستقل للمكاتب الظاهرة — ما إله علاقة بالإرسال"><i class="fas fa-file-pdf ml-1"></i> PDF آخر وصول</button>
+                    </div>
+                    <div id="oloStatus" class="text-[10px] text-gray-500 mt-1"></div>
+                </div>
                 <!-- ======== درج الفلاتر (2026-10-19): مشاركة/الفحص @/التكرار/الموقف منقولة لـ<dialog> بنفس الـids — المستمعين والعدّادات ما تغيّرت.
                      «حالة الرقم» تبقى برّه لأنها تغيّر مقارنة الأرخص (gvNetSync) مو العرض بس ======== -->
                 <button type="button" id="ofdOpenBtn" class="ofd-open mb-2" aria-haspopup="dialog"><i class="fas fa-sliders-h"></i> فلاتر <span class="ofd-n"></span></button>
@@ -1083,6 +1653,7 @@
                     </div>
                 </div>
                 <hr class="my-3">
+                <div id="oloDetail" class="hidden mb-3"></div>
                 <div class="flex flex-wrap gap-2 mb-3">
                     <input type="text" id="itemSearch" placeholder="🔍 بحث مادة" class="ios-input w-36 text-sm">
                     <select id="reqFilter" class="ios-input text-sm w-auto"><option value="">الكمية</option><option value=">">أكبر من</option><option value="<">أصغر من</option><option value="=">يساوي</option><option value="check">Check</option></select>
@@ -3552,6 +4123,7 @@ function renderVendorsList(){
     if(appState.statFilter==='sent') baseVendors=baseVendors.filter(v=>appState.sentVendors.has(v.name));
     else if(appState.statFilter==='pending') baseVendors=baseVendors.filter(v=>!appState.sentVendors.has(v.name));
     if(appState.filters.officeStatus.size) baseVendors=baseVendors.filter(v=>appState.filters.officeStatus.has(v.status));
+    if(window.oloFilter) baseVendors=window.oloFilter(baseVendors);   // last-arrival filter (2026-11-05)
 
     // ======== فلتر متعدد الأوجه (faceted): كل مجموعة تُطبَّق على غيرها بس، حتى الأعداد تبقى تفاعلية ========
     // skip = اسم المجموعة اللي نبيها نستثنيها (نحسب عددها هي بالذات مقابل باقي المجموعات الفعّالة، لا مقابل نفسها)
@@ -3642,6 +4214,7 @@ function renderVendorsList(){
 
     // ======== القائمة النهائية المعروضة — كل المجاميع الخمسة سوا ========
     let vendors=vendorsApplyGroups(baseVendors, null);
+    if(window.oloSort) vendors=window.oloSort(vendors);   // last-arrival sort (2026-11-05)
 
     // stat cards تعكس القائمة الفعلية بعد كل الفلاتر
     const filtTotal=vendors.length;
@@ -3714,6 +4287,7 @@ function renderVendorsList(){
                 </div>
                 ${v.classification!=='normal'&&v.matchedArchiveLabel?`<div class="text-[10px] mt-0.5" style="color:#6b7280"><i class="fas fa-code-compare" style="font-size:8px"></i> مقارنة مع: ${escapeHtml(v.matchedArchiveLabel)}</div>`:''}
                 ${repLine}
+                ${window.oloBadge?window.oloBadge(v.name):''}
                 ${stanceBoxAllowed(v.status)?`<div class="mt-1">${dtStanceCompactHTML(v.name)}</div>`:''}
             </div>
             <div class="flex items-center gap-1.5 mr-2 flex-shrink-0">
@@ -3739,6 +4313,8 @@ function renderVendorsList(){
 
     // ======== تحديث العداد دائماً بعد كل عرض ========
     updateQueueCounter();
+    window.__oloRerender=renderVendorsList;   // renderVendorsList is not global; olo module re-renders through this
+    if(window.oloRenderDetail) window.oloRenderDetail();
     window.__vendorsRenderMs=Math.round(performance.now()-__t0);
 }
 
@@ -13035,8 +13611,11 @@ window.onload=async()=>{
         });
     }
 
+    // تحميل واحد مشترك: ضغطة التبويب والمساعد ينتظرون نفس الوعد — ماكو تحميل ثاني يبدّل البيانات بعد ضبط الحالة (Codex task-mw3hwlsh-le3dxn)
+    let _auditLoadP=null;
+    const auditLoadShared=()=>_auditLoadP || (_auditLoadP=auditLoad().finally(()=>{ _auditLoadP=null; }));
     async function renderAudit(){
-        await auditLoad();
+        await auditLoadShared();
         document.getElementById('auditTotalRows').textContent=auditState.data.length;
         auditBuildMonthGrid();
         auditBuildVendorList();
@@ -13241,6 +13820,7 @@ window.onload=async()=>{
             flush();
             pdf.save(`تدقيق_فواتير_متتالية_${new Date().toISOString().slice(0,10)}.pdf`);
             showToast('✅ PDF جاهز');
+            return true;   // المساعد يفحص النجاح (الأزرار تتجاهله)
         }catch(e){ showToast('❌ فشل بناء PDF'); alert('❌ فشل بناء PDF: '+(e&&e.message||e)); }
     }
 
@@ -13646,6 +14226,74 @@ window.onload=async()=>{
     };
     document.getElementById('auditPrintContBtn').onclick=()=>{
         auditPrintInvoicesContinuous(Array.from(auditState.selectedInvoices));
+    };
+
+    // ========= 🤖 المساعد ← «لا تصرف» متتالي (2026-11-05) =========
+    // Codex task-mw3hwlsh-le3dxn: تحميل واحد منتظَر · حالة معزولة (بلا فلاتر/تحديد قديم) · مفاتيح صريحة للطباعة · صفر فواتير = ما يطبع
+    // pure: from/to (1-12) + مفاتيح MM-YYYY الموجودة ← فترة متصلة بأحدث سنة بيها بيانات (from>to = تلف عبر السنة)
+    function auditAskMonths(from, to, avail, year){
+        from=Number(from); to=(to==null || to==='') ? from : Number(to);
+        if(!(from>=1 && from<=12 && to>=1 && to<=12)) return {keys:[], seq:[]};
+        const have=new Set(avail||[]);
+        const ys=new Set(); (avail||[]).forEach(k=>{ const y=+String(k).split('-')[1]; if(y>2000){ ys.add(y); ys.add(y+1); } });
+        if(year>2000){ ys.clear(); ys.add(Number(year)); }   // سنة مكتوبة بالطلب = سنة نهاية الفترة
+        for(const y of [...ys].sort((a,b)=>b-a)){
+            const seq=[]; let yy=from>to ? y-1 : y, mm=from;
+            for(let i=0;i<24;i++){ seq.push(String(mm).padStart(2,'0')+'-'+yy); if(mm===to && yy===y) break; if(++mm>12){ mm=1; yy++; } }
+            const keys=seq.filter(k=>have.has(k));
+            if(keys.length) return {keys, seq};
+        }
+        return {keys:[], seq:[]};
+    }
+    // pure: نص المكتب ← كل الفيندورات المطابقة (تطابق تام أول، وإلا كل الكلمات موجودة)
+    function auditAskMatch(text, vendors){
+        const n=s=>String(s||'').toLowerCase().replace(/[ً-ٰٟـ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/[^؀-ۿa-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+        const strip=s=>(' '+s+' ').replace(/ (?:ال)?(?:مكاتب|مكتب) /g,' ').replace(/\s+/g,' ').trim();
+        const q=strip(n(text)); if(!q) return [];
+        const list=(vendors||[]).map(v=>({v, k:strip(n(v))}));
+        const exact=list.filter(x=>x.k===q); if(exact.length) return exact.map(x=>x.v);
+        const toks=q.split(' ').filter(w=>w.length>=2).map(w=>w.replace(/^ال(?=..)/,''));
+        return toks.length ? list.filter(x=>toks.every(w=>x.k.includes(w))).map(x=>x.v) : [];
+    }
+    function auditAskSet(vendor, keys){
+        const s=document.getElementById('auditVendorSearch'); if(s) s.value='';
+        auditState.selectedVendor=vendor;
+        auditState.selectedMonths.clear(); keys.forEach(k=>auditState.selectedMonths.add(k));
+        auditState.activePill='dont';
+        Object.keys(auditState.colFilters).forEach(k=>auditState.colFilters[k].clear());
+        Object.keys(auditState.numFilters).forEach(k=>auditState.numFilters[k]=null);
+        auditState.selectedInvoices.clear();
+        document.querySelectorAll('#auditPills .audit-pill').forEach(p=>p.classList.toggle('on',p.dataset.f==='dont'));
+        const inv=keys.length ? [...new Set(auditGetCurrentRows().map(r=>`${r.ref||'-'}__${r.date||'-'}`))] : [];
+        inv.forEach(k=>auditState.selectedInvoices.add(k));
+        auditBuildMonthGrid(); auditBuildVendorList(); auditRenderMain();
+        return inv;
+    }
+    window.__auditAsk={
+        load:auditLoadShared,
+        vendors:()=>Object.keys(auditGetMeta().vendors),
+        async plan(office, from, to, list, year){
+            const tb=document.querySelector('#sideNav .segmented-btn[data-tab="audit"]');
+            if(tb && !tb.classList.contains('active')) tb.click();
+            await renderAudit();   // تحميل واحد منتظَر قبل أي ضبط
+            if(!auditState.data.length) return {err:'ماكو بيانات تدقيق — استورد ملف التدقيق أول من تبويب 🔍 تدقيق الفواتير.'};
+            if(from==null) return {err:'حدد الأشهر — مثل: دققلي ساوة من 8 الى 10 لا تصرف.'};
+            const all=Object.keys(auditGetMeta().vendors);
+            const vs=(list && list.length) ? list.filter(v=>all.includes(v)) : auditAskMatch(office, all);
+            if(!(list && list.length) && vs.length!==1) return {choose:vs};
+            const avail=[...new Set(auditState.data.filter(r=>vs.includes(r.vendor) && r.month).map(r=>r.month))];
+            const mo=auditAskMonths(from, to, avail, year);
+            if(!mo.seq.length) return {err:'ماكو بيانات لهالأشهر عند المكتب.'};
+            return {items:vs.map(v=>{ const inv=auditAskSet(v, mo.keys); return {vendor:v, keys:mo.keys, seq:mo.seq, n:inv.length, inv}; })};
+        },
+        async print(items){
+            for(const x of items){
+                if(!x.n) continue;
+                const inv=auditAskSet(x.vendor, x.keys);
+                if(inv.join('|')!==x.inv.join('|')) throw new Error('تغيّرت بيانات التدقيق بعد المعاينة — أعد الطلب.');
+                if(!(await auditPrintInvoicesContinuous(inv))) throw new Error('ما انطبع PDF لـ'+x.vendor+'.');   // ينتظر كل PDF قبل المكتب الجاي (رأس الصفحة يقرا الحالة)
+            }
+        }
     };
 
     // ========= ربط تدقيق بالنسخة الاحتياطية العامة =========
@@ -14107,6 +14755,7 @@ window.onload=async()=>{
         if(loose) t=t.replace(/[@&]+/g,' ');
         return t.replace(/\s+/g,' ').trim().toLowerCase();
     }
+    window.bonusPriceKey=bonusPriceKey;   // بطاقة المادة (cmdk) تطابق سعر البيع بنفس المفتاح — exact بس
     // توقيع الاسم للمطابقة التقريبية: أول كلمة (الاسم التجاري) + مجموعة الكلمات + الأرقام (الجرعة/الحجم) مرتّبة
     function bonusNameSig(s){
         const t=String(s==null?'':s).replace(/[@&]+/g,' ').toLowerCase().match(/[a-z؀-ۿ]+|\d+(?:\.\d+)?/g)||[];
@@ -15603,6 +16252,7 @@ window.onload=async()=>{
     function bonusLoadPrices(prec){
         if(!prec){ window.__bonusPriceMap=null; window.__bonusPriceStamp=null; }
         else if(window.__bonusPriceStamp!==prec.importedAt){ window.__bonusPriceMap=bonusBuildPriceMap(prec.rows); window.__bonusPriceStamp=prec.importedAt; }
+        window.__bonusPriceVer=window.__excelStoreVer||0;   // بطاقة المادة: الخريطة تطابق المخزن لحد هاللحظة (قراءة بس)
         const spc=document.getElementById('bonusShowPrice');
         if(spc) spc.checked=!bonusPriceHidden();
         const pst=document.getElementById('qsSalePriceStamp');
@@ -19784,6 +20434,7 @@ window.onload=async()=>{
         appState.filters.officeStatus.clear();
         appState.dupFilter='all';
         appState.stanceFilter.clear();
+        if(window.oloReset) window.oloReset();
         // إعادة ضبط multiselect حالة المكتب
         document.querySelectorAll('#officeStatusMultiselect .multiselect-options input[type=checkbox]').forEach(c=>c.checked=false);
         renderVendorsList();
@@ -21585,10 +22236,203 @@ document.addEventListener('DOMContentLoaded', function(){
         return out;
     }
 
-    Object.assign(window, { npBonusReady, npOfficesFor, npNetFor, npRender, npSync, npIngest, npSetFilter, npSearch, npToggle, npClearFilters, npPanel, npPanelSearch, npPick,
+    Object.assign(window, { npKeyOf:keyOf, npBonusReady, npOfficesFor, npNetFor, npRender, npSync, npIngest, npSetFilter, npSearch, npToggle, npClearFilters, npPanel, npPanelSearch, npPick,
         npPanelClear, npSort, npSortDefault, npPage, npToggleRow, npTogglePage, npSelectAll, npSelectFiltered, npClearSel,
         npOpenLog, npCloseLog, npExportExcel, npExportPDF });
     window.__npState=st;
+})();
+// ===== Office last arrival + monthly purchase stats (2026-11-05) — Offices tab, read-only =====
+// Source: NP_Purchase_Log through window.__npState.log (filled by npLoad). Only rows of type 'Purchase' count (Advance Bonus is excluded).
+// One order = one office + one purchase day: several invoices from the same office on the same day count as a single order.
+// Items = distinct products. "Days since" is measured from the newest purchase date in the log (the data's as-of date), not from today.
+// Name match: exact vendor name first, then _smNorm(resolveOffice()) so office links merge spellings. No match = "unlinked" (never a fake zero).
+// Writes nothing to ph_* or appState; filter/sort state lives in memory only.
+function oloStats(days, asOf, nMonths){
+    let last='';
+    days.forEach((s,d)=>{ if(d>last) last=d; });
+    if(!last) return null;
+    const y0=+asOf.slice(0,4), m0=+asOf.slice(5,7), months=[];
+    for(let i=nMonths-1;i>=0;i--){
+        let y=y0, m=m0-i; while(m<1){ m+=12; y--; }
+        months.push({ym:y+'-'+String(m).padStart(2,'0'), orders:0, items:new Set()});
+    }
+    const byYm=new Map(months.map(o=>[o.ym,o]));
+    days.forEach((s,d)=>{ const o=byYm.get(d.slice(0,7)); if(!o) return; o.orders++; s.forEach(k=>o.items.add(k)); });
+    const diff=Math.round((Date.parse(asOf+'T00:00:00Z')-Date.parse(last+'T00:00:00Z'))/86400000);
+    return { last, lastItems:days.get(last).size, days:diff, level:diff<=30 ? 'ok' : diff<=60 ? 'mid' : 'old',
+        months:months.map(o=>({ym:o.ym, orders:o.orders, items:o.items.size})) };
+}
+// Merge key for renamed offices (a new discount or note in the name = the same office).
+// _smNorm drops Latin letters and digits, so «Amytis Iraq مواد عامة» and «ACE OF BEAUTY مواد عامة» both become «مواد عامه»:
+// when fewer than 3 letters are left after generic words, the identity was stripped — that name stays on its own.
+function oloKeyOf(name, normKey){
+    const GEN=new Set(['م','ش','ت','ص','مواد','عامه','للمواد','العامه','شركه','مكتب','مذخر']);
+    const k=String(normKey||''), core=k.split(' ').filter(w=>w && !GEN.has(w)).join('');
+    if(core.length<3) return 'X:'+String(name||'').trim().replace(/\s+/g,' ').toLowerCase();
+    // _smNorm drops the «مذخر» prefix too — a depot and an office with the same name are two parties (مصطفى 2026-11-05: امواج الساحل)
+    return (/^\s*(مذخر|مخزن|مستودع)\s/.test(String(name||'')) ? 'D:' : '')+k;
+}
+// Log names that count for one office: its own name + old variants with the same key that are not active offices now.
+// Two names that are both active offices stay apart (e.g. «فينيسيا» and «فينيسيا (Maxiliv)» may be two offices),
+// unless the user linked them in «روابط المكاتب» (linked=true) — then every same-key variant counts.
+function oloPickParts(own, same, isActive, linked){
+    if(linked) return same.length ? same.slice() : (own ? [own] : []);
+    return (own ? [own] : []).concat(same.filter(v=>v!==own && !isActive(v)));
+}
+(function(){
+    const OLO_MONTHS=6;
+    const LV={ ok:{fg:'#15803d', bg:'#dcfce7', pdf:'#ecfdf5'}, mid:{fg:'#c2410c', bg:'#ffedd5', pdf:'#fff7ed'}, old:{fg:'#b91c1c', bg:'#fee2e2', pdf:'#fef2f2'} };
+    const os={ minDays:null, sort:'', unlinked:false, idxFor:null, idx:null, byNorm:null, asOf:'', cache:new Map(), loading:null, ver:-1, sig:'', ordersRef:null, active:new Set() };
+    const esc=s=>String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const ws=s=>String(s==null?'':s).trim().replace(/\s+/g,' ');
+    const okey=s=>{ const n=ws(s); let r=n, k=''; try{ r=resolveOffice(n); k=_smNorm(r); }catch(_){ k=n.toLowerCase(); } return oloKeyOf(r, k); };
+    // office links change in-session → rebuild the merge index (same signature idea as _officeGroupMap)
+    const linkSig=()=>{ const L=appState.officeLinks||[]; return L.length+'|'+JSON.stringify(L[0]||0)+'|'+JSON.stringify(L[L.length-1]||0)+'|'+(appState.orders||[]).length; };
+    const fmtD=iso=>iso ? iso.slice(8,10)+'-'+iso.slice(5,7)+'-'+iso.slice(0,4) : '—';
+    const fmtYm=ym=>'شهر '+(+ym.slice(5,7));
+    function rerender(){ try{ if(typeof window.__oloRerender==='function') window.__oloRerender(); }catch(e){ console.error('olo rerender', e); } }
+    function build(log){
+        const idx=new Map(); let asOf='';
+        log.forEach((arr,k)=>arr.forEach(e=>{
+            const v=ws(e.vendor);
+            if(!e.purchase || !e.date || !v) return;
+            let o=idx.get(v); if(!o) idx.set(v, o=new Map());
+            let s=o.get(e.date); if(!s) o.set(e.date, s=new Set());
+            s.add(k);
+            if(e.date>asOf) asOf=e.date;
+        }));
+        const byNorm=new Map();
+        idx.forEach((_,v)=>{ const key=okey(v); let a=byNorm.get(key); if(!a) byNorm.set(key, a=[]); a.push(v); });
+        os.idx=idx; os.byNorm=byNorm; os.asOf=asOf; os.cache=new Map(); os.idxFor=log;
+        os.active=new Set((appState.orders||[]).map(o=>ws(o.vendor))); os.ordersRef=appState.orders; os.sig=linkSig();
+    }
+    function ready(){
+        const st=window.__npState, ver=window.__excelStoreVer||0;
+        if((!st || !st.loaded || st.ver!==ver) && !os.loading && os.ver!==ver && window.npBonusReady){
+            os.ver=ver;
+            os.loading=Promise.resolve(window.npBonusReady()).catch(()=>null).then(()=>{ os.loading=null; rerender(); });
+        }
+        // a log from an older Excel version is never shown (load pending or failed) — no stale last-arrival in the filter or PDF
+        if(!st || st.ver!==ver || !st.rows || !st.log || !st.log.size) return false;
+        if(os.idxFor!==st.log || os.ordersRef!==appState.orders || os.sig!==linkSig()) build(st.log);
+        return !!os.asOf;
+    }
+    // undefined = purchase log not loaded · null = office not found in the log · object = stats
+    function oloFor(name){
+        if(!ready()) return undefined;
+        if(os.cache.has(name)) return os.cache.get(name);
+        const own=ws(name);
+        let linked=false; try{ linked=!!(appState.officeLinks||[]).length && _officeGroupMap().has(_smNorm(own)); }catch(_){}
+        const parts=oloPickParts(os.idx.has(own) ? own : '', os.byNorm.get(okey(name))||[], v=>os.active.has(v), linked);
+        let r=null;
+        if(parts.length){
+            const days=new Map();
+            parts.forEach(v=>os.idx.get(v).forEach((s,d)=>{ let t=days.get(d); if(!t) days.set(d, t=new Set()); s.forEach(k=>t.add(k)); }));
+            r=oloStats(days, os.asOf, OLO_MONTHS);
+            if(r) r.via=parts.length===1 && parts[0]===own ? 'exact' : 'linked:'+parts.join(' + ');
+        }
+        os.cache.set(name, r);
+        return r;
+    }
+    function pill(r){
+        const c=LV[r.level];
+        return `<span style="background:${c.bg};color:${c.fg};border-radius:10px;padding:0 6px;font-weight:800">قبل ${r.days} يوم</span>`;
+    }
+    function oloBadge(name){
+        const r=oloFor(name);
+        if(r===undefined) return '';
+        if(r===null) return '<div class="text-[10px] mt-0.5" style="color:#9ca3af">📦 ما مربوط بسجل الشراء</div>';
+        return `<div class="text-[10px] mt-0.5" style="color:#4b5563">📦 آخر وصول ${fmtD(r.last)} · ${pill(r)} · ${r.lastItems} صنف</div>`;
+    }
+    function active(){ return os.minDays!=null || os.unlinked; }
+    function syncBar(){
+        const el=document.getElementById('oloStatus'); if(!el) return;
+        const ok=ready();
+        if(!ok){
+            el.style.color='#b45309';
+            el.textContent=os.loading ? '⏳ يحمّل سجل الشراء…' : '⚠️ سجل الشراء (NP_Purchase_Log) غير محمّل — زامن «أسعار نت مع بونص»'+(active() ? ' · الفلتر معطّل' : '');
+        } else {
+            el.style.color='#6b7280';
+            el.textContent='حسب سجل الشراء لحد '+fmtD(os.asOf)+' · طلبيات نفس اليوم = طلبية وحدة';
+        }
+    }
+    function oloFilter(list){
+        syncBar();
+        if(!active() || !ready()) return list;
+        return list.filter(v=>{
+            const r=oloFor(v.name);
+            if(os.unlinked) return r===null;
+            return r && r.days>os.minDays;
+        });
+    }
+    function oloSort(list){
+        if(!os.sort || !ready()) return list;
+        const key=v=>{ const r=oloFor(v.name); return r ? r.days : null; };
+        const mul=os.sort==='old' ? -1 : 1;
+        return list.map((v,i)=>({v,i,k:key(v)})).sort((a,b)=>{
+            if(a.k==null || b.k==null) return (a.k==null)-(b.k==null) || a.i-b.i;
+            return (a.k-b.k)*mul || a.i-b.i;
+        }).map(o=>o.v);
+    }
+    function oloSet(k, val){
+        if(k==='minDays'){ const n=parseInt(val,10); os.minDays=(val==='' || isNaN(n)) ? null : Math.max(0,n); }
+        else if(k==='sort') os.sort=val||'';
+        else if(k==='unlinked') os.unlinked=!!val;
+        rerender();
+    }
+    // quick chips: same as typing N in «ما دز من أكثر من N يوم»; pressing the active chip again clears it
+    function oloQuick(n){
+        const a=document.getElementById('oloMinDays'), v=os.minDays===n ? '' : String(n);
+        if(a) a.value=v;
+        oloSet('minDays', v);
+    }
+    function oloReset(){
+        os.minDays=null; os.sort=''; os.unlinked=false;
+        const a=document.getElementById('oloMinDays'); if(a) a.value='';
+        const b=document.getElementById('oloSort'); if(b) b.value='';
+        const c=document.getElementById('oloUnlinked'); if(c) c.checked=false;
+    }
+    function oloRenderDetail(){
+        const box=document.getElementById('oloDetail'); if(!box) return;
+        const name=appState.selectedVendor;
+        if(!name || !appState.orders.some(o=>o.vendor===name)){ box.classList.add('hidden'); box.innerHTML=''; return; }
+        const r=oloFor(name);
+        box.classList.remove('hidden');
+        if(r===undefined){ box.innerHTML='<div class="text-xs" style="color:#b45309">📦 سجل الشراء غير محمّل — زامن «أسعار نت مع بونص» حتى يطلع آخر وصول</div>'; return; }
+        if(r===null){ box.innerHTML='<div class="text-xs" style="color:#6b7280">📦 هذا المكتب ما مربوط بسجل الشراء (اسمه ما يطابق أي مكتب بـNP_Purchase_Log)</div>'; return; }
+        const c=LV[r.level];
+        const th=r.months.map(m=>`<th style="padding:3px 6px;border:1px solid #e5e7eb;background:#f3f4f6">${fmtYm(m.ym)}</th>`).join('');
+        const td=f=>r.months.map(m=>`<td style="padding:3px 6px;border:1px solid #e5e7eb;text-align:center">${m.orders ? m[f] : '—'}</td>`).join('');
+        box.innerHTML=`<div style="border:1px solid ${c.fg}33;background:${c.bg}55;border-radius:12px;padding:8px 10px">
+            <div class="flex flex-wrap items-center gap-2 text-sm"><b>📦 آخر وصول: ${fmtD(r.last)}</b> ${pill(r)} <span>${r.lastItems} صنف</span>
+            <span class="text-[10px] text-gray-500">· حسب سجل الشراء لحد ${fmtD(os.asOf)}${r.via!=='exact' ? ' · مربوط: '+esc(r.via.slice(7)) : ''}</span></div>
+            <div class="overflow-auto mt-2"><table class="text-xs" style="border-collapse:collapse;min-width:100%">
+            <tr><th style="padding:3px 6px;border:1px solid #e5e7eb;background:#f3f4f6">آخر ${OLO_MONTHS} أشهر</th>${th}</tr>
+            <tr><td style="padding:3px 6px;border:1px solid #e5e7eb;font-weight:700">طلبيات</td>${td('orders')}</tr>
+            <tr><td style="padding:3px 6px;border:1px solid #e5e7eb;font-weight:700">أصناف</td>${td('items')}</tr>
+            </table></div></div>`;
+    }
+    async function oloExportPDF(){
+        if(!ready()){ alert('⚠️ سجل الشراء (NP_Purchase_Log) غير محمّل — زامن «أسعار نت مع بونص» أولاً'); return; }
+        const names=appState._visibleVendorNames||[];
+        if(!names.length){ alert('⚠️ ماكو مكاتب ظاهرة للطباعة'); return; }
+        const first=names.map(oloFor).find(Boolean), mos=first ? first.months.map(m=>m.ym) : [];
+        const cols=[{key:'n',label:'#',w:7},{key:'office',label:'المكتب',w:62,align:'right',rtl:true},{key:'last',label:'آخر وصول',w:24},
+            {key:'days',label:'قبل (يوم)',w:18},{key:'li',label:'أصناف آخر وصول',w:20}]
+            .concat(mos.map((ym,i)=>({key:'m'+i, label:fmtYm(ym), w:20})));
+        const items=names.map((nm,i)=>{
+            const r=oloFor(nm), v={n:String(i+1), office:nm};
+            if(!r){ v.last='—'; v.days='ما مربوط'; v.li='—'; mos.forEach((_,j)=>v['m'+j]='—'); return {v}; }
+            v.last=fmtD(r.last); v.days=String(r.days); v.li=String(r.lastItems);
+            r.months.forEach((m,j)=>v['m'+j]=m.orders ? m.orders+' / '+m.items : '—');
+            return {v, bg:LV[r.level].pdf};
+        });
+        const f=[]; if(os.minDays!=null) f.push('أكثر من '+os.minDays+' يوم'); if(os.unlinked) f.push('ما مربوط'); if(os.sort) f.push(os.sort==='old' ? 'الأقدم أولاً' : 'الأحدث أولاً');
+        await window.dtPdfGrouped({ title:'Mansoor Pharmacy Report — آخر وصول المكاتب', cols, groups:[['offices', items]], fileName:'office_last_arrival',
+            note:'كل شهر: طلبيات / أصناف · سجل الشراء لحد '+fmtD(os.asOf)+(f.length ? ' · '+f.join(' · ') : ''),
+            bandText:(g,n)=>n+' مكتب · طلبيات نفس اليوم = طلبية وحدة · ≤30 أخضر · 31–60 برتقالي · >60 أحمر', repeatGroup:true });
+    }
+    Object.assign(window, { oloFor, oloBadge, oloFilter, oloSort, oloSet, oloQuick, oloReset, oloRenderDetail, oloExportPDF });
 })();
 // ===== Offers & Big Quotas tab (2026-10-13)
 // Source: Sheet3 (all items) + Sheet2 (vendors). Same join as CreateSheet4 (Module70) without its DRUGS / 35-day filter.
