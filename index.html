@@ -1536,7 +1536,7 @@
                     <div class="flex items-center gap-1.5 flex-wrap mt-1">
                         <select id="oloSort" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="oloSet('sort',this.value)"><option value="">ترتيب: الافتراضي</option><option value="old">الأقدم وصولاً أولاً</option><option value="new">الأحدث وصولاً أولاً</option></select>
                         <button type="button" class="ios-btn bg-[#c2410c] text-white px-2 py-1 text-xs" onclick="oloExportPDF()" title="PDF مستقل للمكاتب الظاهرة — ما إله علاقة بالإرسال"><i class="fas fa-file-pdf ml-1"></i> PDF آخر وصول</button>
-                        <select id="ovdFilterSel" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="ovdSet(this.value)" title="الحكم على المكتب من شيت الديلفري: طلبت شنو ووصل شنو"><option value="">⚖️ الحكم: الكل</option><option value="ok">🟢 ملتزم</option><option value="over">🟠 يزيّد</option><option value="honest">🟡 صادق بس ناقص</option><option value="short">🟤 مقصّر</option><option value="zero">⚫ ما جاب ولا شي</option><option value="weak">🔸 ناقص (السبب ما معروف)</option><option value="block">⛔ بلوك / وقّف التجهيز</option><option value="liar">🔴 كذاب</option><option value="own">🟣 على كيفه (ترانزيت)</option><option value="norep">⚪ بلا رقم مندوب</option><option value="none">— ماكو حكم</option></select>
+                        <select id="ovdFilterSel" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="ovdSet(this.value)" title="الحكم على المكتب من شيت الديلفري: طلبت شنو ووصل شنو"><option value="">⚖️ الحكم: الكل</option><option value="ok">🟢 ملتزم</option><option value="over">🟠 يزيّد</option><option value="honest">🟡 صادق بس ناقص</option><option value="short">🟤 مقصّر</option><option value="zero">⚫ ما جاب ولا شي</option><option value="block">⛔ بلوك / وقّف التجهيز</option><option value="liar">🔴 كذاب</option><option value="own">🟣 على كيفه (ترانزيت)</option><option value="norep">⚪ بلا رقم مندوب</option><option value="none">— ماكو حكم</option></select>
                     </div>
                     <div id="ovdTagBar" class="flex items-center gap-1 flex-wrap mt-1"></div>
                     <div id="oloStatus" class="text-[10px] text-gray-500 mt-1"></div>
@@ -22472,9 +22472,8 @@ function oloPickParts(own, same, isActive, linked, nActive){
         norep: {t:'بلا رقم مندوب',      e:'⚪', fg:'#4b5563', bg:'#f3f4f6', d:'ماكو رقم مندوب (أو موقفه «الرقم غير متوفر") — التعامل شبه مقطوع، ما ينحكم عليه'},
         own:   {t:'على كيفه (ترانزيت)', e:'🟣', fg:'#6b21a8', bg:'#f3e8ff', d:'اللي يجيبه بلا طلب (ترانزيت صيدليات أو مواده هو) أكثر من اللي يجيبه من طلبي، ومن طلبي يجيب أقل من النص'},
         zero:  {t:'ما جاب ولا شي',      e:'⚫', fg:'#111827', bg:'#e5e7eb', d:'طلبت منه وما جاب ولا مادة — تقصير، مو صدق'},
-        short: {t:'مقصّر',               e:'🟤', fg:'#7c2d12', bg:'#fde4cf', d:'جاب أقل من 70% من طلبي، والناقص موجود بالسوق (مكتب ثاني جابه أو انشرى من غيره بآخر 45 يوم)'},
-        honest:{t:'صادق بس ناقص',       e:'🟡', fg:'#a16207', bg:'#fef9c3', d:'جاب شي من طلبي، والناقص 60%+ منه نفاذ مؤكد: محد باعه بآخر 45 يوم حسب سجل الشراء'},
-        weak:  {t:'ناقص (السبب ما معروف)', e:'🔸', fg:'#9a3412', bg:'#ffedd5', d:'جاب أقل من 70% من طلبي، وما عندي دليل على النفاذ ولا على وجود المادة (سجل الشراء مو محمّل أو دورات قديمة)'},
+        short: {t:'مقصّر',               e:'🟤', fg:'#7c2d12', bg:'#fde4cf', d:'جاب أقل من 70% من طلبي، وماكو دليل صريح إن الناقص نافذ'},
+        honest:{t:'صادق بس ناقص',       e:'🟡', fg:'#a16207', bg:'#fef9c3', d:'جاب شي من طلبي، والناقص 60%+ منه نفاذ بدليل صريح: انطلب من أكثر من مكتب أو المكتب كال «غير متوفرة»، ومحد جابه ولا باعه بآخر 45 يوم'},
         over:  {t:'يزيّد',               e:'🟠', fg:'#c2410c', bg:'#ffedd5', d:'جاب 70%+ من طلبي، بس 30%+ من اللي جابه بكمية أكثر من المطلوب'},
         ok:    {t:'ملتزم',               e:'🟢', fg:'#15803d', bg:'#dcfce7', d:'جاب 70% أو أكثر من طلبي'}
     };
@@ -22486,7 +22485,7 @@ function oloPickParts(own, same, isActive, linked, nActive){
         norep:   {t:'بلا رقم مندوب',     e:'⚪', d:'ماكو رقم مندوب أو موقفه «الرقم غير متوفر»'},
         zero:    {t:'ما جاب شي',         e:'⚫', d:'طلبت منه وما جاب ولا مادة من طلبي'},
         short:   {t:'الناقص موجود بالسوق', e:'🟤', d:'من اللي ما جابه: النص أو أكثر جابه مكتب ثاني أو انشرى من غيره بآخر 45 يوم'},
-        shortage:{t:'نفاذ مؤكد',         e:'🌫️', d:'أغلب اللي ما جابه محد باعه بآخر 45 يوم (سجل الشراء)'},
+        shortage:{t:'نفاذ مؤكد',         e:'🌫️', d:'أغلب اللي ما جابه نافذ بدليل صريح: انطلب من أكثر من مكتب أو المكتب كال «غير متوفرة»، ومحد باعه بآخر 45 يوم'},
         over:    {t:'يزيّد',              e:'🟠', d:'30%+ من اللي جابه من طلبي بكمية أكثر'},
         partial: {t:'ينقّص الكمية',      e:'➖', d:'30%+ من اللي جابه من طلبي بكمية أقل'},
         ok:      {t:'يجيب طلبي',         e:'🟢', d:'جاب 70%+ من طلبي'},
@@ -22497,10 +22496,15 @@ function oloPickParts(own, same, isActive, linked, nActive){
     const BLOCK=new Set(['debt_block','supply_stopped']), CLAIM=new Set(['not_available','coming_soon','expiry_near']);
     const STILL=1;   // monthly movement below 1 = still item (no real sales)
     const MARKET_DAYS=45;   // an item bought from anyone in the last 45 days of the purchase log = available in the market
-    const st={sig:'', byOff:null, arrivedAt:null, npSold:null, npRef:null, cache:new Map(), hist:null, histAt:0, latestDt:'', filter:'', tags:new Set()};
-    const npKey=s=>String(s||'').replace(/\s+/g,' ').trim().toUpperCase();   // same key as the net-price module (CleanKey)
+    const ARR_DAYS=30;      // a requested item bought FROM THIS OFFICE in the last 30 days of the purchase log = arrived (the delivery sheet misses late arrivals — مصطفى 2026-11-07)
+    const st={sig:'', byOff:null, arrivedAt:null, npSold:null, npArr:null, reqAt:null, npRef:null, cache:new Map(), hist:null, histAt:0, latestDt:'', filter:'', tags:new Set()};
+    // net-price key (CleanKey) minus the trailing marks (@ @@ = && # *) the sheets add — 73% of requested items missed the log without this
+    const npKey=s=>String(s||'').replace(/[\s@=&#*]+$/,'').replace(/\s+/g,' ').trim().toUpperCase();
     const esc=s=>String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const okey=n=>{ const s=String(n||'').trim(); try{ return _smNorm(resolveOffice(s)); }catch(_){ return s.toLowerCase(); } };
+    // «… - مقاصة مع المبيعات» is the same office (الوركاء الدولية delivered 33 requested items under that name)
+    // an office link on the full name wins (e.g. «الرزان - مقاصة» ↔ نيوتن); only an unlinked name loses the suffix
+    const MQ=/\s*-?\s*مقاص[ةه]\s+مع\s+المبيعات\s*$/;
+    const okey=n=>{ const s=String(n||'').trim(); try{ const r=resolveOffice(s); return _smNorm(r!==s ? r : resolveOffice(s.replace(MQ,''))); }catch(_){ return s.replace(MQ,'').toLowerCase(); } };
     const mov=r=>{ const x=parseFloat(r.movement); return isFinite(x) ? x : 0; };
     const rows=()=>{ const d=window.__dtState; return (d && d.data) || []; };
     const dtSig=()=>{ const R=rows(); return R.length ? R.length+'|'+R[0].office+'|'+R[0].item+'|'+R[R.length-1].item : ''; };
@@ -22510,45 +22514,56 @@ function oloPickParts(own, same, isActive, linked, nActive){
     function buildNp(){
         const np=window.__npState, log=np && np.loaded && np.log && np.log.size ? np.log : null;
         if(st.npRef===log && st.npInit) return;
-        st.npInit=true; st.npRef=log; st.npSold=null; st.cache=new Map();
+        st.npInit=true; st.npRef=log; st.npSold=null; st.npArr=null; st.byOff=null; st.cache=new Map();
         if(!log){ if(!st.npAsked){ st.npAsked=true; try{ if(window.npBonusReady) window.npBonusReady(); }catch(_){} } return; }
         let asOf=''; log.forEach(a=>a.forEach(e=>{ if(e.purchase && e.date>asOf) asOf=e.date; }));
-        const from=new Date(Date.parse(asOf+'T00:00:00Z')-MARKET_DAYS*86400000).toISOString().slice(0,10);
-        const m=new Map();
-        log.forEach((a,k)=>a.forEach(e=>{ if(!e.purchase || !e.date || e.date<from) return; let s=m.get(k); if(!s) m.set(k, s=new Set()); s.add(okey(e.vendor)); }));
-        st.npSold=m; st.cache=new Map();
+        const day=n=>new Date(Date.parse(asOf+'T00:00:00Z')-n*86400000).toISOString().slice(0,10);
+        const from=day(MARKET_DAYS), arrFrom=day(ARR_DAYS);
+        const m=new Map(), arr=new Map();
+        const add=(M,k,o)=>{ let s=M.get(k); if(!s) M.set(k, s=new Set()); s.add(o); };
+        log.forEach((a,k0)=>{ const k=npKey(k0); a.forEach(e=>{
+            if(!e.purchase || !e.date) return;
+            if(e.date>=from) add(m, k, okey(e.vendor));
+            if(e.date>=arrFrom) add(arr, k, okey(e.vendor));
+        }); });
+        st.npSold=m; st.npArr=arr; st.cache=new Map();
     }
     function build(){
         buildNp();
         const R=rows(), L=appState.officeLinks||[];
         const sig=dtSig()+'|'+L.length+'|'+JSON.stringify(L[L.length-1]||0);
         if(st.byOff && st.sig===sig) return;
-        const byOff=new Map(), arrivedAt=new Map();
+        const byOff=new Map(), arrivedAt=new Map(), reqAt=new Map();
         R.forEach(r=>{
             const k=okey(r.office); if(!k) return;
             let a=byOff.get(k); if(!a) byOff.set(k, a=[]); a.push(r);
             const es=window.dtEffectiveStatus(r);
+            if(es!=='Not Requested'){ const ik=npKey(r.item); let s=reqAt.get(ik); if(!s) reqAt.set(ik, s=new Set()); s.add(k); }
             if(!r.isLinkedArrival && (ARR.has(es) || es==='Not Requested')){
                 const ik=_matNorm(r.item); let m=arrivedAt.get(ik); if(!m) arrivedAt.set(ik, m=new Map());
                 if(!m.has(k)) m.set(k, r.office);
             }
         });
-        st.byOff=byOff; st.arrivedAt=arrivedAt; st.sig=sig; st.cache=new Map();
+        st.byOff=byOff; st.arrivedAt=arrivedAt; st.reqAt=reqAt; st.sig=sig; st.cache=new Map();
     }
     // this cycle's counts for one office group (null = no delivery rows)
     function countsFor(k){
         const list=st.byOff.get(k)||[];
         if(!list.length) return null;
-        const c={req:0, arr:0, matched:0, partial:0, over:0, others:0, nobody:0, unknown:0, extra:0, extraMov:0, extraStill:0,
-                 L:{others:[], nobody:[], unknown:[], over:[], partial:[], extraMov:[], extraStill:[]}};
+        const c={req:0, arr:0, matched:0, partial:0, over:0, logArr:0, others:0, nobody:0, unknown:0, extra:0, extraMov:0, extraStill:0,
+                 L:{others:[], nobody:[], unknown:[], over:[], partial:[], logArr:[], extraMov:[], extraStill:[]}};
+        // unrequested rows of this office group: one that matches a requested item is that item arriving under a name variant
+        // got = items already credited to this group (delivery sheet or one purchase) — a purchase never credits two rows
+        const extras=new Map(), used=new Set(), got=new Set(), claimNA=stanceOf(k)==='not_available';
+        list.forEach(x=>{ const es=window.dtEffectiveStatus(x); if(es==='Not Requested') extras.set(npKey(x.item), x); else if(ARR.has(es)) got.add(npKey(x.item)); });
         list.forEach(x=>{
             const es=window.dtEffectiveStatus(x), req=window.dtQtyReqText(x);
-            if(es==='Not Requested'){
-                const m=mov(x), e={item:x.item, arr:x.qtyArr, mov:m};
-                if(m>=STILL){ c.extraMov++; c.L.extraMov.push(e); } else { c.extraStill++; c.L.extraStill.push(e); }
-                return;
-            }
+            if(es==='Not Requested') return;
             c.req++;
+            if(!ARR.has(es)){
+                const ik=npKey(x.item), via=extras.has(ik) && !used.has(ik) ? 'وصل باسم ثاني للمكتب' : (!got.has(ik) && st.npArr && st.npArr.get(ik) && st.npArr.get(ik).has(k) ? 'سجل الشراء: انشرت منه بآخر '+ARR_DAYS+' يوم' : '');
+                if(via){ if(extras.has(ik)) used.add(ik); else got.add(ik); c.logArr++; c.L.logArr.push({item:x.item, req, via}); return; }
+            }
             if(es==='Matched') c.matched++;
             else if(es==='Partial'){ c.partial++; c.L.partial.push({item:x.item, req, arr:x.qtyArr}); }
             else if(es==='Over'){ c.over++; c.L.over.push({item:x.item, req, arr:x.qtyArr}); }
@@ -22560,11 +22575,17 @@ function oloPickParts(own, same, isActive, linked, nActive){
                 const sold=st.npSold ? st.npSold.get(npKey(x.item)) : null;
                 const soldOther=sold ? [...sold].some(ok=>ok!==k) : false;
                 if(who.length || soldOther){ c.others++; c.L.others.push({item:x.item, req, who:who.length ? who : ['سجل الشراء: انشرى من مكتب ثاني بآخر '+MARKET_DAYS+' يوم']}); }
-                else if(st.npSold){ c.nobody++; c.L.nobody.push({item:x.item, req}); }
+                // a shortage needs explicit proof (مصطفى 2026-11-07): asked from 2+ offices, or this office said «غير متوفرة» —
+                // and still nobody brought it nor sold it to us. Anything else = no evidence (unknown → the office counts as short)
+                else if(st.npSold && !(sold && sold.size) && ((st.reqAt.get(npKey(x.item))||new Set()).size>=2 || claimNA)){ c.nobody++; c.L.nobody.push({item:x.item, req}); }
                 else { c.unknown++; c.L.unknown.push({item:x.item, req}); }
             }
         });
-        c.arr=c.matched+c.partial+c.over; c.extra=c.extraMov+c.extraStill;
+        extras.forEach((x,ik)=>{ if(used.has(ik)) return;
+            const m=mov(x), e={item:x.item, arr:x.qtyArr, mov:m};
+            if(m>=STILL){ c.extraMov++; c.L.extraMov.push(e); } else { c.extraStill++; c.L.extraStill.push(e); }
+        });
+        c.arr=c.matched+c.partial+c.over+c.logArr; c.extra=c.extraMov+c.extraStill;
         return c;
     }
     // cycle row = [req, arr, over, partial, others, nobody(confirmed shortage), extra, extraStill, stance, unknown]
@@ -22586,7 +22607,10 @@ function oloPickParts(own, same, isActive, linked, nActive){
         all.forEach(snap=>{
             const day=String(snap.orderDate||snap.date||'').slice(0,10);
             if(snap.ovd && snap.ovd.o){ Object.entries(snap.ovd.o).forEach(([k,a])=>push(k, {full:true, a, day})); return; }
-            const per=new Map();   // older snapshot: requested items and their stamped arrival only
+            // older snapshot: requested items and their stamped arrival only. One with NO arrival stamped at all was archived
+            // before the delivery check (e.g. «ارشيف شهر ال عاشر17» = the current sheet again) — it would count the cycle twice
+            if(!(snap.orders||[]).some(o=>ARR.has(String(o.itemStatus||'')))) return;
+            const per=new Map();
             (snap.orders||[]).forEach(o=>{
                 const s=String(o.itemStatus||''); if(!ARR.has(s) && s!=='Not Arrived') return;
                 const k=okey(o.vendor); let p=per.get(k); if(!p) per.set(k, p=[0,0]); p[0]++; if(ARR.has(s)) p[1]++;
@@ -22609,8 +22633,7 @@ function oloPickParts(own, same, isActive, linked, nActive){
         if(fill>=0.7) return (T.over>=2 && T.over/T.arr>=0.3) ? 'over' : 'ok';
         const miss=T.others+T.nobody+T.unknown;
         if(T.nobody && T.nobody>=0.6*miss) return 'honest';
-        if(T.others && T.others>=T.unknown) return 'short';
-        return 'weak';
+        return 'short';   // no explicit proof of shortage = short (مصطفى 2026-11-07: «لازم دليل صريح»)
     }
     function tagsOf(T, name){
         const t=[];
@@ -22733,23 +22756,25 @@ function oloPickParts(own, same, isActive, linked, nActive){
             ${r.stance ? `<div class="text-xs mt-1">📌 الموقف: <b>${esc(stanceLabel(r.stance))}</b>${(appState.officeStance||{})[okey(name)] && !(appState.officeStance[okey(name)]||{}).stance ? ' (قديم — انمسح لما وصل شي)' : ''}</div>` : ''}
             ${r.req || r.extra ? `<div class="overflow-auto mt-2"><table class="text-xs" style="border-collapse:collapse;min-width:100%"><tr>
                 ${cell('طلبت', r.req, '#111827')}${cell('جاب منه', r.arr, '#15803d')}${cell('زايد', r.over, '#1d4ed8')}${cell('ناقص الكمية', r.partial, '#a16207')}
-                ${cell('ما جاب — موجود بالسوق', r.others, '#7c2d12')}${cell('ما جاب — نفاذ مؤكد', r.nobody, '#6b7280')}${cell('ما جاب — ما معروف', r.unknown, '#9a3412')}
+                ${cell('ما جاب — موجود بالسوق', r.others, '#7c2d12')}${cell('ما جاب — نفاذ مؤكد', r.nobody, '#6b7280')}${cell('ما جاب — بلا دليل نفاذ', r.unknown, '#9a3412')}
                 ${cell('بلا طلب', r.extra, '#6b21a8')}${cell('بلا طلب واكف', r.extraStill, '#b91c1c')}</tr></table></div>
                 <div class="text-[10px] text-gray-500 mt-0.5">مجموع ${r.nCycles} دورة${r.nCycles>r.nFull ? ` (${r.nCycles-r.nFull} منها قديمة: بيها طلبت/جاب بس)` : ''}</div>` : ''}
             ${r.cycles.length>1 ? `<details class="mt-1"><summary class="cursor-pointer text-xs font-bold">📚 كل دورة لحالها (${r.cycles.length})</summary><div class="overflow-auto mt-1"><table class="text-xs" style="border-collapse:collapse;min-width:100%">
                 <tr>${th('الدورة')}${th('طلبت')}${th('جاب')}${th('غيره جاب')}${th('محد جاب')}${th('بلا طلب')}${th('الموقف')}</tr>${cyc}</table></div></details>` : ''}
             ${cur ? `<div class="text-xs font-bold mt-2">🧾 مواد الدورة الحالية (شيت الديلفري):</div>
             ${sec('🟤 ما جابها وهي موجودة بالسوق', cur.L.others, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} — ${esc(e.who.join('، '))})</span>`)}
-            ${sec('🌫️ ما جابها ومحد باعها بآخر '+MARKET_DAYS+' يوم (نفاذ مؤكد)', cur.L.nobody, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
-            ${sec('❔ ما جابها والسبب ما معروف (سجل الشراء مو محمّل)', cur.L.unknown, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
+            ${sec('🌫️ نفاذ مؤكد (انطلبت من أكثر من مكتب أو كال «غير متوفرة»، ومحد باعها بآخر '+MARKET_DAYS+' يوم)', cur.L.nobody, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
+            ${sec('❔ ما جابها وماكو دليل نفاذ (تنحسب تقصير)', cur.L.unknown, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
             ${sec('🧊 بلا طلب وواكفة', cur.L.extraStill, e=>`${esc(e.item)} <span style="color:#6b7280">(وصل ${esc(e.arr)} · صرف شهري ${e.mov})</span>`)}
             ${sec('🟣 بلا طلب بس متحركة', cur.L.extraMov, e=>`${esc(e.item)} <span style="color:#6b7280">(وصل ${esc(e.arr)} · صرف شهري ${e.mov})</span>`)}
+            ${sec('✅ وصلت وشيت الديلفري ما مسكها', cur.L.logArr, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} — ${esc(e.via)})</span>`)}
             ${sec('🟠 زايدة عن المطلوب', cur.L.over, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} ← وصل ${esc(e.arr)})</span>`)}
             ${sec('➖ ناقصة الكمية', cur.L.partial, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} ← وصل ${esc(e.arr)})</span>`)}` : ''}
             <details class="mt-1"><summary class="cursor-pointer text-[11px] text-gray-500">شلون ينحسب الحكم؟</summary><div class="text-[11px] mt-1" style="line-height:1.7">
             <b>الحكم الرئيسي</b> = أول قاعدة تنطبق بهالترتيب:<br>${defs}<br><br><b>الإشارات</b> (تنطبق أكثر من وحدة):<br>${tdefs}<br><br>
             «موجود بالسوق» = نفس المادة وصلت من مكتب ثاني بنفس شيت الديلفري، أو انشرت من مكتب ثاني بآخر ${MARKET_DAYS} يوم (سجل الشراء) ·
-            «نفاذ مؤكد» = محد باعها بآخر ${MARKET_DAYS} يوم — التطبيق يوزّع كل مادة على مكتب واحد، فـ«محد ثاني جابها» وحدها ما تثبت نفاذ ·
+            «جاب» = وصلت بشيت الديلفري، أو انشرت من نفس المكتب بآخر ${ARR_DAYS} يوم (سجل الشراء) ·
+            «نفاذ مؤكد» = دليل صريح بس: انطلبت من أكثر من مكتب أو المكتب كال «غير متوفرة»، ومحد باعها بآخر ${MARKET_DAYS} يوم — التطبيق يوزّع كل مادة على مكتب واحد، فـ«محد ثاني جابها» وحدها ما تثبت نفاذ ·
             «واكف» = صرف شهري أقل من ${STILL} ·
             الدورات = الدورة الحالية + كل أرشفة (التطبيق يحتفظ بآخر 5). الأرشفات القديمة قبل هذا التحديث بيها «طلبت / جاب» بس.</div></details>
         </div>`;
