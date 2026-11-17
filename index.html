@@ -581,7 +581,6 @@
                 <div><h4>التقارير</h4>
                     <button id="exportPdfBtn" class="ios-btn bg-[#AF52DE] text-white px-4 py-2 text-sm" title="تصدير كل الطلبيات PDF"><i class="fas fa-file-pdf ml-1"></i> PDF</button>
                     <button id="exportPdfSelectedBtn" class="ios-btn bg-[#5856D6] text-white px-4 py-2 text-sm" title="تصدير المحدد فقط (✓) PDF"><i class="fas fa-file-pdf ml-1"></i> PDF محدد</button>
-                    <button id="vendorStockBtn" class="ios-btn bg-[#FF9500] text-white px-4 py-2 text-sm" title="كشف رصيد المكتب من UpdatedStock_Smart"><i class="fas fa-clipboard-list ml-1"></i> كشف رصيد</button>
                     <button id="deliveryReportBtn" class="ios-btn bg-gradient-to-r from-[#0f766e] to-[#0369a1] text-white px-4 py-2 text-sm" title="تقرير الوصول"><i class="fas fa-clipboard-check ml-1"></i> Delivery Report</button>
                 </div>
                 <div><h4>المكاتب</h4>
@@ -1500,8 +1499,9 @@
         <div id="officesSidebar" class="lg:flex-shrink-0" style="width:340px;min-width:200px">
             <div class="ios-card p-4">
                 <h3 class="font-bold text-base mb-3"><i class="fas fa-list-ul ml-2 text-[#007AFF]"></i> المكاتب</h3>
-                <div class="flex items-center gap-2 mb-2">
+                <div class="flex flex-wrap items-center gap-2 mb-2">
                     <button onclick="qsSyncOffices()" class="ios-btn bg-[#007AFF] text-white px-3 py-1.5 text-xs flex-shrink-0" title="اختر ملف Excel — يدوّر عن CompareSheet تلقائياً ويستبدل بياناته"><i class="fas fa-bolt ml-1"></i>⚡ مزامنة سريعة</button>
+                    <button id="vendorStockBtn" class="ios-btn bg-[#FF9500] text-white px-3 py-1.5 text-xs flex-shrink-0" title="كشف رصيد المكتب من UpdatedStock_Smart"><i class="fas fa-clipboard-list ml-1"></i> كشف رصيد</button>
                     <span id="qsOfficesStatus" class="text-[10px] text-gray-400 flex-1 truncate"></span>
                 </div>
                 <div id="qsOfficesStamp" class="text-[10px] text-gray-400 mb-2">لم تتم المزامنة بعد</div>
@@ -1536,7 +1536,7 @@
                     <div class="flex items-center gap-1.5 flex-wrap mt-1">
                         <select id="oloSort" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="oloSet('sort',this.value)"><option value="">ترتيب: الافتراضي</option><option value="old">الأقدم وصولاً أولاً</option><option value="new">الأحدث وصولاً أولاً</option></select>
                         <button type="button" class="ios-btn bg-[#c2410c] text-white px-2 py-1 text-xs" onclick="oloExportPDF()" title="PDF مستقل للمكاتب الظاهرة — ما إله علاقة بالإرسال"><i class="fas fa-file-pdf ml-1"></i> PDF آخر وصول</button>
-                        <select id="ovdFilterSel" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="ovdSet(this.value)" title="الحكم على المكتب من شيت الديلفري: طلبت شنو ووصل شنو"><option value="">⚖️ الحكم: الكل</option><option value="ok">🟢 ملتزم</option><option value="over">🟠 يزيّد</option><option value="honest">🟡 صادق بس ناقص</option><option value="short">🟤 مقصّر</option><option value="zero">⚫ ما جاب ولا شي</option><option value="block">⛔ بلوك / وقّف التجهيز</option><option value="liar">🔴 كذاب</option><option value="own">🟣 على كيفه (ترانزيت)</option><option value="norep">⚪ بلا رقم مندوب</option><option value="none">— ماكو حكم</option></select>
+                        <select id="ovdFilterSel" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="ovdSet(this.value)" title="الحكم على المكتب من شيت الديلفري: طلبت شنو ووصل شنو"><option value="">⚖️ الحكم: الكل</option><option value="ok">🟢 فوق المعتاد</option><option value="over">🟠 يزيّد</option><option value="honest">🟡 صادق بس ناقص</option><option value="avg">🔵 ضمن المعتاد</option><option value="few">❔ عيّنة صغيرة</option><option value="short">🟤 دون المعتاد / مقصّر</option><option value="zero">⚫ ما جاب ولا شي</option><option value="liar">🔴 كذاب</option><option value="promise">🕓 وعد ما وفى</option><option value="block">⛔ بلوك هسه (حالة)</option><option value="own">🟣 على كيفه (ترانزيت)</option><option value="norep">⚪ بلا رقم مندوب</option><option value="none">— ماكو حكم</option></select>
                     </div>
                     <div id="ovdTagBar" class="flex items-center gap-1 flex-wrap mt-1"></div>
                     <div id="oloStatus" class="text-[10px] text-gray-500 mt-1"></div>
@@ -1590,9 +1590,13 @@
                         <label class="flex items-center gap-1" title="مادة موجودة عند مكتب ثاني وهذا المكتب هو الأرخص أو مساوي"><input type="checkbox" data-sm="ov:cheap" checked onchange="sendModeToggle(this)"> بيها مكاتب — الأرخص</label>
                         <label class="flex items-center gap-1" title="مادة موجودة عند مكتب ثاني وهذا المكتب أغلى (هي اللي تتأجّل بـ«الأرخص فقط»)"><input type="checkbox" data-sm="ov:dear" checked onchange="sendModeToggle(this)"> بيها مكاتب — المؤجّلة</label>
                         <span style="color:#9ca3af">|</span>
-                        <span title="نفس الصرف الشهري مال الفيندور الشامل (قطعة/شهر). المادة بلا حركة أو كميتها Check = صفر — المواد اللي تطابق الشرط ما تنرسل">🙈 أخفِ اللي صرفها الشهري</span>
-                        <select id="sendMonOp" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="sendMonSet('op',this.value)"><option value="">—</option><option value=">=">≥</option><option value="<=">≤</option><option value="=">=</option></select>
-                        <input type="number" min="0" id="sendMonVal" class="ios-input text-xs text-center" style="width:60px;padding:2px 4px" placeholder="رقم" oninput="sendMonSet('val',this.value)">
+                        <span title="نفس الصرف الشهري مال الفيندور الشامل (قطعة/شهر). المادة بلا حركة أو كميتها Check = صفر — المواد اللي تطابق الشرط ما تنرسل. شرط مستقل للمفحوص @ وغير المفحوص">🙈 أخفِ اللي صرفها الشهري:</span>
+                        <span class="flex items-center gap-1">مفحوص @
+                        <select id="sendMonOp_at" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="sendMonSet('at','op',this.value)"><option value="">—</option><option value=">=">≥</option><option value="<=">≤</option><option value="=">=</option></select>
+                        <input type="number" min="0" id="sendMonVal_at" class="ios-input text-xs text-center" style="width:60px;padding:2px 4px" placeholder="رقم" oninput="sendMonSet('at','val',this.value)"></span>
+                        <span class="flex items-center gap-1">غير مفحوص
+                        <select id="sendMonOp_noat" class="ios-input text-xs" style="width:auto;padding:2px 4px" onchange="sendMonSet('noat','op',this.value)"><option value="">—</option><option value=">=">≥</option><option value="<=">≤</option><option value="=">=</option></select>
+                        <input type="number" min="0" id="sendMonVal_noat" class="ios-input text-xs text-center" style="width:60px;padding:2px 4px" placeholder="رقم" oninput="sendMonSet('noat','val',this.value)"></span>
                     </div>
                     <div id="sendModeHint" class="hidden text-center mt-1" style="font-size:11px"></div>
                 </div>
@@ -2436,6 +2440,7 @@
 
         <!-- ======== مرحلة 1: التقرير ======== -->
         <div id="queueStageReport">
+            <div id="qSrcNote" class="hidden rounded-xl p-2 mb-2 text-xs font-bold" style="white-space:pre-wrap;direction:rtl"></div>
             <div id="qSendModeNote" class="hidden rounded-xl p-2 mb-2 text-xs font-bold" style="background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3"></div>
             <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-sm">
                 <div class="font-bold mb-1">📋 ملخص الطابور:</div>
@@ -2981,28 +2986,31 @@ function saveToStorage(){
     if(sig===_lastSaveSig) return; // ماكو تغيير بهذا التبويب — لا كتابة ولا عصر جديد
     if(typeof bumpRepIndex==='function') bumpRepIndex(); // أي حفظ = احتمال تغيّر المندوبين/الروابط
     // الطلبيات → IndexedDB (بلا سقف localStorage، فما عاد يحتاج حذف الأرشيف عند الامتلاء)
+    // (د) 2026-11-10: التوقيع يعني «انحفظ» — فشل أي كتابة يمسحه حتى الحفظ الجاي يعيد المحاولة بدل ما يرجع مبكراً
+    let ok=true;
     ordIdbPut(ORD_KEY, ordStr).catch(e=>{
+        if(_lastSaveSig===sig) _lastSaveSig=null;
         console.error('فشل حفظ الطلبيات بـIndexedDB:',e);
         showToast('⚠️ فشل حفظ الطلبيات');
     });
     // المندوبين والمرسل — يُحفظون دايماً بشكل منفصل، حتى لو فشل حفظ الطلبيات فوق
     try{ localStorage.setItem('ph_reps',JSON.stringify(appState.representatives)); }
-    catch(e){ console.error('فشل حفظ المندوبين:',e); showToast('⚠️ فشل حفظ بيانات المندوبين!'); }
+    catch(e){ ok=false; console.error('فشل حفظ المندوبين:',e); showToast('⚠️ فشل حفظ بيانات المندوبين!'); }
     try{ localStorage.setItem('ph_sent',JSON.stringify([...appState.sentVendors])); }
-    catch(e){ console.error('فشل حفظ حالة الإرسال:',e); }
+    catch(e){ ok=false; console.error('فشل حفظ حالة الإرسال:',e); }
     try{ localStorage.setItem('ph_sent_ledger',JSON.stringify(appState.sentLedger||{})); }
-    catch(e){ console.error('فشل حفظ سجل المُرسَل:',e); showToast('⚠️ فشل حفظ سجل المُرسَل — متابعة الوصول ترجع لأرقام الإكسل بعد إعادة التحميل'); }
+    catch(e){ ok=false; console.error('فشل حفظ سجل المُرسَل:',e); showToast('⚠️ فشل حفظ سجل المُرسَل — متابعة الوصول ترجع لأرقام الإكسل بعد إعادة التحميل'); }
     try{ localStorage.setItem('ph_exclude',JSON.stringify(appState.excludeList)); }
-    catch(e){ console.error('فشل حفظ الاستثناءات:',e); }
+    catch(e){ ok=false; console.error('فشل حفظ الاستثناءات:',e); }
     try{ localStorage.setItem('ph_price_cancel',JSON.stringify(appState.priceCancel||[])); }
-    catch(e){ console.error('فشل حفظ الإلغاءات السعرية:',e); }
+    catch(e){ ok=false; console.error('فشل حفظ الإلغاءات السعرية:',e); }
     try{ localStorage.setItem('ph_officelinks',JSON.stringify(appState.officeLinks)); }
-    catch(e){ console.error('فشل حفظ روابط المكاتب:',e); }
+    catch(e){ ok=false; console.error('فشل حفظ روابط المكاتب:',e); }
     try{ localStorage.setItem('ph_office_stance',JSON.stringify(appState.officeStance)); }
-    catch(e){ console.error('فشل حفظ مواقف المكاتب:',e); }
+    catch(e){ ok=false; console.error('فشل حفظ مواقف المكاتب:',e); }
     try{ localStorage.setItem('ph_stance_msgs',JSON.stringify(appState.stanceMsgConfig)); }
-    catch(e){ console.error('فشل حفظ نصوص رسائل المتابعة:',e); }
-    _lastSaveSig=sig;
+    catch(e){ ok=false; console.error('فشل حفظ نصوص رسائل المتابعة:',e); }
+    _lastSaveSig=ok ? sig : null; // فشل جزئي ← لا توقيع قديم يمنع الرجوع لنسخة سابقة (Codex #2)
     // عصر جديد = التبويبات الثانية صارت قديمة. نتبنّاه بس إذا انكتب فعلاً (وإلا هذا التبويب يحسب نفسه قديم ويوقف حفظه)
     try{ const ep=Date.now()+'-'+Math.random().toString(36).slice(2); localStorage.setItem(DATA_EPOCH_KEY, ep); if(localStorage.getItem(DATA_EPOCH_KEY)===ep) _dataEpochAtLoad=ep; }catch(_){}
 }
@@ -4467,17 +4475,25 @@ function sendOvAll(){ const o=sendMode().ov; return o.none && o.cheap && o.dear;
 // ملف طلبية قديم بلا أعمدة التغطية (ولا صف بيه cv) ← الفلتر يتجاهَل بدل ما يخفي كل شي (التحذير بسطر الحالة)
 // 2026-11-02 (طلب مصطفى): «من–إلى» صار شرط إخفاء واحد — أخفِ اللي صرفها الشهري ≥ / ≤ / = رقم
 const SEND_MON_OPS={'>=':'≥','<=':'≤','=':'='};
-function sendMon(){ const m=sendMode(); return (m.mon && 'op' in m.mon) ? m.mon : (m.mon={op:'',val:null}); }
+// 2026-11-14 (طلب مصطفى): الشرط صار شقّين مستقلين — مفحوص @ (at) وغير مفحوص (noat)، نفس كشف @ مال sendHeldAt
+const SEND_MON_KINDS={at:'@', noat:'غير المفحوص'};
+function sendMonKind(o){ return String(o.itemName||'').includes('@') ? 'at' : 'noat'; }
+function sendMon(k){ const m=sendMode(); if(!(m.mon && m.mon.at && m.mon.noat)) m.mon={at:{op:'',val:null},noat:{op:'',val:null}}; return m.mon[k]; }
+function sendMonCondOn(c){ return !!c && !!SEND_MON_OPS[c.op] && c.val!=null; }
 function sendMonHasData(){ return appState.orders.some(o=>o.cv); }
-function sendMonArmed(){ const m=sendMon(); return !!SEND_MON_OPS[m.op] && m.val!=null; }
+function sendMonArmed(){ return sendMonCondOn(sendMon('at')) || sendMonCondOn(sendMon('noat')); }
 function sendMonOn(){ return sendMonArmed() && sendMonHasData(); }
 function sendMonthly(o){ return o.isCheck ? 0 : (gvMonthly(o) ?? 0); }
-function sendMonLabel(){ const m=sendMon(); return sendMonOn() ? `أخفِ صرف شهري ${SEND_MON_OPS[m.op]} ${m.val}` : ''; }
+function sendMonLabel(){
+    if(!sendMonOn()) return '';
+    return Object.keys(SEND_MON_KINDS).filter(k=>sendMonCondOn(sendMon(k))).map(k=>{ const c=sendMon(k); return `أخفِ ${SEND_MON_KINDS[k]} صرف شهري ${SEND_MON_OPS[c.op]} ${c.val}`; }).join(' + ');
+}
 function sendMonHit(v, op, val){ return op==='>=' ? v>=val : op==='<=' ? v<=val : op==='=' ? v===val : false; }
 function sendHeldMon(o){
     if(!sendMonOn()) return '';
-    const m=sendMon(), v=sendMonthly(o);
-    return sendMonHit(v, m.op, m.val) ? `صرفها ${v}/شهر` : '';
+    const c=sendMon(sendMonKind(o)); if(!sendMonCondOn(c)) return '';
+    const v=sendMonthly(o);
+    return sendMonHit(v, c.op, c.val) ? `صرفها ${v}/شهر` : '';
 }
 function sendModeOn(){ return !sendAtAll() || !sendOvAll() || sendMonOn(); }
 function sendAtLabel(){ const a=sendMode().at; return sendAtAll() ? '' : (a.at ? '@ فقط' : 'غير المفحوص فقط'); }
@@ -4518,8 +4534,9 @@ function sendModeBarSync(kept){
     const bar=document.getElementById('sendModeBar'), hint=document.getElementById('sendModeHint'); if(!bar||!hint) return;
     const m=sendMode(), on=!!kept;
     document.querySelectorAll('input[data-sm]').forEach(cb=>{ const [g,k]=cb.dataset.sm.split(':'); cb.checked=!!m[g][k]; });
-    const mon=sendMon(), monNoData=sendMonArmed() && !sendMonHasData();
-    [['sendMonOp','op'],['sendMonVal','val']].forEach(([id,k])=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=mon[k]??''; });
+    const monNoData=sendMonArmed() && !sendMonHasData();
+    Object.keys(SEND_MON_KINDS).forEach(g=>{ const mon=sendMon(g);
+        [['sendMonOp_'+g,'op'],['sendMonVal_'+g,'val']].forEach(([id,k])=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=mon[k]??''; }); });
     bar.style.borderColor=on ? '#4f46e5' : '#16a34a'; bar.style.background=on ? '#eef2ff' : '#fff';
     const v=m.ov, noNet=(v.cheap!==v.dear) && !gvNetRows();
     hint.classList.toggle('hidden', !on && !monNoData);
@@ -4546,9 +4563,10 @@ async function sendModeToggle(cb){
     renderGlobalView();
 }
 // 📈 خانات الصرف الشهري — نفس إعادة الرسم مال علامات الصح، بتأخير بسيط حتى ما يرسم ويا كل رقم ينكتب
-function sendMonSet(k, v){
-    if(k==='op') sendMon().op=SEND_MON_OPS[v] ? v : '';
-    else if(k==='val') sendMon().val=(v===''||v==null||!isFinite(Number(v))) ? null : Number(v);
+function sendMonSet(g, k, v){
+    if(!SEND_MON_KINDS[g]) return;
+    if(k==='op') sendMon(g).op=SEND_MON_OPS[v] ? v : '';
+    else if(k==='val') sendMon(g).val=(v===''||v==null||!isFinite(Number(v))) ? null : Number(v);
     else return;
     clearTimeout(sendMonSet._t);
     sendMonSet._t=setTimeout(()=>{
@@ -4560,6 +4578,13 @@ function sendMonSet(k, v){
 window.sendRows=sendRows; window.sendHeld=sendHeld; window.sendModeToggle=sendModeToggle; window.sendMonSet=sendMonSet;
 
 // ======================== FILTER + RENDER ITEMS ========================
+// 🔤 ترتيب الطلبية (مصطفى 2026-11-14): المواد أبجدياً، وبعدها مواد Check أبجدياً — نفس الترتيب بالجدول
+// والرسالة والصور وملف الطابور وPDF الطلبيات (الكل والمحدد). فرز المستخدم بعنوان عمود يتقدّم عليه بالجدول.
+function orderCmp(a,b){
+    return (a.isCheck===b.isCheck ? 0 : a.isCheck ? 1 : -1)
+        || String(a.itemName||'').localeCompare(String(b.itemName||''),'en',{sensitivity:'base',numeric:true});
+}
+function orderSort(rows){ return [...rows].sort(orderCmp); }
 function filterItems(items,filters){
     if(sendModeOn()) gvNetSync();
     let f=items.filter(item=>{
@@ -4585,7 +4610,7 @@ function filterItems(items,filters){
         return true;
     });
     if(filters.sortField) f=applySort(f,filters.sortField,filters.sortDir);
-    else f.sort((a,b)=>a.isCheck===b.isCheck?0:a.isCheck?1:-1);
+    else f.sort(orderCmp);
     return f;
 }
 
@@ -4968,14 +4993,15 @@ function gvMonthly(o){
     }
     return Math.round((Number(c.avg)||0)*30);
 }
-// 📈 الصرف الشهري كحقل بالطلبية (طلب مصطفى 2026-11-02: الجدول + الرسالة + الصورة + PDF) — العرض بس، الفلتر يستعمل sendMonthly
+// 📈 الصرف الشهري كحقل بجداول التطبيق + PDF الداخلي — العرض بس، الفلتر يستعمل sendMonthly
+// 🔒 2026-11-14 (مصطفى): الصرف الشهري شخصي — **ممنوع** بأي شي يوصل للمندوب (رسالة الطلبية · صورها ·
+//    طلبية إضافية · تذكير). انرسل بالغلط لـ20 مكتب بطلبية 11-14 لأن 11-02 حطّه بالرسالة والصورة.
+//    tests/send-monthly.test.js يقفل هذا.
 // null = ماكو رقم (بلا أعمدة تغطية / FAKE غير معروف / Check) ← «—» بالعرض، ولا شي بالرسالة
 // dtMon = صرف جاهز من تبويب المتابعة (Real Movement — dtMonthlyOf)، بدل cv مال الطلبية
 function monNum(o){ if(o && o.dtMon!==undefined) return o.dtMon; return (!o || o.isCheck) ? null : gvMonthly(o); }
 function monCell(o){ const v=monNum(o); return v==null ? '<span class="text-gray-300">—</span>' : gvNetFmt(v); }
 function monTxt(o){ const v=monNum(o); return v==null ? '—' : gvNetFmt(v); }
-// سطر الرسالة: الصرف قبل «:» لأن sender/main.py (_ITEM_LINE_RE) يعرف سطر المادة بس إذا ينتهي بـ[الكمية]
-function monTag(o){ const v=monNum(o); return v==null ? '' : ` (صرف ${gvNetFmt(v)}/شهر)`; }
 function gvMonOn(){ const f=appState.globalFilters; return !!SEND_MON_OPS[f.monOp] && f.monVal!=null && sendMonHasData(); }
 window.gvRangeSet=function(k, v){
     const f=appState.globalFilters, n=(v===''||v==null||!isFinite(Number(v))) ? null : Number(v);
@@ -5210,7 +5236,7 @@ function generateMessage(){
     const vendorLine=`\u200E*${appState.selectedVendor}*`;
     const date=`\u200E${document.getElementById('orderDateInput').value}`;
     const alertNote=`\u200E⚠️ لا تستلم المواد المنتهية قبل ${document.getElementById('expiryAlertInput').value} (حتى لو كانت محمية)`;
-    const items=filtered.map((it,i)=>`\u200E${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`).join('\n');
+    const items=filtered.map((it,i)=>`\u200E${i+1}. ${it.itemName} : [${it.requiredQty}]`).join('\n');
     let footer=`\u200E✅ يرجى تجهيز الطلبية بالسرعة الممكنة`;
     if(filtered.some(i=>i.isCheck)) footer+='\n\u200Eملاحظة: مواد (Check) مقطوعة أكثر من ثلاثة أشهر — إذا موجودة يرجى الاتصال.';
     return `${header}\n${vendorLine}\n${date}\n${alertNote}\n\n${items}\n\n${footer}`;
@@ -5288,8 +5314,8 @@ async function buildImageCanvas(chunk,vendorName,chunkIdx,totalChunks,date,expir
     const HEAD=opt.headColor||'#1e3a8a';
     const FONT='Tajawal, Arial, sans-serif';
     const W=820, PAD=30, TABLE_L=PAD, TABLE_R=W-PAD, TABLE_W=TABLE_R-TABLE_L;
-    // opt.monthly (صور طلبية المكاتب بس، 2026-11-02): عمود «الصرف الشهري» بين الكمية والاسم
-    const QTY_COL_W=150, MON_COL_W=opt.monthly ? 120 : 0, NAME_COL_W=TABLE_W-QTY_COL_W-MON_COL_W, ROW_H=56, TH_H=48;
+    // صورة المندوب: الكمية + الاسم بس — بلا صرف شهري (شخصي، 2026-11-14)
+    const QTY_COL_W=150, NAME_COL_W=TABLE_W-QTY_COL_W, ROW_H=56, TH_H=48;
     const footerLines=[];
     if(opt.footerLines) opt.footerLines.forEach(l=>footerLines.push(l));
     else footerLines.push({text:'✅ يرجى تجهيز الطلبية بالسرعة الممكنة',color:'#166534',bold:true,size:20});
@@ -5318,13 +5344,11 @@ async function buildImageCanvas(chunk,vendorName,chunkIdx,totalChunks,date,expir
     }
     ctx.strokeStyle='#64748b'; ctx.lineWidth=1.5;
     ctx.strokeRect(TABLE_L,y,TABLE_W,TH_H+chunk.length*ROW_H+2);
-    const MON_X=TABLE_L+QTY_COL_W, DIVIDER_X=MON_X+MON_COL_W;
+    const DIVIDER_X=TABLE_L+QTY_COL_W;
     ctx.beginPath(); ctx.moveTo(DIVIDER_X,y); ctx.lineTo(DIVIDER_X,y+TH_H+chunk.length*ROW_H+2); ctx.stroke();
-    if(MON_COL_W){ ctx.beginPath(); ctx.moveTo(MON_X,y); ctx.lineTo(MON_X,y+TH_H+chunk.length*ROW_H+2); ctx.stroke(); }
     ctx.fillStyle=HEAD; ctx.fillRect(TABLE_L+1,y+1,TABLE_W-2,TH_H-1);
     ctx.fillStyle='#ffffff'; ctx.font='bold 19px '+FONT; ctx.textAlign='center';
     ctx.fillText('الكمية المطلوبة',TABLE_L+QTY_COL_W/2,y+30);
-    if(MON_COL_W){ ctx.font='bold 17px '+FONT; ctx.fillText('الصرف الشهري',MON_X+MON_COL_W/2,y+30); ctx.font='bold 19px '+FONT; }
     ctx.fillText('اسم المادة',DIVIDER_X+NAME_COL_W/2,y+30);
     y+=TH_H;
     chunk.forEach(function(it,i){
@@ -5334,11 +5358,6 @@ async function buildImageCanvas(chunk,vendorName,chunkIdx,totalChunks,date,expir
         ctx.beginPath(); ctx.moveTo(TABLE_L,rowY+ROW_H); ctx.lineTo(TABLE_R,rowY+ROW_H); ctx.stroke();
         ctx.strokeStyle='#64748b'; ctx.lineWidth=1.2;
         ctx.beginPath(); ctx.moveTo(DIVIDER_X,rowY); ctx.lineTo(DIVIDER_X,rowY+ROW_H); ctx.stroke();
-        if(MON_COL_W){
-            ctx.beginPath(); ctx.moveTo(MON_X,rowY); ctx.lineTo(MON_X,rowY+ROW_H); ctx.stroke();
-            const mv=monTxt(it); ctx.fillStyle=mv==='—' ? '#cbd5e1' : '#4338ca'; ctx.font='bold 20px '+FONT; ctx.textAlign='center';
-            ctx.fillText(mv,MON_X+MON_COL_W/2,rowY+ROW_H/2+8);
-        }
         ctx.fillStyle='#94a3b8'; ctx.font='13px '+FONT; ctx.textAlign='right';
         ctx.fillText(String(i+1),TABLE_R-10,rowY+ROW_H/2+5);
         ctx.fillStyle='#0f172a'; ctx.font='bold 19px '+FONT; ctx.textAlign='right';
@@ -5384,7 +5403,7 @@ async function sendWhatsAppImage(){
         showToast('📸 صورة '+(idx+1)+' من '+chunks.length,true);
         const chunk=chunks[idx];
         const chunkHasCheck=chunk.some(i=>i.isCheck);
-        const canvas=await buildImageCanvas(chunk,vendorName,idx,chunks.length,date,expiry,false,chunkHasCheck,{monthly:true});
+        const canvas=await buildImageCanvas(chunk,vendorName,idx,chunks.length,date,expiry,false,chunkHasCheck);
         const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.92));
         blobs.push(blob);
     }
@@ -5442,15 +5461,15 @@ function generateMessageFor(vendorName){
     if(!orders.length) return '';
     orders=sendRows(orders);
     if(!orders.length) return ''; // ماكو مادة تنرسل لهذا المكتب بوضع الإرسال الحالي
-    // ترتيب افتراضي: المواد غير Check أولاً
-    const items=[...orders].sort((a,b)=>a.isCheck===b.isCheck?0:a.isCheck?1:-1);
+    // ترتيب الطلبية: أبجدي، وCheck أبجدي بالآخر (orderSort)
+    const items=orderSort(orders);
     const date=document.getElementById('orderDateInput').value||new Date().toISOString().slice(0,10);
     const expiry=document.getElementById('expiryAlertInput').value||'';
     const header=`\u200E*طلبية مذخر أدوية المنصور*`;
     const vendorLine=`\u200E*${vendorName}*`;
     const dateLine=`\u200E${date}`;
     const alertNote=expiry?`\u200E⚠️ لا تستلم المواد المنتهية قبل ${expiry} (حتى لو كانت محمية)`:'';
-    const itemsText=items.map((it,i)=>`\u200E${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`).join('\n');
+    const itemsText=items.map((it,i)=>`\u200E${i+1}. ${it.itemName} : [${it.requiredQty}]`).join('\n');
     let footer=`\u200E✅ يرجى تجهيز الطلبية بالسرعة الممكنة`;
     if(items.some(i=>i.isCheck)) footer+='\n\u200Eملاحظة: مواد (Check) مقطوعة أكثر من ثلاثة أشهر — إذا موجودة يرجى الاتصال.';
     return [header,vendorLine,dateLine,alertNote,'',itemsText,'',footer].filter(Boolean).join('\n');
@@ -5487,8 +5506,8 @@ async function buildImagesForVendor(vendorName){
     if(!orders.length) return [];
     orders=sendRows(orders);
     if(!orders.length) return [];
-    // نفس ترتيب renderItemsTable الافتراضي (غير Check أولاً)
-    const items=[...orders].sort((a,b)=>a.isCheck===b.isCheck?0:a.isCheck?1:-1);
+    // نفس ترتيب الرسالة (generateMessageFor): أبجدي، وCheck أبجدي بالآخر
+    const items=orderSort(orders);
     const date=document.getElementById('orderDateInput').value||new Date().toISOString().slice(0,10);
     const expiry=document.getElementById('expiryAlertInput').value||'';
     const chunks=[]; for(let i=0;i<items.length;i+=20) chunks.push(items.slice(i,i+20));
@@ -5497,7 +5516,7 @@ async function buildImagesForVendor(vendorName){
     for(let idx=0;idx<chunks.length;idx++){
         const chunk=chunks[idx];
         const chunkHasCheck=chunk.some(i=>i.isCheck);
-        const canvas=await buildImageCanvas(chunk,safeName,idx,chunks.length,date,expiry,false,chunkHasCheck,{monthly:true});
+        const canvas=await buildImageCanvas(chunk,safeName,idx,chunks.length,date,expiry,false,chunkHasCheck);
         const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.92));
         blobs.push({blob,name:`${safeName}_${idx+1}.jpg`});
     }
@@ -5636,6 +5655,7 @@ function openQueueReport(){
     appState._readyQueue=ready;
     appState._noPhoneQueue=noPhone;
     qAfterSync();
+    qSrcCheck();
     renderQueueReadyList();
     document.getElementById('queueModal').classList.remove('hidden');
 }
@@ -5700,10 +5720,36 @@ function qProgress(done,total,label){
 }
 
 // ---- 🎯 الدالة الرئيسية: بناء الطابور كاملاً وحفظه ----
+// حارس الملف القديم (2026-11-16): طابور 14/11 انبنى من إكسل تاريخه 2/11 (نفس الاسم memeq - Copy.xlsm بمكانين) والتطبيق ما كان يبيّن.
+// يعرض اسم/تاريخ حفظ ملف CompareSheet المزامَن ويحذّر إذا أقدم من 24 ساعة أو مجهول. ما يمنع — يطلب تأكيد.
+async function qSrcCheck(){
+    const el=document.getElementById('qSrcNote'); const r={stale:false, msg:''};
+    try{
+        const rec=await window.__excelStore.getSheet('CompareSheet');
+        const sf=rec && rec.srcFile;
+        if(!rec){ r.stale=true; r.msg='⚠️ ما اكو مزامنة لـCompareSheet — الطلبية ممكن تكون قديمة.'; }
+        else if(!sf || !sf.mtime){ r.stale=true; r.msg='⚠️ ما معروف تاريخ ملف الإكسل المزامَن (مزامنة قديمة) — زامن من جديد من آخر ملف حتى تتأكد.'; }
+        else{
+            const ageH=(Date.now()-sf.mtime)/3600000, d=fmtDateTime(new Date(sf.mtime).toISOString());
+            if(ageH>24){ r.stale=true; r.msg='⚠️ ملف الطلبية قديم: «'+sf.name+'» محفوظ '+d+' (قبل '+Math.round(ageH/24*10)/10+' يوم). تأكد إنه آخر إكسل قبل ما ترسل.'; }
+            else r.msg='✅ مصدر الطلبية: «'+sf.name+'» — محفوظ '+d+' · مزامنة '+fmtDateTime(rec.importedAt);
+        }
+    }catch(e){ r.stale=true; r.msg='⚠️ ما گدرت أقرأ تاريخ ملف المزامنة ('+e.message+')'; }
+    if(el){
+        el.classList.remove('hidden');
+        el.textContent=r.msg;
+        el.style.background=r.stale?'#fef2f2':'#f0fdf4'; el.style.border='2px solid '+(r.stale?'#dc2626':'#16a34a'); el.style.color=r.stale?'#991b1b':'#166534';
+    }
+    return r;
+}
+window.qSrcCheck=qSrcCheck;
+
 async function processAutoSendQueue(){
     if(appState.isBuildingQueue){ showToast('⚠️ البناء قيد التشغيل'); return; }
     const ready=appState._readyQueue||[];
     if(!ready.length){ showToast('⚠️ لا يوجد مكاتب جاهزة'); return; }
+    const _sc=await qSrcCheck();
+    if(_sc.stale && !confirm(_sc.msg+'\n\nتكمل بناء الطابور بهذي البيانات؟')) return;
 
     // طلب المجلد
     qLog('→ طلب مجلد الحفظ...');
@@ -8282,7 +8328,9 @@ function setOfficeStance(office, stance){
     const key=_smNorm(resolveOffice(office));
     if(!key || (stance && !OFFICE_STANCE_VALUES.includes(stance))) return;
     const prev=appState.officeStance[key]||{};
+    // stanceAt = when this stance started (office verdict v5: liar window, promise age) — kept while the value stays the same
     appState.officeStance[key]={...prev, stance, note:prev.note||'',
+        stanceAt:stance && stance!==(prev.stance||'') ? new Date().toISOString() : prev.stanceAt,
         arrivalStateAtSet:officeArrivalMap().get(key)||'', arrivalSrc:'dt'};
     saveToStorage();
     dtRenderAll();
@@ -8618,7 +8666,8 @@ function replImportApply(){
     if(!todo.length){ showToast(`ℹ️ ماكو شي ينكتب${skipped?` (${skipped} تغيّر حالهم من المعاينة — أعد الاستيراد)`:''}`); return; }
     if(!confirm(`راح ينكتب موقف ${todo.length} مكتب${skipped?` (و${skipped} تنتخطّى لأن حالهم تغيّر)`:''}. متأكد؟`)) return;
     const snapshot=JSON.stringify(appState.officeStance);
-    todo.forEach(({r,arr})=>{ appState.officeStance[r.key]={ ...appState.officeStance[r.key], stance:r.sugg, note:String((r.a&&r.a.bubbles&&r.a.bubbles.join('\n'))||r.status), arrivalStateAtSet:arr, arrivalSrc:'dt' }; });
+    // stanceAt = the reply's time, not now — re-importing an old reply must not restart the liar/promise clock (Codex 2026-11-08)
+    todo.forEach(({r,arr})=>{ const p0=appState.officeStance[r.key]||{}; appState.officeStance[r.key]={ ...p0, stance:r.sugg, stanceAt:r.sugg!==(p0.stance||'') ? (r.checkedAt||new Date().toISOString()) : p0.stanceAt, note:String((r.a&&r.a.bubbles&&r.a.bubbles.join('\n'))||r.status), arrivalStateAtSet:arr, arrivalSrc:'dt' }; });
     saveToStorage();
     let ok=false;
     try{ const s=JSON.parse(localStorage.getItem('ph_office_stance')||'{}'); ok=todo.every(({r})=>s[r.key]&&s[r.key].stance===r.sugg); }catch(_){}
@@ -10343,7 +10392,7 @@ function dtAddBuildText(office, items, date){
     // سطر «نفدت بعد استلامها» رجع بطلب المستخدم 2026-09-14 (يلغي قرار 09-13)
     return [L(`*${DT_ADD_TITLE}*`), L(`*${office}*`), L(date), '',
         L('المواد المبيّنة بالصورة نفدت بعد استلامها،'), L('نرجو تجهيز الكميات المذكورة.'), '',
-        items.map((it,i)=>L(`${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`)).join('\n'), '',
+        items.map((it,i)=>L(`${i+1}. ${it.itemName} : [${it.requiredQty}]`)).join('\n'), '',
         L(DT_ADD_FOOTER)].join('\n');
 }
 // ======== 🔔 التذكير — الباقي من تعزيز ⏳/◐ للمعروض بفلتر قسم 📦 (قرار المستخدم 2026-09-14) ========
@@ -10376,7 +10425,7 @@ function dtRemindBuildText(office, items, date){
     const L=t=>'‎'+t;
     return [L(`*${DT_REM_TITLE}*`), L(`*${office}*`), L(date), '',
         L('نذكّركم بطلبية إضافية أُرسلت سابقاً ولم تصل كاملة.'), L('الكميات المتبقية مبيّنة بالصورة.'), '',
-        items.map((it,i)=>L(`${i+1}. ${it.itemName}${monTag(it)} : [${it.requiredQty}]`)).join('\n'), '',
+        items.map((it,i)=>L(`${i+1}. ${it.itemName} : [${it.requiredQty}]`)).join('\n'), '',
         L(DT_REM_FOOTER)].join('\n');
 }
 async function dtRemindConfirmSend(){
@@ -10396,7 +10445,7 @@ async function dtRemindConfirmSend(){
     if(!(await dtQueueConflictOk(folder))) return;
     const n=new Date();
     const date=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-    const opt={title:DT_REM_TITLE, headColor:'#1d4ed8', noExpiryBand:true, monthly:true, footerLines:[
+    const opt={title:DT_REM_TITLE, headColor:'#1d4ed8', noExpiryBand:true, footerLines:[
         {text:DT_REM_FOOTER, color:'#1d4ed8', bold:true, size:20}]};
     showToast('⏳ جاري بناء الصور...', true);
     try{
@@ -10450,7 +10499,7 @@ async function dtAddConfirmSend(){
     if(!(await dtQueueConflictOk(folder))) return;
     const n=new Date();
     const date=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-    const opt={title:DT_ADD_TITLE, headColor:'#c2410c', noExpiryBand:true, monthly:true, footerLines:[
+    const opt={title:DT_ADD_TITLE, headColor:'#c2410c', noExpiryBand:true, footerLines:[
         {text:DT_ADD_FOOTER, color:'#166534', bold:true, size:20}]};
     showToast('⏳ جاري بناء الصور...', true);
     try{
@@ -10968,7 +11017,7 @@ async function qsStoreSheet(storeKey, aoa, extra){   // extra: fields kept on th
         return obj;
     });
     const importedAt=new Date().toISOString();
-    await excelDbPut(storeKey, Object.assign({}, extra, { sheetName:storeKey, headers, rows, rowCount:rows.length, importedAt }));
+    await excelDbPut(storeKey, Object.assign({}, extra, { sheetName:storeKey, headers, rows, rowCount:rows.length, importedAt, srcFile:window.__srcFile||null }));   // srcFile = اسم/تاريخ حفظ ملف الإكسل المختار — حارس الملف القديم (qSrcCheck)
     return importedAt;
 }
 async function qsShowStamp(elId, storeKey){
@@ -11005,6 +11054,7 @@ function qsPick(opts){
         const file=input.files && input.files[0];
         input.remove();
         if(!file) return;
+        window.__srcFile={name:file.name, mtime:file.lastModified, size:file.size};
         const statusEl=opts.statusId?document.getElementById(opts.statusId):null;
         let wb;
         try{
@@ -11048,7 +11098,7 @@ const TAB_SYNC=[
     ['quota','📦 قطع العروض والكوتات','Sheet3 + Sheet2 (+ أسعار النت إذا موجودة)'],
     [null,'🔐 الحصص','يتحدّث ويه «قطع العروض والكوتات»'],
     [null,'🍎 قطع منصور ← تفاح','يتحدّث ويه «قطع العروض والكوتات»'],
-    ['vstock','📋 كشف الرصيد (زر فوق)','Sheet2 + UpdatedStock_Smart'],
+    ['vstock','📋 كشف الرصيد (تبويب المكاتب)','Sheet2 + UpdatedStock_Smart'],
 ];
 // مفتاح المخزن اللي ينقرا منه تاريخ آخر مزامنة — من المخزن مباشرة لأن سطور التاريخ بالتبويبات ما تنملي كلها عند الفتح
 const TAB_SYNC_STORE={offices:'CompareSheet', audit:'Check', allocated:'AllocatedItems', expiry:'Expiry Material', mercatoTuffah:'Analysis_Odoo_vs_Tuffah',
@@ -11125,6 +11175,7 @@ function tabSyncPickFile(){
         const file=input.files && input.files[0];
         input.remove();
         if(!file) return;
+        window.__srcFile={name:file.name, mtime:file.lastModified, size:file.size};
         const st=document.getElementById('tabSyncStatus'), btn=document.getElementById('tabSyncRunBtn');
         btn.disabled=true;
         try{
@@ -11644,12 +11695,27 @@ window.onload=async()=>{
         // فلو انكتبت فوق الحالية يطلع بانر «أكو بيانات أحدث» على رفعة الجهاز نفسه (2026-10-18). ⬇️ GitHub يعلّم بعدها.
         // جهاز بلا علامة: علامة النسخة (هي تطابق GitHub وقت صنعها)، وإلا 'incomplete' — حتى أول فتحة ما تزرع sha GitHub بصمت فوق بيانات أقدم.
         const GH_MARK='ph_gh_data_sha', ownMark=localStorage.getItem(GH_MARK);
+        // (ب) 2026-11-10: لقطة قبل المسح. فشل أي مفتاح أو الطلبيات ← الجهاز يرجع مثل ما كان، بدل بيانات مختلطة بلا خطأ.
+        // بعد ما تنحفظ الطلبيات: فشل الأرشيف/التدقيق/الإكسل ما ينرجع (يحتاج لقطة طلبيات = ضعف الذاكرة بالآيفون) — يرجع بـfailures والمستدعي يعرض ❌
+        const lsBefore=[];
+        for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); lsBefore.push([k, localStorage.getItem(k)]); }
+        // كل مفتاح لحاله، والفشل ينگال صريح — ما ندّعي «بقت القديمة» إذا الرجوع نفسه نقص (Codex #1)
+        const rollback=why=>{
+            const lost=[];
+            try{ localStorage.clear(); }catch(_){}
+            lsBefore.forEach(([k,v])=>{ try{ localStorage.setItem(k,v); }catch(_){ lost.push(k); } });
+            _restoring=false;
+            if(lost.length) return new Error('الاستعادة فشلت، والرجوع للبيانات القديمة ناقص — هذني ما رجعن: '+lost.join('، ')
+                +'\nلا تسكّر الصفحة: النسخة الاحتياطية اللي نزلت قبل الاستعادة بيها كلشي — استعيدها.\n'+why);
+            return new Error('الاستعادة انرفضت — بقت بيانات الجهاز القديمة بلا تغيير.\n'+why);
+        };
+        const failures=[];
+        const lsFailed=[];
+        try{
         localStorage.clear();
         localStorage.setItem(GH_MARK, ownMark||payload.localStorage[GH_MARK]||'incomplete');
         // عصر جديد فوراً (مو عصر الملف — ذاك مال الجهاز الرافع): من هاللحظة كل حفظ من ذاكرة قديمة ينرفض
         localStorage.setItem(DATA_EPOCH_KEY, Date.now()+'-'+Math.random().toString(36).slice(2));
-        if(window.__archiveStore) await window.__archiveStore.clear(); // أرشيف قديم بـIndexedDB ما يبقى
-        const lsFailed=[];
         for(const k in payload.localStorage){
             if(k===DATA_EPOCH_KEY || k===GH_MARK) continue;
             if(k==='ph_orders') continue; // يُستعاد بـIndexedDB تحت — ما نكتبه بـlocalStorage نهائياً (سبب مشكلة الـquota أصلاً)
@@ -11661,36 +11727,44 @@ window.onload=async()=>{
                 lsFailed.push({key:k, size:(v?v.length:0), error:err.message||String(err)});
             }
         }
-        let archiveWhere='';
-        if(payload.localStorage.ph_archive && window.__archiveStore){
-            try{ archiveWhere=await window.__archiveStore.putString(payload.localStorage.ph_archive); }
-            catch(err){ lsFailed.push({key:'ph_archive', size:payload.localStorage.ph_archive.length, error:err.message||String(err)}); }
-        }
+        }catch(err){ lsFailed.push({key:'(مسح التخزين)', size:0, error:err.message||String(err)}); }
         if(lsFailed.length){
             console.warn('restore: localStorage keys failed:', lsFailed);
+            throw rollback(lsFailed.length+' مفتاح ما انحفظ (مساحة تخزين):\n'+lsFailed.map(f=>`- ${f.key} (${(f.size/1024).toFixed(0)}KB): ${f.error}`).join('\n'));
         }
         // استعادة الطلبيات (IndexedDB) — نسخة جديدة (ordersRaw) أو نسخة قديمة (localStorage.ph_orders) قبل الترحيل
         // تحقق بالقراءة الراجعة (2026-10-02): فشل الكتابة كان ينبلع بـconsole.warn، فالرسالة تگول ✅ بأرقام
         // الملف بينما الجهاز (آيفون) يبقى على طلبياته القديمة. هسه الفشل يطلع للمستخدم بدل نجاح كاذب.
-        let ordersRestored=0, ordersWriteErr='', vendorsRestored=0;
+        let ordersRestored=0, ordersWriteErr='', vendorsRestored=0, ordPutDone=false;
         try{
             if(Array.isArray(payload.ordersRaw)){
                 const ordStr=JSON.stringify(payload.ordersRaw);
                 await ordIdbPut(ORD_KEY, ordStr);
+                ordPutDone=true;
                 const back=await ordIdbGet(ORD_KEY);
                 if(!back || back.length!==ordStr.length) ordersWriteErr=`الطلبيات ما انحفظت كاملة (انحفظ ${back?back.length:0} من ${ordStr.length} حرف)`;
                 ordersRestored=payload.ordersRaw.length;
                 vendorsRestored=new Set(payload.ordersRaw.map(o=>o&&o.vendor)).size;
             } else if(payload.localStorage && payload.localStorage.ph_orders){
-                try{
-                    const arr=JSON.parse(payload.localStorage.ph_orders);
-                    if(Array.isArray(arr)){
-                        await ordIdbPut(ORD_KEY, JSON.stringify(arr));
-                        ordersRestored=arr.length;
-                    }
-                }catch(_){}
+                let arr=null;
+                try{ arr=JSON.parse(payload.localStorage.ph_orders); }catch(_){}
+                // طلبيات تالفة بالملف = localStorage جديد ويه طلبيات قديمة — نرفض بدل الخلط (كانت تنبلع بـcatch فاضي)
+                if(!Array.isArray(arr)) throw new Error('الطلبيات بالملف (صيغة قديمة) تالفة');
+                await ordIdbPut(ORD_KEY, JSON.stringify(arr));
+                ordPutDone=true;
+                ordersRestored=arr.length;
             }
         }catch(err){ console.warn('restore: orders IDB write failed',err); ordersWriteErr='فشل حفظ الطلبيات بالجهاز: '+(err&&err.message||err); }
+        // الكتابة ما تمت ← الطلبيات القديمة باقية (IDB put ذرّي): نرجّع localStorage ونرفض. تمت بس القراءة الراجعة غلط ← الحالة مو معروفة، ❌ للمستدعي
+        if(ordersWriteErr && !ordPutDone) throw rollback(ordersWriteErr);
+        if(ordersWriteErr) failures.push(ordersWriteErr);
+        // من هنا البيانات الأساسية (localStorage + الطلبيات) صارت الجديدة. الأرشيف بعدها — مسحه قبل كان يمسح القديم حتى لو الاستعادة فشلت
+        try{
+            if(window.__archiveStore){
+                await window.__archiveStore.clear(); // أرشيف قديم بـIndexedDB ما يبقى
+                if(payload.localStorage.ph_archive) await window.__archiveStore.putString(payload.localStorage.ph_archive);
+            }
+        }catch(err){ console.warn('restore: archive failed',err); failures.push('الأرشيف: '+(err&&err.message||err)); }
 
         // استعادة بيانات التدقيق
         let auditRestored=0;
@@ -11706,11 +11780,11 @@ window.onload=async()=>{
                             await window.__auditIDB.put(window.__auditIDB.KEY, arr);
                             auditRestored=arr.length;
                             localStorage.removeItem('ph_audit');
-                        }
-                    }catch(_){}
+                        } else failures.push('التدقيق (صيغة قديمة) مو قائمة');
+                    }catch(err){ failures.push('التدقيق (صيغة قديمة): '+(err&&err.message||err)); }
                 }
             }
-        }catch(err){ console.warn('restore: audit IDB write failed',err); }
+        }catch(err){ console.warn('restore: audit IDB write failed',err); failures.push('التدقيق: '+(err&&err.message||err)+' — بقى التدقيق القديم'); }
 
         // استعادة Excel sheets (v3 فقط)
         let sheetsRestored=0;
@@ -11732,9 +11806,9 @@ window.onload=async()=>{
                     edb.onerror=ev=>rej(ev.target.error);
                 });
             }
-        }catch(err){ console.warn('restore: excel IDB write failed',err); }
+        }catch(err){ console.warn('restore: excel IDB write failed',err); failures.push('شيتات الإكسل: '+(err&&err.message||err)); sheetsRestored=0; }
 
-        return {totalKeys:payload.totalKeys, orders:payload.orders, vendors:payload.vendors, auditRestored, sheetsRestored, lsFailed, ordersRestored, vendorsRestored, ordersWriteErr, srcDate:payload.date||payload.exportedAt||''};
+        return {totalKeys:payload.totalKeys, orders:payload.orders, vendors:payload.vendors, auditRestored, sheetsRestored, lsFailed, ordersRestored, vendorsRestored, ordersWriteErr, failures, srcDate:payload.date||payload.exportedAt||''};
     }
 
     document.getElementById('restoreBtn').onclick=function(){
@@ -11750,6 +11824,11 @@ window.onload=async()=>{
                 const payload=JSON.parse(e.target.result);
                 if(!(await window.safetyBackupThen('تستبدل البيانات بالملف المختار'))) return;
                 const r=await applyBackupPayload(payload);
+                // (ب) 2026-11-10: أي فشل بعد ما انحفظت الطلبيات = ❌ بالاسم، مو ✅
+                if(r.failures && r.failures.length){
+                    alert(`❌ الاستعادة ناقصة — المفاتيح والطلبيات انستعادت، بس هذني فشلن:\n`+r.failures.map(f=>'- '+f).join('\n')+'\n\nالنسخة الاحتياطية اللي نزلت قبل الاستعادة بيها بياناتك القديمة.\nسيتم إعادة تحميل الصفحة');
+                    location.reload(); return;
+                }
                 alert(`✅ تم الاستعادة الشاملة\n• ${r.totalKeys||'?'} مفتاح\n• ${r.orders||'?'} طلبية\n• ${r.vendors||'?'} مكتب\n• ${r.auditRestored} صف تدقيق\n• ${r.sheetsRestored} sheet\n\nسيتم إعادة تحميل الصفحة`);
                 location.reload();
             }catch(err){ alert('❌ فشل الاستعادة:\n'+err.message); }
@@ -11825,7 +11904,8 @@ window.onload=async()=>{
                 setProgress(100,'جاري تطبيق البيانات...');
                 const payload=JSON.parse(jsonText);
                 const r=await applyBackupPayload(payload);
-                let msg=`✅ تم التحديث من اللابتوب\n• ${r.orders||'?'} طلبية\n• ${r.vendors||'?'} مكتب\n• ${r.auditRestored} صف تدقيق`;
+                const bad=r.failures||[];
+                let msg=(bad.length ? `❌ التحديث من اللابتوب ناقص — ${bad.length} جزء فشل:\n`+bad.map(f=>'- '+f).join('\n')+'\n\n' : '✅ تم التحديث من اللابتوب\n')+`• ${r.orders||'?'} طلبية\n• ${r.vendors||'?'} مكتب\n• ${r.auditRestored} صف تدقيق`;
                 if(r.lsFailed && r.lsFailed.length){
                     msg+=`\n\n⚠️ ${r.lsFailed.length} مفتاح ما انحفظ (مساحة تخزين):\n`+r.lsFailed.map(f=>`- ${f.key} (${(f.size/1024).toFixed(0)}KB): ${f.error}`).join('\n');
                 }
@@ -11913,9 +11993,14 @@ window.onload=async()=>{
             const url=`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(c.path)}`;
             const res=await fetch(url,{headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json'},cache:'no-store'});
             if(res.status===401) throw new Error('التوكن غير صالح أو منتهي');
-            if(res.status===404) throw new Error('المستودع أو الملف غير موجود (تأكد من الاسم وصلاحية التوكن على هذا المستودع)');
+            if(res.status===404){ const e=new Error('المستودع أو الملف غير موجود (تأكد من الاسم وصلاحية التوكن على هذا المستودع)'); e.status=404; throw e; }
             if(!res.ok) throw new Error('خطأ من GitHub ('+res.status+')');
             return await res.json();
+        }
+        // sha الملف الأساسي على GitHub الآن؛ null = ماكو ملف (404). أي خطأ ثاني يرمي ← ما نرفع.
+        async function ghRemoteSha(c){
+            try{ return (await ghFetchMeta(c)).sha||null; }
+            catch(e){ if(e&&e.status===404) return null; throw e; }
         }
 
         setBtn.onclick=openSettings;
@@ -11933,12 +12018,70 @@ window.onload=async()=>{
             if(!res.ok){
                 let detail='';
                 try{ const j=await res.json(); detail=j.message||''; }catch(_){}
-                if(res.status===401) throw new Error('التوكن غير صالح أو منتهي');
-                if(res.status===403) throw new Error('التوكن ما عنده صلاحية الكتابة (لازم Contents: Read and write)');
-                if(res.status===404) throw new Error('المستودع غير موجود أو التوكن ما يشوفه');
-                throw new Error(`GitHub ${res.status}${detail?' — '+detail:''}`);
+                const e=new Error(res.status===401?'التوكن غير صالح أو منتهي'
+                    :res.status===403?'التوكن ما عنده صلاحية الكتابة (لازم Contents: Read and write)'
+                    :res.status===404?'المستودع غير موجود أو التوكن ما يشوفه'
+                    :`GitHub ${res.status}${detail?' — '+detail:''}`);
+                e.status=res.status; throw e;
             }
+            if(res.status===204) return null; // DELETE بلا body
             return await res.json();
+        }
+        // ===== قفل الرفع (2026-11-14 — Codex RES-…-gh-push-guard #2) =====
+        // PATCH main بـforce ما يقبل شرط «إذا ما تغيّر»، فجهازين يرفعون سوا ممكن واحد يمسح الثاني.
+        // القفل = branch `upload-lock`؛ كل تغيير = كوميت ابن للـtip + PATCH force:false. GitHub يرفض (422) إذا
+        // الـtip تحرّك ← compare-and-swap ذرّي. ماكو DELETE أبداً (DELETE مو ذرّي — Codex r2 #1). العمر من committer.date.
+        const LOCK_REF='heads/upload-lock', LOCK_STALE_MS=15*60*1000;
+        // nonce عشوائي بكل كوميت قفل: جهازين بنفس الـmillisecond ما يطلعون نفس sha (Codex r3 #2)
+        function ghLockMsg(state){
+            const nonce=Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>b.toString(16).padStart(2,'0')).join('');
+            return 'upload-lock '+state+' '+new Date().toISOString()+' '+nonce;
+        }
+        // كوميت جديد فوق parent ويحرّك القفل له إذا الـtip بعده parent. يرجّع sha الجديد؛ 422 يرمي.
+        async function ghLockStep(c, parent, treeSha, state){
+            const cm=await ghApi(c,'/git/commits',{method:'POST',body:JSON.stringify({message:ghLockMsg(state),tree:treeSha,parents:[parent]})});
+            await ghApi(c,'/git/refs/'+LOCK_REF,{method:'PATCH',body:JSON.stringify({sha:cm.sha,force:false})});
+            return cm.sha;
+        }
+        async function ghLockTip(c){
+            try{ return (await ghApi(c,'/git/ref/'+LOCK_REF)).object.sha; }
+            catch(e){ if(!e||e.status!==404) throw e; }
+            const t=await ghApi(c,'/git/trees',{method:'POST',body:JSON.stringify({tree:[{path:'lock.json',mode:'100644',type:'blob',content:'{"lock":"upload"}'}]})});
+            const cm=await ghApi(c,'/git/commits',{method:'POST',body:JSON.stringify({message:ghLockMsg('free'),tree:t.sha,parents:[]})});
+            try{ await ghApi(c,'/git/refs',{method:'POST',body:JSON.stringify({ref:'refs/'+LOCK_REF,sha:cm.sha})}); return cm.sha; }
+            catch(e){ if(!e||e.status!==422) throw e; }
+            return (await ghApi(c,'/git/ref/'+LOCK_REF)).object.sha; // جهاز ثاني أنشأه بنفس اللحظة
+        }
+        // يرجّع {sha,tree} قفلنا، أو null = ما أخذنا القفل (المستخدم تبلّغ). أي خطأ ثاني يرمي.
+        async function ghLockAcquire(c){
+            const tip=await ghLockTip(c);
+            const cm=await ghApi(c,'/git/commits/'+tip);
+            if(String(cm.message||'').startsWith('upload-lock held')){
+                const age=Date.now()-new Date(cm.committer&&cm.committer.date).getTime();
+                if(!(age>=LOCK_STALE_MS)){
+                    alert('⏳ جهاز ثاني يرفع لـGitHub هسه (بدأ قبل '+Math.max(0,Math.round(age/60000))+' دقيقة). انتظر يخلص ثم ⬇️ نزّل أول.');
+                    return null;
+                }
+                const ans=prompt('🔒 أكو قفل رفع قديم ('+Math.round(age/60000)+' دقيقة) — غالباً رفع انقطع.\nإذا متأكد ماكو جهاز يرفع هسه اكتب: اكسر القفل','');
+                if(String(ans==null?'':ans).trim()!=='اكسر القفل') return null;
+            }
+            const treeSha=cm.tree&&cm.tree.sha;
+            try{ return {sha:await ghLockStep(c,tip,treeSha,'held'), tree:treeSha}; }
+            catch(e){ if(!e||e.status!==422) throw e; }
+            alert('⏳ جهاز ثاني أخذ قفل الرفع بنفس اللحظة. انتظر يخلص ثم ⬇️ نزّل أول.');
+            return null;
+        }
+        // تجديد قبل PATCH main: ينجح بس إذا القفل بعده مالنا (ما انكسر) ← 15 دقيقة جديدة.
+        async function ghLockRenew(c, lk){
+            // الوقت قبل أول await: رد تجديد متأخر ما يصفّر السياج (Codex r4 #1)
+            const t0=Date.now();
+            try{ lk.sha=await ghLockStep(c,lk.sha,lk.tree,'held'); lk.at=t0; }
+            catch(e){ if(e&&e.status===422) throw new Error('قفل الرفع انكسر من جهاز ثاني — ما كتبت فوق GitHub. نزّل ⬇️ أول.'); throw e; }
+        }
+        // تحرير: free فوق آخر held مالنا. 422 = واحد كسر قفلنا ← نتركه. أخطاء التحرير ما تفشّل الرفع.
+        async function ghLockRelease(c, lk){
+            try{ await ghLockStep(c,lk.sha,lk.tree,'free'); }
+            catch(e){ console.warn('upload-lock release failed',e); }
         }
         // يحوّل Blob لـbase64 بلا ما يكسر الذاكرة (FileReader يتعامل مع الحجوم الكبيرة داخلياً)
         function blobToBase64(blob){
@@ -11958,10 +12101,23 @@ window.onload=async()=>{
             if(!confirm('⚠️ سيتم استبدال النسخة الموجودة على GitHub بالبيانات الحالية — متأكد؟')) return;
 
             const orig=pushBtn.innerHTML;
+            let upLock=null;
+            const unlock=async()=>{ if(upLock){ const s=upLock; upLock=null; await ghLockRelease(c,s); } };
             try{
                 pushBtn.disabled=true;
+                pushBtn.textContent='⏳ قفل الرفع...';
+                upLock=await ghLockAcquire(c);
+                if(!upLock){ pushBtn.innerHTML=orig; pushBtn.disabled=false; return; }
                 pushBtn.textContent='⏳ جاري تجهيز البيانات...';
+                // حاجز «الجهاز الثاني رفع بعدك» (2026-11-14): الرفع force يمسح نسخة GitHub، فلازم تكون نفس
+                // النسخة اللي هذا الجهاز آخر مرة زامنها. غيرها ← وقف، والقرار لمصطفى (ماكو دمج).
+                const baseSha=await ghRemoteSha(c);
+                if(baseSha && baseSha!==localStorage.getItem(GH_DATA_SHA_KEY)){
+                    const ans=prompt('⛔ نسخة GitHub تغيّرت من آخر مزامنة لهذا الجهاز (غالباً الجهاز الثاني رفع).\nالرفع هسه يمسح شغله.\n\nالأسلم: إلغاء ثم ⬇️ نزّل أول.\nللرفع فوقها على كل حال اكتب: ارفع فوقه','');
+                    if(String(ans==null?'':ans).trim()!=='ارفع فوقه'){ pushBtn.innerHTML=orig; pushBtn.disabled=false; return; }
+                }
                 const payload=await buildBackupPayload();
+                payload.base_sha=baseSha;
 
                 // حاجز أمان: لو الجهاز فاضي (متصفح جديد، iOS home-screen ما زامن بعد)
                 // ورفعنا فوق نسخة GitHub الممتلئة، نضيع كل البيانات. نمنع هذا صراحة.
@@ -12007,14 +12163,23 @@ window.onload=async()=>{
                 const commitRes=await ghApi(c,'/git/commits',{method:'POST',body:JSON.stringify({
                     message:`backup: ${stamp}`, tree:treeRes.sha, parents:[]
                 })});
+                await ghLockRenew(c, upLock); // القفل بعده مالنا؟ (يرمي إذا انكسر)
+                // فحص ثاني قبل الكتابة فوق main: إذا جهاز ثاني رفع أثناء الرفع ← ما نمسحه
+                if((await ghRemoteSha(c))!==baseSha) throw new Error('نسخة GitHub تغيّرت أثناء الرفع (الجهاز الثاني رفع؟) — ما كتبت فوقها. نزّل ⬇️ أول.');
+                // سياج زمني (Codex r3 #1): إذا الجهاز نام/علّق بعد التجديد أكثر من دقيقتين، القفل ممكن ينكسر ← ما نكتب
+                if(!(Date.now()-upLock.at<120000)) throw new Error('الرفع تأخّر بعد تجديد القفل (الجهاز نام؟) — ما كتبت فوق GitHub. اضغط ⬆️ مرة ثانية.');
                 await ghApi(c,'/git/refs/heads/main',{method:'PATCH',body:JSON.stringify({sha:commitRes.sha, force:true})});
                 markDataSha(coreSha); // هذا الجهاز هو اللي رفع — ما ينبّه نفسه
+                await unlock();
 
                 pushBtn.innerHTML=orig; pushBtn.disabled=false;
                 alert(`✅ تم الرفع لـGitHub\n• ${payload.orders} طلبية\n• ${payload.auditRows} صف تدقيق\n• ${payload.excelSheetCount} sheet\n• الحجم: ${rawMB}MB → ${gzMB}MB\n\nتقدر تطفي اللابتوب — الموبايل يسحبها أي وقت.`);
             }catch(err){
+                await unlock();
                 pushBtn.innerHTML=orig; pushBtn.disabled=false;
                 alert('❌ فشل الرفع لـGitHub:\n'+err.message);
+            }finally{
+                await unlock(); // نهاية مبكرة (إلغاء prompt الحاجز) — القفل ما يبقى معلّق
             }
         };
 
@@ -12097,7 +12262,8 @@ window.onload=async()=>{
                 try{ localStorage.setItem(GH_DATA_SHA_KEY, prevMark||'incomplete'); }catch(_){}
                 payload=null;
                 if(r.ordersWriteErr){
-                    alert('❌ البيانات نزلت بس الطلبيات ما انحفظت بهذا الجهاز — بقت القديمة.\n'+r.ordersWriteErr+'\n\nسكّر تبويبات التطبيق الثانية وجرّب مرة ثانية.');
+                    // فشل الكتابة نفسها صار يرفض داخل applyBackupPayload؛ هنا بس «انكتبت بس القراءة الراجعة مختلفة» — الحالة مو معروفة
+                    alert('❌ البيانات نزلت بس الطلبيات بالجهاز ما تطابق الملف — حالتها مو مضمونة.\n'+r.ordersWriteErr+'\n\nسكّر تبويبات التطبيق الثانية، وبعد إعادة التحميل نزّل من GitHub مرة ثانية.');
                     location.reload(); return;
                 }
                 // الطلبيات انحفظت. هسه الشيتات وحدة وحدة — ذروة الذاكرة = أكبر شيت، مو الكل.
@@ -12123,8 +12289,9 @@ window.onload=async()=>{
                     location.reload(); return;
                 }
                 // العلامة بعد applyBackupPayload حصراً (هي تسوي localStorage.clear)، وبس لو كلشي نزل — حتى الشريط يعرضها مرة ثانية لو لا
-                if(!sheetsFailed.length) markDataSha(remoteSha);
-                let msg=`✅ تم التحديث من GitHub\n• ${r.ordersRestored||r.orders||'?'} مادة\n• ${r.vendorsRestored||r.vendors||'?'} مكتب قبل الفلاتر (انحفظ وتأكدت منه)\n• ${r.auditRestored} صف تدقيق\n• ${r.sheetsRestored} sheet`;
+                const bad=r.failures||[];
+                if(!sheetsFailed.length && !bad.length) markDataSha(remoteSha);
+                let msg=(bad.length ? `❌ التحديث من GitHub ناقص — ${bad.length} جزء فشل:\n`+bad.map(f=>'- '+f).join('\n')+'\n\n' : '✅ تم التحديث من GitHub\n')+`• ${r.ordersRestored||r.orders||'?'} مادة\n• ${r.vendorsRestored||r.vendors||'?'} مكتب قبل الفلاتر (انحفظ وتأكدت منه)\n• ${r.auditRestored} صف تدقيق\n• ${r.sheetsRestored} sheet`;
                 if(r.srcDate){ const d=new Date(r.srcDate); if(!isNaN(d)) msg+=`\n• وقت الرفع: ${d.toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`; }
                 if(r.lsFailed&&r.lsFailed.length){
                     msg+=`\n\n⚠️ ${r.lsFailed.length} مفتاح ما انحفظ:\n`+r.lsFailed.map(f=>`- ${f.key} (${(f.size/1024).toFixed(0)}KB)`).join('\n');
@@ -12152,7 +12319,8 @@ window.onload=async()=>{
             ghFetchMeta(c).then(async meta=>{
                 if(!meta||!meta.sha) return;
                 const seen=localStorage.getItem(GH_DATA_SHA_KEY);
-                if(!seen){ markDataSha(meta.sha); return; }
+                // بلا علامة = هذا الجهاز ما يعرف إذا عنده نسخة GitHub ← الشريط يطلع. ما نزرعها بصمت (2026-11-14):
+                // الزرع كان يخلّي حاجز الرفع ⬆️ يعبّر جهاز ما نزّل أبداً فيمسح نسخة GitHub (Codex RES-…-gh-push-guard #1)
                 if(seen===meta.sha || document.getElementById('dataUpdateBanner')) return;
                 let when='';
                 try{
@@ -12320,7 +12488,7 @@ window.onload=async()=>{
             await new Promise(r=>setTimeout(r,10));
 
             let vendorOrders=appState.orders.filter(o=>o.vendor===vendorName);
-            vendorOrders=sendRows(vendorOrders);
+            vendorOrders=orderSort(sendRows(vendorOrders));
             if(!vendorOrders.length) continue;
             const hasCheck=vendorOrders.some(i=>i.isCheck);
 
@@ -12367,7 +12535,7 @@ window.onload=async()=>{
             showToast(`📄 ${vi+1}/${vendors.length}: ${vendorName}`,true);
             await new Promise(r=>setTimeout(r,10));
             let vendorOrders=appState.orders.filter(o=>o.vendor===vendorName);
-            vendorOrders=sendRows(vendorOrders);
+            vendorOrders=orderSort(sendRows(vendorOrders));
             if(!vendorOrders.length) continue;
             const hasCheck=vendorOrders.some(i=>i.isCheck);
             const chunks=[];
@@ -12388,6 +12556,12 @@ window.onload=async()=>{
     // this, jsPDF's default Helvetica/WinAnsi font can't represent Arabic codepoints at all,
     // so Ctrl+F never finds Arabic text (English text was already searchable and unaffected).
     let __arabicPdfFontB64Cache=null;
+    // نص PDF الحقيقي بس إذا الخط يغطيه ويترتب صح: لاتيني/Latin-1 صافي (helvetica) أو عربي صافي بلا أرقام/لاتيني.
+    // المختلط (عربي+رقم/لاتيني) أو بيه رموز برّا الخطين (β ₁₂) ← يندار بالكانفس كالسابق + نسخة خفية للبحث. (Codex 2026-11-15)
+    function pdfRealTextSafe(s){
+        s=String(s);
+        return /^[\x20-\x7E\xA0-\xFF\u2014\u2026]*$/.test(s) || /^[\u0621-\u064A\s\u060C\u061B\u061F.:()\-\/]*$/.test(s);
+    }
     async function ensureArabicInvisibleFont(pdf){
         if(pdf.__arabicFontReady!==undefined) return pdf.__arabicFontReady;
         try{
@@ -12426,6 +12600,21 @@ window.onload=async()=>{
         const FONT='Tajawal, Arial, sans-serif';
         const S=PX_PER_MM; // 1mm بالبكسل
 
+        // 🔎 2026-11-14 (مصطفى): نص الصفحة = نص PDF حقيقي (يتحدد ويتنسخ ويشتغل بيه Ctrl+F) مو جزء من الصورة.
+        // الكانفس يرسم الخلفيات والخطوط وأسطر الإيموجي بس؛ T() يجمع النص وينكتب بـjsPDF فوق الصورة.
+        // إذا الخط العربي ما تحمّل (بلا نت) ← الشكل القديم: النص بالصورة + طبقة بحث خفية (تحت).
+        const VEC=await ensureArabicInvisibleFont(pdf);
+        const vtext=[];
+        const T=(txt, x, y, o)=>{   // x,y بكسل الكانفس · o:{size(mm), color, bold, align, maxW(px)}
+            txt=String(txt);
+            if(VEC && pdfRealTextSafe(txt)){ vtext.push(Object.assign({txt, x:x/S, y:y/S}, o)); return; }
+            if(o.labelAr) txt=`${o.labelAr} ${txt}`;   // الكانفس RTL يرتّبها صح
+            if(VEC) vtext.push(Object.assign({}, o, {txt, x:x/S, y:y/S, inv:true, maxW:0, labelAr:''}));   // مدار بالصورة ← نسخة خفية للبحث
+            ctx.fillStyle=o.color; ctx.font=(o.bold?'bold ':'')+`${o.size*S}px ${FONT}`; ctx.textAlign=o.align;
+            if(o.maxW){ let t=txt; while(ctx.measureText(t).width>o.maxW && t.length>3) t=t.slice(0,-1); if(t!==txt) t+='…'; txt=t; }
+            ctx.fillText(txt, x, y);
+        };
+
         // خلفية
         ctx.fillStyle='#f8fafc'; ctx.fillRect(0,0,W,H);
 
@@ -12435,21 +12624,12 @@ window.onload=async()=>{
         if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(6*S, HDR_Y, W-12*S, HDR_H, 4*S); ctx.fill(); }
         else ctx.fillRect(6*S, HDR_Y, W-12*S, HDR_H);
 
-        ctx.fillStyle='#ffffff'; ctx.textAlign='right';
-        ctx.font=`bold ${8*S}px ${FONT}`;
-        ctx.fillText('طلبية مذخر أدوية المنصور', W-10*S, HDR_Y+8*S);
-        ctx.font=`bold ${6.5*S}px ${FONT}`;
-        ctx.fillStyle='rgba(255,255,255,0.93)';
-        ctx.fillText(vendorName, W-10*S, HDR_Y+16*S);
-
-        ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,0.82)';
-        ctx.font=`${5*S}px ${FONT}`;
-        ctx.fillText(`التاريخ: ${date}`, 10*S, HDR_Y+8*S);
-        ctx.fillText(`إجمالي المواد: ${totalRows}`, 10*S, HDR_Y+14*S);
-        if(totalPages>1){
-            ctx.font=`bold ${5*S}px ${FONT}`; ctx.fillStyle='#ffffff';
-            ctx.fillText(`صفحة ${pageIdx} / ${totalPages}`, 10*S, HDR_Y+20*S);
-        }
+        T('طلبية مذخر أدوية المنصور', W-10*S, HDR_Y+8*S, {size:8, color:'#ffffff', bold:true, align:'right'});
+        T(vendorName, W-10*S, HDR_Y+16*S, {size:6.5, color:'#eef1f6', bold:true, align:'right'});
+        // labelAr: القيمة (تاريخ/رقم) لاتيني بالكتابة، والعنوان العربي يمينها — حتى الـbidi ما يقلب التاريخ (14-11-2026)
+        T(date, 10*S, HDR_Y+8*S, {size:5, color:'#d4d9e5', align:'left', labelAr:'التاريخ:'});
+        T(totalRows, 10*S, HDR_Y+14*S, {size:5, color:'#d4d9e5', align:'left', labelAr:'إجمالي المواد:'});
+        if(totalPages>1) T(`صفحة ${pageIdx} / ${totalPages}`, 10*S, HDR_Y+20*S, {size:5, color:'#ffffff', bold:true, align:'left'});
 
         // ===== تنبيه الصلاحية =====
         let y=HDR_Y+HDR_H+2*S;
@@ -12492,7 +12672,6 @@ window.onload=async()=>{
         // رؤوس (من اليمين لليسار)
         ctx.fillStyle='#1e3a8a';
         ctx.fillRect(TABLE_X, TABLE_Y, TABLE_W_MM*S, TH_H);
-        ctx.fillStyle='#ffffff'; ctx.font=`bold ${4.8*S}px ${FONT}`;
         // احسب x لكل عمود بدءاً من اليمين
         let xRight=TABLE_X+TABLE_W_MM*S;
         const colX=[]; // [x_left, x_center, x_right]
@@ -12502,8 +12681,7 @@ window.onload=async()=>{
             const xL=xRight-wPx;
             colX.push({xL, xC:xL+wPx/2, xR:xRight, w:wPx});
             // نص رأس
-            ctx.textAlign='center';
-            ctx.fillText(c.label, xL+wPx/2, TABLE_Y+TH_H/2+1.8*S);
+            T(c.label, xL+wPx/2, TABLE_Y+TH_H/2+1.8*S, {size:4.8, color:'#ffffff', bold:true, align:'center'});
             xRight=xL;
         }
 
@@ -12533,14 +12711,8 @@ window.onload=async()=>{
                 if(c.key==='balance'){
                     const g1=it.currentGap1||'';
                     const g2=it.currentGap2||'';
-                    const g1Color=g1?'#b45309':'#cbd5e1';
-                    const g2Color=g2?'#b45309':'#cbd5e1';
-                    ctx.font=`bold ${4.2*S}px ${FONT}`;
-                    ctx.textAlign='center';
-                    ctx.fillStyle=g1Color;
-                    ctx.fillText(`G1:${g1||'—'}`, cx.xC, rowY+ROW_H/2-0.2*S);
-                    ctx.fillStyle=g2Color;
-                    ctx.fillText(`G2:${g2||'—'}`, cx.xC, rowY+ROW_H/2+4.3*S);
+                    T(`G1:${g1||'—'}`, cx.xC, rowY+ROW_H/2-0.2*S, {size:4.2, color:g1?'#b45309':'#cbd5e1', bold:true, align:'center'});
+                    T(`G2:${g2||'—'}`, cx.xC, rowY+ROW_H/2+4.3*S, {size:4.2, color:g2?'#b45309':'#cbd5e1', bold:true, align:'center'});
                     return;
                 }
 
@@ -12562,20 +12734,9 @@ window.onload=async()=>{
                 else if(c.key==='stat'){ val=it.itemStatus||'—'; color=it.itemStatus?'#334155':'#cbd5e1'; fontSize=4.2; }
                 else if(c.key==='others'){ val=it.otherVendors||'—'; color=it.otherVendors?'#475569':'#cbd5e1'; fontSize=3.8; }
 
-                ctx.fillStyle=color;
-                ctx.font=(bold?'bold ':'')+`${fontSize*S}px ${FONT}`;
-                // قص النص لو طويل
-                let txt=String(val);
-                while(ctx.measureText(txt).width>maxW && txt.length>3){ txt=txt.slice(0,-1); }
-                if(txt!==String(val)) txt+='…';
-
-                if(c.align==='center'){
-                    ctx.textAlign='center';
-                    ctx.fillText(txt, cx.xC, rowY+ROW_H/2+1.7*S);
-                }else{ // right
-                    ctx.textAlign='right';
-                    ctx.fillText(txt, cx.xR-padX, rowY+ROW_H/2+1.7*S);
-                }
+                // قص النص لو طويل (داخل T)
+                const tx=c.align==='center' ? cx.xC : cx.xR-padX;
+                T(val, tx, rowY+ROW_H/2+1.7*S, {size:fontSize, color, bold, align:c.align==='center'?'center':'right', maxW});
             });
         });
 
@@ -12601,7 +12762,44 @@ window.onload=async()=>{
         const imgData=canvas.toDataURL('image/jpeg', 0.88);
         pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM, undefined, 'FAST');
 
-        // ===== طبقة نص خفية (Invisible Text Layer) لجعل Ctrl+F يشتغل =====
+        // ===== النص الحقيقي فوق الصورة =====
+        // لاتيني صافي ← helvetica (عنده bold) · بيه عربي/رموز ← NotoNaskhArabic، و«bold» = تعبئة + حد رفيع بنفس اللون.
+        if(VEC){
+            const PT=72/25.4;
+            const isLatin=s=>/^[\x20-\x7E -ÿ—…]*$/.test(s);
+            const rgb=h=>{ const n=parseInt(String(h).slice(1),16); return [n>>16&255, n>>8&255, n&255]; };
+            const put=(txt, x, y, size, color, bold, align, mode)=>{
+                const lat=isLatin(txt);
+                pdf.setFont(lat?'helvetica':'NotoNaskhArabic', lat&&bold?'bold':'normal');
+                pdf.setFontSize(size*PT);
+                const [r,g,b]=rgb(color);
+                pdf.setTextColor(r,g,b);
+                const opts={align, renderingMode:mode||'fill'};
+                if(!mode && bold && !lat){ pdf.setDrawColor(r,g,b); pdf.setLineWidth(size*0.03); opts.renderingMode='fillThenStroke'; }
+                pdf.text(txt, x, y, opts);
+                return pdf.getTextWidth(txt);
+            };
+            const fits=(txt, size, bold, mw)=>{ const lat=isLatin(txt); pdf.setFont(lat?'helvetica':'NotoNaskhArabic', lat&&bold?'bold':'normal'); pdf.setFontSize(size*PT); return pdf.getTextWidth(txt)<=mw; };
+            vtext.forEach(v=>{
+                if(v.inv){ put(v.txt, v.x, v.y, v.size, v.color, false, v.align, 'invisible'); return; }
+                let t=v.txt, size=v.size;
+                if(v.maxW){
+                    const mw=v.maxW/S;
+                    // يصغّر الخط لحد 75% قبل ما يقص — الاسم كامل = يبين ويطلع بالبحث
+                    while(!fits(t, size, v.bold, mw) && size>v.size*0.75) size-=0.1;
+                    if(!fits(t, size, v.bold, mw)){ while(!fits(t+'…', size, v.bold, mw) && t.length>3) t=t.slice(0,-1); t+='…'; }
+                }
+                const w=put(t, v.x, v.y, size, v.color, v.bold, v.align);
+                // اسم انقص: النص الكامل خفي بنفس المكان — Ctrl+F يلگاه ويأشّر على نفس الصف
+                if(t!==v.txt) put(v.txt, v.x, v.y, size, v.color, false, v.align, 'invisible');
+                // النقطتين قبل الكلمة منطقياً: سطر jsPDF اتجاهه LTR فتطلع «التاريخ:» صح بالعين
+                if(v.labelAr) put(':'+v.labelAr.replace(/:$/,''), v.x+w+1.2, v.y, size, v.color, v.bold, 'left');
+            });
+            pdf.setFont('helvetica','normal'); pdf.setTextColor(0,0,0);
+            return;
+        }
+
+        // ===== (احتياط بلا خط عربي) طبقة نص خفية (Invisible Text Layer) لجعل Ctrl+F يشتغل =====
         // النص يُضاف للـ stream لكن لا يُرسم — قابل للبحث وغير مرئي.
         // نكتب نفس النصوص مرتين بخطين مختلفين (Helvetica ثم خط عربي) لأن أي سطر ممكن يكون
         // عربي أو إنكليزي أو مزيج، وكل خط يغطي الأحرف اللي يدعمها فقط.
@@ -15385,6 +15583,7 @@ window.onload=async()=>{
             <div class="rounded-lg p-2" style="background:${p.over?'#fee2e2':'#f0fdf4'}">
                 <div style="color:${p.over?'#b91c1c':'#166534'}">البونص الفعلي</div>
                 <div class="text-lg font-black" style="color:${p.over?'#b91c1c':'#166534'}">${p.bonus.toLocaleString()}${p.over?' ⚠️':''}</div>
+                ${p.preTaken>0?`<div style="font-size:11px;color:#b45309">+<span>${p.preTaken.toLocaleString()}</span> مكتب</div>`:''}
             </div>
             ${bonusPreTakenHtml(p)}
         `;
@@ -16462,9 +16661,37 @@ window.onload=async()=>{
         });
     }
 
+    function bonusAskOfficeBonusPDF(){
+        return new Promise(resolve=>{
+            const ov=document.createElement('div');
+            ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+            ov.innerHTML=`<div dir="rtl" style="background:#fff;border-radius:14px;max-width:560px;width:100%;padding:16px;font-family:Tajawal,Arial,sans-serif">
+                <label style="display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer"><input type="checkbox" data-office-bonus-pdf>اعتبر فاتورة المكتب بونص وضمّها بالـPDF</label>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                    <button data-act="ok" style="background:#002060;color:#fff;border:0;border-radius:10px;padding:8px 18px;cursor:pointer">متابعة الطباعة</button>
+                    <button data-act="cancel" style="background:#f3f4f6;color:#b91c1c;border:0;border-radius:10px;padding:8px 18px;cursor:pointer">إلغاء</button>
+                </div>
+            </div>`;
+            ov.addEventListener('click', ev=>{
+                const act=ev.target && ev.target.getAttribute && ev.target.getAttribute('data-act');
+                if(act!=='ok' && act!=='cancel' && ev.target!==ov) return;
+                const val=act==='ok' ? ov.querySelector('[data-office-bonus-pdf]').checked : null;
+                ov.remove(); resolve(val);
+            });
+            document.body.appendChild(ov);
+        });
+    }
+
     window.bonusExportPDF=async function(){
         if(typeof window.jspdf==='undefined'){ alert('❌ مكتبة jsPDF لم تُحمّل — تأكد من الاتصال بالإنترنت'); return; }
         const pools=window.__bonusPools||[];
+        // السؤال يظهر بس لو أكو صفوف "مسحوب مسبقاً" فعلاً — غير هذا يبقى بلا صندوق زايد كل طباعة
+        const hasPreTaken=pools.some(p=>p.enabled!==false && (p.rows||[]).some(r=>r.isOffice));
+        let includeOfficeBonus=false;
+        if(hasPreTaken){
+            includeOfficeBonus=await bonusAskOfficeBonusPDF();
+            if(includeOfficeBonus===null){ showToast('⚠️ أُلغيت الطباعة'); return; }
+        }
         const scopeRaw=String((document.getElementById('bonusOfficeFilter')||{}).value||'').trim();
         const scopeTerms=scopeRaw.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
 
@@ -16473,12 +16700,9 @@ window.onload=async()=>{
         pools.forEach(p=>{
             if(p.enabled===false) return; // غير مؤشَّرة — تُستبعد من الطباعة والملخص
             p.rows.forEach(r=>{
-                // قاعدة 22 ت1 2026: صفوف "مسحوب مسبقاً على اسم المكتب" (isOffice) بونصها غير واصل —
-                // ما تنطبع ولا تدخل ملخص PDF (نفس الكارت: ما تنحسب بالفعلي). مبيعها بس يدخل المستحق.
                 const isPreTaken=r.isOffice;
-                if(isPreTaken) return;
-                if(!r.included || !(r.bonus>=1)) return;
-                const bonusAmt=r.bonus;
+                if(isPreTaken ? !includeOfficeBonus : (!r.included || !(r.bonus>=1))) return;
+                const bonusAmt=isPreTaken ? r.qty : r.bonus;
                 const offices=String(r.office||'').split(',').map(o=>o.trim()).filter(Boolean);
                 const targets=offices.length?offices:['عام'];
                 const inScope=[], extra=[];
@@ -16489,8 +16713,10 @@ window.onload=async()=>{
                     const reg=inScope.filter(o=>!r.officeAdded.includes(o));
                     if(reg.length && reg.length<inScope.length){ inScope.filter(o=>r.officeAdded.includes(o)).forEach(o=>extra.push(o)); inScope.length=0; reg.forEach(o=>inScope.push(o)); }
                 }
+                // Office invoices only join offices inside the current filter scope.
+                if(isPreTaken) extra.length=0;
                 extra.forEach(off=>{ (extraMap[off]=extraMap[off]||new Set()).add(p.product); });
-                base.push({product:p.product, pharmacy:r.pharmacy, date:r.date, qty:r.qty, bonus:bonusAmt, isPreTaken, inScope, extra});
+                base.push({product:p.product, pharmacy:r.pharmacy, date:r.date, qty:isPreTaken?0:r.qty, bonus:bonusAmt, isPreTaken, inScope, extra});
             });
         });
 
@@ -16532,13 +16758,13 @@ window.onload=async()=>{
         }
         if(!printRows.length){ alert('لا صفوف بونص (Bonus Qty ≥ 1) مؤشَّرة صح للطباعة.'); return; }
 
-        // صفوف "مسحوب مسبقاً" تنضم لمجموع الملخص بس — ما تنطبع كصف صيدلية بجدول البيانات
+        // Opted-in office invoices are data rows and contribute to SUMMARY through those rows.
         // دمج مكاتب (26 ت1 2026): المكاتب المؤشَّرة تنطبع باسم واحد = جدول واحد + ملخص واحد بالمجموع.
         // نفس صف البيع ممكن يكون مكرر لمكتبين مدموجين (فلتر يطابق الاثنين) → ينطبع مرة وحدة.
         const namesOf=list=>Array.from(new Set(list.map(r=>r.office))).sort();
         let allNames=namesOf(printRows);
         if(allNames.length>1){
-            const ans=await bonusAskMergeOffices(allNames, printRows.filter(r=>!r.isPreTaken).length);
+            const ans=await bonusAskMergeOffices(allNames, printRows.length);
             if(ans===null){ showToast('⚠️ أُلغيت الطباعة'); return; }
             if(ans.names.length && ans.mergeName){
                 const set=new Set(ans.names), seen=new Set();
@@ -16548,10 +16774,11 @@ window.onload=async()=>{
                     if(seen.has(r.src)){ printRows.splice(i,1); i--; } else seen.add(r.src);
                 }
             }
-        } else if(!confirm('سيتم تصدير '+allNames.length+' مكتب بملف PDF واحد ('+printRows.filter(r=>!r.isPreTaken).length.toLocaleString()+' صف).\n\nمتابعة؟')) return;
+        } else if(!confirm('سيتم تصدير '+allNames.length+' مكتب بملف PDF واحد ('+printRows.length.toLocaleString()+' صف).\n\nمتابعة؟')) return;
 
-        const dataPrintRows=printRows.filter(r=>!r.isPreTaken);
-        const preTakenRows=printRows.filter(r=>r.isPreTaken);
+        printRows.forEach(r=>{ if(r.isPreTaken) r.pharmacy=r.office; });
+        const dataPrintRows=printRows;
+        const preTakenRows=[]; // Already included above; never count the office bonus twice.
 
         const officeGroups={};
         dataPrintRows.forEach(r=>{ (officeGroups[r.office]=officeGroups[r.office]||[]).push(r); });
@@ -17026,8 +17253,7 @@ window.onload=async()=>{
 
         const byProduct={};
         rows.forEach(r=>{ byProduct[r.product]=(byProduct[r.product]||0)+r.bonus; });
-        // 22 ت1 2026: "مسحوب مسبقاً على اسم المكتب" بونصه غير واصل — bonusExportPDF ما يمرّره هنا (preTakenRowsForOffice
-        // يجي فاضي)، فالملخص يطابق الفعلي بالكارت. السطر تحت يبقى احتياطاً لو رجع التمرير.
+        // Opted-in office invoices are in rows, so the legacy summary-only list stays empty.
         (preTakenRowsForOffice||[]).forEach(r=>{ byProduct[r.product]=(byProduct[r.product]||0)+r.bonus; });
         pdf.addPage();
         await bonusDrawSummaryPage(pdf, {S,PAGE_W,PAGE_H,MARGIN,officeName,byProduct});
@@ -17250,7 +17476,7 @@ window.onload=async()=>{
     }
 
     // حالة موقتة لملف الـ workbook المختار حالياً (قبل المزامنة)
-    let _pendingWb=null, _pendingFileName='';
+    let _pendingWb=null, _pendingFileName='', _pendingSrc=null;
 
     async function readWorkbookOnly(file){
         // اقرأ بنية الملف فقط — بدون استيراد
@@ -17262,6 +17488,7 @@ window.onload=async()=>{
         const wb=XLSX.read(buf,{type:'array', cellDates:true, cellNF:false, cellText:false});
         _pendingWb=wb;
         _pendingFileName=file.name;
+        _pendingSrc={name:file.name, mtime:file.lastModified, size:file.size};
         syncLog(`📊 ${wb.SheetNames.length} sheet موجودة`);
 
         // اقرأ الموجود من المخزن لمقارنة الحالة
@@ -17345,7 +17572,7 @@ window.onload=async()=>{
                     headers.forEach((h,idx)=>{ if(h) obj[h]=r[idx]==null?'':r[idx]; });
                     return obj;
                 });
-                const rec={ sheetName:name, headers, rows, rowCount:rows.length, importedAt };
+                const rec={ sheetName:name, headers, rows, rowCount:rows.length, importedAt, srcFile:_pendingSrc };
                 await excelDbPut(name, rec);
                 summary.push({name, rows:rows.length, cols:headers.length});
                 syncLog(`✓ [${i+1}/${selected.length}] ${name} → ${rows.length.toLocaleString()} صف، ${headers.length} عمود`);
@@ -22445,7 +22672,7 @@ function oloPickParts(own, same, isActive, linked, nActive){
         const items=names.map((nm,i)=>{
             const r=oloFor(nm), v={n:String(i+1), office:nm};
             const d=window.ovdFor ? window.ovdFor(nm) : null;   // verdict from the delivery sheet (2026-11-06)
-            v.vd=d && window.ovdLabel ? window.ovdLabel(d.v) : '—'; v.fr=d && d.req ? d.arr+' / '+d.req : '—';
+            v.vd=d && window.ovdLabel ? window.ovdLabel(d.v, d.blockNow) : '—'; v.fr=d && d.req ? d.arr+' / '+d.req : '—';
             if(!r){ v.last='—'; v.days='ما مربوط'; v.li='—'; mos.forEach((_,j)=>v['m'+j]='—'); return {v}; }
             v.last=fmtD(r.last); v.days=String(r.days); v.li=String(r.lastItems);
             r.months.forEach((m,j)=>v['m'+j]=m.orders ? m.orders+' / '+m.items : '—');
@@ -22467,19 +22694,24 @@ function oloPickParts(own, same, isActive, linked, nActive){
 // One main verdict (first rule that matches, in V order) + every tag that applies. Both are filterable.
 (function(){
     const V={
-        block: {t:'بلوك / وقّف التجهيز', e:'⛔', fg:'#7f1d1d', bg:'#fecaca', d:'موقفه «بلوك تسديد ديون» أو «التجهيز متوقف» — بهالدورة أو بدورة مؤرشفة. ينحسب تقصير حتى لو رسل شي بعدين'},
-        liar:  {t:'كذاب',               e:'🔴', fg:'#b91c1c', bg:'#fee2e2', d:'كال «المواد غير متوفرة» أو «راح توصل قريباً» أو «إكسباير قريب»، ومكتب ثاني جاب نفس المواد بنفس الدورة'},
+        liar:  {t:'كذاب',               e:'🔴', fg:'#b91c1c', bg:'#fee2e2', d:'كال «المواد غير متوفرة» ونفس المكتب باعنا 3 مواد أو أكثر من طلبي خلال 7 أيام بعد كلامه (سجل الشراء). ممكن وصله ستوك — شوف المواد بالتفاصيل'},
+        promise:{t:'وعد ما وفى',        e:'🕓', fg:'#9a3412', bg:'#ffedd5', d:'كال «راح توصل قريباً» ومرّت 14 يوم أو أكثر وما وصل منه شي'},
         norep: {t:'بلا رقم مندوب',      e:'⚪', fg:'#4b5563', bg:'#f3f4f6', d:'ماكو رقم مندوب (أو موقفه «الرقم غير متوفر") — التعامل شبه مقطوع، ما ينحكم عليه'},
         own:   {t:'على كيفه (ترانزيت)', e:'🟣', fg:'#6b21a8', bg:'#f3e8ff', d:'اللي يجيبه بلا طلب (ترانزيت صيدليات أو مواده هو) أكثر من اللي يجيبه من طلبي، ومن طلبي يجيب أقل من النص'},
         zero:  {t:'ما جاب ولا شي',      e:'⚫', fg:'#111827', bg:'#e5e7eb', d:'طلبت منه وما جاب ولا مادة — تقصير، مو صدق'},
-        short: {t:'مقصّر',               e:'🟤', fg:'#7c2d12', bg:'#fde4cf', d:'جاب أقل من 70% من طلبي، وماكو دليل صريح إن الناقص نافذ'},
+        few:   {t:'عيّنة صغيرة',         e:'❔', fg:'#374151', bg:'#f3f4f6', d:'طلبت منه أقل من 10 مواد بهالدورة وجاب شي — العدد قليل، ما ينحكم عليه فوق أو دون'},
+        over:  {t:'يزيّد',               e:'🟠', fg:'#c2410c', bg:'#ffedd5', d:'فوق المعتاد، بس 30%+ من اللي جابه بكمية أكثر من المطلوب'},
+        ok:    {t:'فوق المعتاد',         e:'🟢', fg:'#15803d', bg:'#dcfce7', d:'نسبة اللي جابه من طلبي بأحسن ربع المكاتب بهالدورة (إذا البيانات قليلة: 70%+)'},
         honest:{t:'صادق بس ناقص',       e:'🟡', fg:'#a16207', bg:'#fef9c3', d:'جاب شي من طلبي، والناقص 60%+ منه نفاذ بدليل صريح: انطلب من أكثر من مكتب أو المكتب كال «غير متوفرة»، ومحد جابه ولا باعه بآخر 45 يوم'},
-        over:  {t:'يزيّد',               e:'🟠', fg:'#c2410c', bg:'#ffedd5', d:'جاب 70%+ من طلبي، بس 30%+ من اللي جابه بكمية أكثر من المطلوب'},
-        ok:    {t:'ملتزم',               e:'🟢', fg:'#15803d', bg:'#dcfce7', d:'جاب 70% أو أكثر من طلبي'}
+        avg:   {t:'ضمن المعتاد',         e:'🔵', fg:'#1e40af', bg:'#dbeafe', d:'نسبة اللي جابه من طلبي بالنص الوسط من المكاتب اللي جابت شي بهالدورة'},
+        short: {t:'دون المعتاد / مقصّر', e:'🟤', fg:'#7c2d12', bg:'#fde4cf', d:'نسبة اللي جابه من طلبي بأسوأ ربع المكاتب اللي جابت شي، وماكو دليل صريح إن الناقص نافذ'},
+        // v5 (مصطفى 2026-11-08): block is a STATUS shown beside the verdict, never the verdict itself — kept here for its chip, filter and PDF label
+        block: {t:'بلوك هسه',            e:'⛔', fg:'#7f1d1d', bg:'#fecaca', d:'موقفه هسه «بلوك تسديد ديون» أو «التجهيز متوقف». حالة تنعرض جنب الحكم، مو حكم — ودورة عليها بلوك وما جاب بيها شي ما تنحسب بالأداء'}
     };
     const TAGS={
-        block:   {t:'بلوك',              e:'⛔', d:'عليه أو كان عليه موقف بلوك تسديد / التجهيز متوقف'},
-        liar:    {t:'كذاب',              e:'🔴', d:'موقفه «غير متوفرة / راح توصل / إكسباير» وغيره جاب المواد'},
+        block:   {t:'بلوك',              e:'⛔', d:'عليه بلوك هسه، أو كان عليه وبعده ما مرّت دورتين نظيفات (بلوك تسديد / التجهيز متوقف)'},
+        liar:    {t:'كذاب',              e:'🔴', d:'كال «غير متوفرة» ونفس المكتب باعنا 3+ مواد من طلبي خلال 7 أيام بعدها'},
+        promise: {t:'وعد ما وفى',        e:'🕓', d:'«راح توصل قريباً» من 14 يوم أو أكثر وما وصل شي'},
         transit: {t:'ترانزيت / بلا طلب', e:'🟣', d:'اللي يجيبه بلا طلب يساوي أو أكثر من اللي يجيبه من طلبي'},
         still:   {t:'يجيب واكف',         e:'🧊', d:'جاب مادتين أو أكثر بلا طلب وصرفها الشهري أقل من 1'},
         norep:   {t:'بلا رقم مندوب',     e:'⚪', d:'ماكو رقم مندوب أو موقفه «الرقم غير متوفر»'},
@@ -22488,13 +22720,19 @@ function oloPickParts(own, same, isActive, linked, nActive){
         shortage:{t:'نفاذ مؤكد',         e:'🌫️', d:'أغلب اللي ما جابه نافذ بدليل صريح: انطلب من أكثر من مكتب أو المكتب كال «غير متوفرة»، ومحد باعه بآخر 45 يوم'},
         over:    {t:'يزيّد',              e:'🟠', d:'30%+ من اللي جابه من طلبي بكمية أكثر'},
         partial: {t:'ينقّص الكمية',      e:'➖', d:'30%+ من اللي جابه من طلبي بكمية أقل'},
-        ok:      {t:'يجيب طلبي',         e:'🟢', d:'جاب 70%+ من طلبي'},
+        ok:      {t:'فوق المعتاد',       e:'🟢', d:'نسبته بأحسن ربع المكاتب بهالدورة'},
         drip:    {t:'بالقطارة',          e:'💧', d:'دراسة 6 أشهر: يجي 4 أشهر أو أكثر، بس بمعدل أقل من 2.5 صنف بالوصولة'},
         falling: {t:'نازل',              e:'📉', d:'دراسة 6 أشهر: وصولاته بآخر شهرين ثلث أول شهرين أو أقل'}
     };
     const ARR=new Set(['Matched','Partial','Over']);
-    const BLOCK=new Set(['debt_block','supply_stopped']), CLAIM=new Set(['not_available','coming_soon','expiry_near']);
+    const BLOCK=new Set(['debt_block','supply_stopped']);
+    // v5 thresholds (مصطفى 2026-11-08). Only «غير متوفرة» can be proven false, and only by THE SAME office selling the item soon after
+    const LIAR_DAYS=7;      // the same office sold us the item within 7 days after saying «غير متوفرة»
+    const LIAR_MIN=3;       // distinct requested items with that proof before «كذاب»
+    const PROMISE_DAYS=14;  // «راح توصل قريباً» this old and nothing arrived = «وعد ما وفى»
+    const BLOCK_CLEAN=2;    // a past block drops off after this many newer cycles with orders and no block
     const STILL=1;   // monthly movement below 1 = still item (no real sales)
+    const MIN_REQ=10;   // fewer requested items than this = «عيّنة صغيرة», no above/average/below verdict
     const MARKET_DAYS=45;   // an item bought from anyone in the last 45 days of the purchase log = available in the market
     const ARR_DAYS=30;      // a requested item bought FROM THIS OFFICE in the last 30 days of the purchase log = arrived (the delivery sheet misses late arrivals — مصطفى 2026-11-07)
     const st={sig:'', byOff:null, arrivedAt:null, npSold:null, npArr:null, reqAt:null, npRef:null, cache:new Map(), hist:null, histAt:0, latestDt:'', filter:'', tags:new Set()};
@@ -22508,31 +22746,70 @@ function oloPickParts(own, same, isActive, linked, nActive){
     const mov=r=>{ const x=parseFloat(r.movement); return isFinite(x) ? x : 0; };
     const rows=()=>{ const d=window.__dtState; return (d && d.data) || []; };
     const dtSig=()=>{ const R=rows(); return R.length ? R.length+'|'+R[0].office+'|'+R[0].item+'|'+R[R.length-1].item : ''; };
-    const stanceOf=k=>{ const s=(appState.officeStance||{})[k]||{}; return s.stance||s.prevStance||''; };
+    const stanceRec=k=>(appState.officeStance||{})[k]||{};
+    const stanceOf=k=>{ const s=stanceRec(k); return s.stance||s.prevStance||''; };   // shortage evidence only («كال غير متوفرة»)
+    // the stance THIS cycle had: the live one, or one an arrival cleared after the last archive. prevStance alone never ends,
+    // so before v5 every later archive inherited an old block (مصطفى 2026-11-08). ISO UTC strings compare as times
+    // unknown archive time (st.lastAt null) = a cleared stance is no proof for this cycle (Codex 2026-11-08)
+    const cycleStance=k=>{ const s=stanceRec(k); if(s.stance) return s.stance; hist(); return s.prevStance && st.lastAt!==null && String(s.prevStanceAt||'')>String(st.lastAt||'') ? s.prevStance : ''; };
+    const ymd=t=>{ const d=new Date(t); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+    // distinct requested items of this cycle that THE SAME office sold us within LIAR_DAYS after it said «غير متوفرة»
+    // (from the day after the claim, local date like the purchase log). No stanceAt (stances set before v5) = no verdict
+    function ovdLiarItems(k, list, s, by){
+        const at=s && (s.stance||s.prevStance)==='not_available' ? Date.parse(s.stanceAt||'') : NaN;
+        if(!isFinite(at) || !by) return [];
+        const from=ymd(at), to=ymd(at+LIAR_DAYS*86400000), out=new Map();
+        (list||[]).forEach(x=>{
+            if(window.dtEffectiveStatus(x)==='Not Requested') return;
+            const ik=npKey(x.item); if(out.has(ik)) return;
+            const hit=(by.get(ik)||[]).find(e=>e.o===k && e.d>from && e.d<=to);
+            if(hit) out.set(ik, {item:x.item, d:hit.d});
+        });
+        return [...out.values()];
+    }
+    // «راح توصل قريباً» still standing (an arrival would have cleared it) for PROMISE_DAYS — from stanceAt, or (older stances)
+    // from the newest archived cycle that already had the same promise
+    function ovdPromiseBroken(s, past, now){
+        if((s && s.stance)!=='coming_soon') return false;
+        const lim=PROMISE_DAYS*86400000, t=Date.parse(s.stanceAt||'');
+        if(isFinite(t)) return now-t>=lim;
+        const p=(past||[])[0]; if(!p || p.a[8]!=='coming_soon') return false;
+        const d=Date.parse(String(p.day||'')); return isFinite(d) && now-d>=lim;
+    }
+    // cycles newest first. Past block = how many cycles had one, the newest one's day, and whether it still shows:
+    // fewer than BLOCK_CLEAN newer cycles with orders since (a re-archive or an empty cycle is no recovery — Codex)
+    function ovdBlockInfo(cycles, blockNow){
+        const i=cycles.findIndex(c=>BLOCK.has(c.a[8]));
+        const n=cycles.filter(c=>BLOCK.has(c.a[8])).length;
+        const clean=i<0 ? 0 : cycles.slice(0, i).filter(c=>c.a[0]>0).length;
+        return {n, last:i<0 ? '' : cycles[i].day, tag:!!blockNow || (i>=0 && clean<BLOCK_CLEAN)};
+    }
     const stanceLabel=s=>(typeof OFFICE_STANCE_LABEL!=='undefined' && OFFICE_STANCE_LABEL[s]) || s;
     // item key → office keys that sold it to us in the last MARKET_DAYS (null = purchase log not loaded)
     function buildNp(){
         const np=window.__npState, log=np && np.loaded && np.log && np.log.size ? np.log : null;
         if(st.npRef===log && st.npInit) return;
-        st.npInit=true; st.npRef=log; st.npSold=null; st.npArr=null; st.byOff=null; st.cache=new Map();
+        st.npInit=true; st.npRef=log; st.npSold=null; st.npArr=null; st.npBy=null; st.byOff=null; st.cache=new Map();
         if(!log){ if(!st.npAsked){ st.npAsked=true; try{ if(window.npBonusReady) window.npBonusReady(); }catch(_){} } return; }
         let asOf=''; log.forEach(a=>a.forEach(e=>{ if(e.purchase && e.date>asOf) asOf=e.date; }));
         const day=n=>new Date(Date.parse(asOf+'T00:00:00Z')-n*86400000).toISOString().slice(0,10);
         const from=day(MARKET_DAYS), arrFrom=day(ARR_DAYS);
-        const m=new Map(), arr=new Map();
+        const m=new Map(), arr=new Map(), by=new Map();
         const add=(M,k,o)=>{ let s=M.get(k); if(!s) M.set(k, s=new Set()); s.add(o); };
         log.forEach((a,k0)=>{ const k=npKey(k0); a.forEach(e=>{
             if(!e.purchase || !e.date) return;
             if(e.date>=from) add(m, k, okey(e.vendor));
             if(e.date>=arrFrom) add(arr, k, okey(e.vendor));
+            { let b=by.get(k); if(!b) by.set(k, b=[]); b.push({o:okey(e.vendor), d:e.date}); }   // every dated sale: the liar window follows stanceAt, not the log's end (Codex)
         }); });
-        st.npSold=m; st.npArr=arr; st.cache=new Map();
+        st.npSold=m; st.npArr=arr; st.npBy=by; st.cache=new Map();
     }
     function build(){
         buildNp();
         const R=rows(), L=appState.officeLinks||[];
         const sig=dtSig()+'|'+L.length+'|'+JSON.stringify(L[L.length-1]||0);
-        if(st.byOff && st.sig===sig) return;
+        if(st.byOff && st.sig===sig && st.R===R) return;   // R identity: a reloaded sheet of the same size and ends still rebuilds (and with it the bench)
+        st.R=R;
         const byOff=new Map(), arrivedAt=new Map(), reqAt=new Map();
         R.forEach(r=>{
             const k=okey(r.office); if(!k) return;
@@ -22551,7 +22828,9 @@ function oloPickParts(own, same, isActive, linked, nActive){
         const list=st.byOff.get(k)||[];
         if(!list.length) return null;
         const c={req:0, arr:0, matched:0, partial:0, over:0, logArr:0, others:0, nobody:0, unknown:0, extra:0, extraMov:0, extraStill:0,
-                 L:{others:[], nobody:[], unknown:[], over:[], partial:[], logArr:[], extraMov:[], extraStill:[]}};
+                 L:{others:[], nobody:[], unknown:[], over:[], partial:[], logArr:[], extraMov:[], extraStill:[]}, by:{}};
+        // per-office tallies inside a linked group (same company/stock — مصطفى 2026-11-07): display only, they sum to the group
+        const B=o=>{ o=String(o||'').trim(); return c.by[o]||(c.by[o]={req:0, arr:0, others:0, nobody:0, unknown:0, extra:0}); };
         // unrequested rows of this office group: one that matches a requested item is that item arriving under a name variant
         // got = items already credited to this group (delivery sheet or one purchase) — a purchase never credits two rows
         const extras=new Map(), used=new Set(), got=new Set(), claimNA=stanceOf(k)==='not_available';
@@ -22559,11 +22838,12 @@ function oloPickParts(own, same, isActive, linked, nActive){
         list.forEach(x=>{
             const es=window.dtEffectiveStatus(x), req=window.dtQtyReqText(x);
             if(es==='Not Requested') return;
-            c.req++;
+            c.req++; const b=B(x.office); b.req++;
             if(!ARR.has(es)){
                 const ik=npKey(x.item), via=extras.has(ik) && !used.has(ik) ? 'وصل باسم ثاني للمكتب' : (!got.has(ik) && st.npArr && st.npArr.get(ik) && st.npArr.get(ik).has(k) ? 'سجل الشراء: انشرت منه بآخر '+ARR_DAYS+' يوم' : '');
-                if(via){ if(extras.has(ik)) used.add(ik); else got.add(ik); c.logArr++; c.L.logArr.push({item:x.item, req, via}); return; }
+                if(via){ if(extras.has(ik)) used.add(ik); else got.add(ik); c.logArr++; b.arr++; c.L.logArr.push({item:x.item, req, via}); return; }
             }
+            if(ARR.has(es)) b.arr++;
             if(es==='Matched') c.matched++;
             else if(es==='Partial'){ c.partial++; c.L.partial.push({item:x.item, req, arr:x.qtyArr}); }
             else if(es==='Over'){ c.over++; c.L.over.push({item:x.item, req, arr:x.qtyArr}); }
@@ -22574,28 +22854,38 @@ function oloPickParts(own, same, isActive, linked, nActive){
                 if(at) at.forEach((nm,ok)=>{ if(ok!==k) who.push(nm); });
                 const sold=st.npSold ? st.npSold.get(npKey(x.item)) : null;
                 const soldOther=sold ? [...sold].some(ok=>ok!==k) : false;
-                if(who.length || soldOther){ c.others++; c.L.others.push({item:x.item, req, who:who.length ? who : ['سجل الشراء: انشرى من مكتب ثاني بآخر '+MARKET_DAYS+' يوم']}); }
+                if(who.length || soldOther){ c.others++; b.others++; c.L.others.push({item:x.item, req, who:who.length ? who : ['سجل الشراء: انشرى من مكتب ثاني بآخر '+MARKET_DAYS+' يوم']}); }
                 // a shortage needs explicit proof (مصطفى 2026-11-07): asked from 2+ offices, or this office said «غير متوفرة» —
                 // and still nobody brought it nor sold it to us. Anything else = no evidence (unknown → the office counts as short)
-                else if(st.npSold && !(sold && sold.size) && ((st.reqAt.get(npKey(x.item))||new Set()).size>=2 || claimNA)){ c.nobody++; c.L.nobody.push({item:x.item, req}); }
-                else { c.unknown++; c.L.unknown.push({item:x.item, req}); }
+                else if(st.npSold && !(sold && sold.size) && ((st.reqAt.get(npKey(x.item))||new Set()).size>=2 || claimNA)){ c.nobody++; b.nobody++; c.L.nobody.push({item:x.item, req}); }
+                else { c.unknown++; b.unknown++; c.L.unknown.push({item:x.item, req}); }
             }
         });
         extras.forEach((x,ik)=>{ if(used.has(ik)) return;
-            const m=mov(x), e={item:x.item, arr:x.qtyArr, mov:m};
+            const m=mov(x), e={item:x.item, arr:x.qtyArr, mov:m}; B(x.office).extra++;
             if(m>=STILL){ c.extraMov++; c.L.extraMov.push(e); } else { c.extraStill++; c.L.extraStill.push(e); }
         });
         c.arr=c.matched+c.partial+c.over+c.logArr; c.extra=c.extraMov+c.extraStill;
+        c.L.liar=ovdLiarItems(k, list, stanceRec(k), st.npBy); c.liar=c.L.liar.length;   // independent of logArr: the same sale may also count as arrived
         return c;
     }
-    // cycle row = [req, arr, over, partial, others, nobody(confirmed shortage), extra, extraStill, stance, unknown]
-    const rowOf=(c,s)=>[c?c.req:0, c?c.arr:0, c?c.over:0, c?c.partial:0, c?c.others:0, c?c.nobody:0, c?c.extra:0, c?c.extraStill:0, s||'', c?c.unknown:0];
+    // this cycle's benchmark: fill quartiles among office groups asked for 20+ items that delivered at least one.
+    // null below 20 such offices → verdict falls back to the fixed 70%. Rebuilt whenever byOff is (sheet, links or purchase log changed)
+    function bench(){
+        if(st.benchOf===st.byOff) return st.bench;
+        const P=[]; st.byOff.forEach((_l,k)=>{ const c=countsFor(k); if(c && c.req>=20 && c.arr>0) P.push(c.arr/c.req); });
+        P.sort((a,b)=>a-b); const q=p=>P[Math.floor(P.length*p)];
+        st.bench=P.length>=20 ? {lo:q(0.25), hi:q(0.75), med:q(0.5), n:P.length} : null; st.benchOf=st.byOff;
+        return st.bench;
+    }
+    // cycle row = [req, arr, over, partial, others, nobody(confirmed shortage), extra, extraStill, stance, unknown, liar items (v5; older rows: none = unknown, never evidence)]
+    const rowOf=(c,s)=>[c?c.req:0, c?c.arr:0, c?c.over:0, c?c.partial:0, c?c.others:0, c?c.nobody:0, c?c.extra:0, c?c.extraStill:0, s||'', c?c.unknown:0, c?c.liar||0:0];
     // called by archiveSaveSnapshot: this delivery sheet's summary for every office in it or in the archived order
     function ovdSnapshotSummary(vendors){
         build();
         const o={}, keys=new Set(st.byOff.keys());
         (vendors||[]).forEach(v=>keys.add(okey(v)));
-        keys.forEach(k=>{ if(!k) return; const c=countsFor(k), s=stanceOf(k); if(c || s) o[k]=rowOf(c, s); });
+        keys.forEach(k=>{ if(!k) return; const c=countsFor(k), s=cycleStance(k); if(c || s) o[k]=rowOf(c, s); });
         return {dt:dtSig(), at:new Date().toISOString(), o};
     }
     // the archive lives in localStorage (~2MB JSON) — parse it at most every 15 s, not once per office card
@@ -22618,27 +22908,37 @@ function oloPickParts(own, same, isActive, linked, nActive){
             per.forEach((p,k)=>push(k, {full:false, a:[p[0],p[1],0,0,0,0,0,0,'',p[0]-p[1]], day}));
         });
         st.latestDt=(all[0] && all[0].ovd) ? all[0].ovd.dt : '';
+        // newest archive time — where this cycle's stance starts (cycleStance). snap.date = archive time (ISO); null = archive with no time
+        st.lastAt=all[0] ? ((all[0].ovd && all[0].ovd.at) || (/T/.test(String(all[0].date||'')) ? all[0].date : null)) : '';
         st.hist=m; st.histAt=Date.now(); st.cache=new Map();
         return m;
     }
     function verdict(T){
-        if(T.blocks) return 'block';
+        // v5: no 'block' here — a block is a status (r.blockNow) shown beside this verdict (مصطفى 2026-11-08)
         if(T.liar) return 'liar';
+        if(T.promise) return 'promise';
         if(T.noRep) return 'norep';
         if(!T.req && !T.extra) return '';
         const fill=T.req ? T.arr/T.req : 0;
         if(T.extra && T.extra>=T.arr && fill<0.5 && (T.extra>=2 || !T.req)) return 'own';
         if(!T.req) return '';
         if(!T.arr) return 'zero';
-        if(fill>=0.7) return (T.over>=2 && T.over/T.arr>=0.3) ? 'over' : 'ok';
+        // T.bench = this cycle's quartiles of fill among offices that delivered something (مصطفى 2026-11-07: everyone brings ~10%, a fixed 70% judged nobody)
+        // the bench is this cycle's, so it judges this cycle's fill (T.fillNow), never the multi-cycle total
+        const B=T.bench && T.fillNow!=null ? T.bench : null, f=B ? T.fillNow : fill;
+        if(B && !T.fillNow) return 'zero';   // nothing this cycle — a good archive must not turn it into «few» (Codex 2026-11-07)
+        if((B ? T.reqNow : T.req)<MIN_REQ) return 'few';   // 1/1 or 2/7 is luck, not performance (مصطفى 2026-11-07)
+        if(f>=(B ? B.hi : 0.7)) return (T.over>=2 && T.over/T.arr>=0.3) ? 'over' : 'ok';
         const miss=T.others+T.nobody+T.unknown;
         if(T.nobody && T.nobody>=0.6*miss) return 'honest';
+        if(B && f>=B.lo) return 'avg';
         return 'short';   // no explicit proof of shortage = short (مصطفى 2026-11-07: «لازم دليل صريح»)
     }
     function tagsOf(T, name){
         const t=[];
-        if(T.blocks) t.push('block');
+        if(T.blockTag) t.push('block');
         if(T.liar) t.push('liar');
+        if(T.promise) t.push('promise');
         if(T.noRep) t.push('norep');
         if(T.req && !T.arr) t.push('zero');
         if(T.extra && (T.extra>=T.arr || !T.req)) t.push('transit');
@@ -22647,7 +22947,8 @@ function oloPickParts(own, same, isActive, linked, nActive){
         if(T.nobody && T.nobody>T.others && T.nobody>=T.unknown) t.push('shortage');
         if(T.over>=2 && T.arr && T.over/T.arr>=0.3) t.push('over');
         if(T.partial>=2 && T.arr && T.partial/T.arr>=0.3) t.push('partial');
-        if(T.req && T.arr/T.req>=0.7) t.push('ok');
+        const okB=T.bench && T.fillNow!=null;
+        if(T.req && (okB ? T.reqNow : T.req)>=MIN_REQ && (okB ? T.fillNow : T.arr/T.req)>=(okB ? T.bench.hi : 0.7)) t.push('ok');
         let o=null; try{ o=window.oloFor ? window.oloFor(name) : null; }catch(_){}
         if(o && o.months && o.months.length>2){
             const f=o.months.slice(0,-1);   // the newest month is still running
@@ -22664,34 +22965,44 @@ function oloPickParts(own, same, isActive, linked, nActive){
         if(!rows().length && !H.size) return undefined;
         const k=okey(name);
         if(st.cache.has(k)) return st.cache.get(k);
-        const cur=countsFor(k), past=H.get(k)||[], nowStance=stanceOf(k);
+        const cur=countsFor(k), past=H.get(k)||[], sRec=stanceRec(k), nowStance=cycleStance(k), blockNow=BLOCK.has(sRec.stance||'');
         const curDup=!!(cur && st.latestDt && st.latestDt===dtSig());   // this sheet is already inside the newest snapshot
         const cycles=[];
         if(cur && !curDup) cycles.push({full:true, cur:true, a:rowOf(cur, nowStance), day:'الدورة الحالية'});
         past.forEach(p=>cycles.push(p));
+        // a cycle under a block that brought nothing says nothing about performance — it leaves every total (Codex: reqNow/fillNow too)
+        const out=c=>BLOCK.has(c.a[8]) && !c.a[1];
         let r=null;
-        if(cycles.length || nowStance){
+        if(cycles.length || nowStance || blockNow){
             let rep=null; try{ rep=window.repForOffice ? window.repForOffice(name) : null; }catch(_){}
-            const T={req:0, arr:0, over:0, partial:0, others:0, nobody:0, unknown:0, extra:0, extraStill:0, blocks:0, liar:0,
-                     noRep:!(rep && rep.phone) || nowStance==='no_phone'};
+            const curIn=!!(cur && cur.req && !out({a:rowOf(cur, nowStance)}));   // also when this sheet is already archived (curDup)
+            const T={req:0, arr:0, over:0, partial:0, others:0, nobody:0, unknown:0, extra:0, extraStill:0, liar:0,
+                     noRep:!(rep && rep.phone) || nowStance==='no_phone',
+                     bench:curIn ? bench() : null, fillNow:curIn ? cur.arr/cur.req : null, reqNow:curIn ? cur.req : 0};
             cycles.forEach(c=>{
-                const a=c.a; T.req+=a[0]; T.arr+=a[1]; T.over+=a[2]; T.partial+=a[3]; T.others+=a[4]; T.nobody+=a[5]; T.extra+=a[6]; T.extraStill+=a[7]; T.unknown+=a[9]||0;
-                if(BLOCK.has(a[8])) T.blocks++;
-                if(CLAIM.has(a[8]) && a[4] && a[4]>=a[5]) T.liar++;
+                const a=c.a;
+                if((a[10]||0)>=LIAR_MIN) T.liar++;
+                if(out(c)) return;
+                T.req+=a[0]; T.arr+=a[1]; T.over+=a[2]; T.partial+=a[3]; T.others+=a[4]; T.nobody+=a[5]; T.extra+=a[6]; T.extraStill+=a[7]; T.unknown+=a[9]||0;
             });
-            if(BLOCK.has(nowStance) && !cycles.some(c=>c.a[8]===nowStance)) T.blocks++;
-            r={...T, cycles, nCycles:cycles.length, nFull:cycles.filter(c=>c.full).length, stance:nowStance, cur};
+            // this sheet already archived (curDup): its row may predate the purchase log — the live count wins, once (Codex 2026-11-08)
+            if(curDup && cur.liar>=LIAR_MIN && !(((past[0]||{}).a||[])[10]>=LIAR_MIN)) T.liar++;
+            T.promise=ovdPromiseBroken(sRec, past, Date.now());
+            const bi=ovdBlockInfo(cycles, blockNow);
+            r={...T, blockNow, blocks:bi.n, blockLast:bi.last, blockTag:bi.tag, nOut:cycles.filter(out).length,
+               cycles, nCycles:cycles.length, nFull:cycles.filter(c=>c.full).length, stance:nowStance, cur};
             r.v=verdict(r); r.tags=tagsOf(r, name);
         }
         st.cache.set(k, r);
         return r;
     }
     const chip=v=>{ const c=V[v]; return c ? `<span style="background:${c.bg};color:${c.fg};border-radius:10px;padding:0 6px;font-weight:800" title="${esc(c.d)}">${c.e} ${c.t}</span>` : ''; };
-    const SAME_AS={own:'transit', zero:'zero', block:'block', liar:'liar', norep:'norep', over:'over', ok:'ok'};   // tag already shown by the main chip
-    const tagIcons=r=>r.tags.filter(t=>t!==SAME_AS[r.v] && t!=='ok').map(t=>`<span title="${esc(TAGS[t].t+' — '+TAGS[t].d)}">${TAGS[t].e}</span>`).join('');
+    const SAME_AS={own:'transit', zero:'zero', liar:'liar', promise:'promise', norep:'norep', over:'over', ok:'ok'};   // tag already shown by the main chip
+    const tagIcons=r=>r.tags.filter(t=>t!==SAME_AS[r.v] && t!=='ok' && !(t==='block' && r.blockNow)).map(t=>`<span title="${esc(TAGS[t].t+' — '+TAGS[t].d)}">${TAGS[t].e}</span>`).join('');
     function ovdBadge(name){
         const r=ovdFor(name); if(!r) return '';
         const p=[];
+        if(r.blockNow) p.push(chip('block'));   // status beside the verdict (v5)
         if(r.v) p.push(chip(r.v));
         const ic=tagIcons(r); if(ic) p.push(ic);
         if(r.req) p.push(`جاب ${r.arr}/${r.req}`);
@@ -22718,7 +23029,7 @@ function oloPickParts(own, same, isActive, linked, nActive){
         if(ovdFor('')===undefined) return list;   // nothing loaded → the filter would hide everything
         return list.filter(v=>{
             const r=ovdFor(v.name);
-            if(st.filter && (st.filter==='none' ? (r && r.v) : !(r && r.v===st.filter))) return false;
+            if(st.filter && (st.filter==='none' ? (r && r.v) : st.filter==='block' ? !(r && r.blockNow) : !(r && r.v===st.filter))) return false;
             for(const t of st.tags) if(!(r && r.tags.includes(t))) return false;
             return true;
         });
@@ -22726,7 +23037,7 @@ function oloPickParts(own, same, isActive, linked, nActive){
     const rerender=()=>{ try{ if(typeof window.__oloRerender==='function') window.__oloRerender(); }catch(e){ console.error('ovd rerender', e); } };
     function ovdSet(val){ st.filter=val||''; rerender(); }
     function ovdTag(t){ st.tags.has(t) ? st.tags.delete(t) : st.tags.add(t); rerender(); }
-    function ovdLabel(v){ const c=V[v]; return c ? c.t : '—'; }
+    function ovdLabel(v, blockNow){ const t=V[v] ? V[v].t : ''; return blockNow ? (t ? V.block.t+' · '+t : V.block.t) : (t || '—'); }
     function ovdFilterText(){
         const f=[]; if(st.filter) f.push('الحكم: '+(st.filter==='none' ? 'ماكو حكم' : V[st.filter].t));
         if(st.tags.size) f.push('إشارات: '+[...st.tags].map(t=>TAGS[t].t).join(' + '));
@@ -22748,20 +23059,26 @@ function oloPickParts(own, same, isActive, linked, nActive){
         const cyc=r.cycles.map(x=>{ const a=x.a, q=v=>x.full ? v : '—';
             return `<tr>${td(esc(x.day))}${td(a[0])}${td(a[1])}${td(q(a[4]))}${td(q(a[5]))}${td(q(a[6]))}${td(a[8] ? esc(stanceLabel(a[8])) : '—')}</tr>`; }).join('');
         const tags=r.tags.map(t=>`<span class="px-1.5 rounded border border-gray-300 bg-white" title="${esc(TAGS[t].d)}">${TAGS[t].e} ${TAGS[t].t}</span>`).join(' ');
-        const defs=Object.keys(V).map(k=>`${V[k].e} <b>${V[k].t}</b>: ${esc(V[k].d)}`).join('<br>');
+        const defs=Object.keys(V).filter(k=>k!=='block').map(k=>`${V[k].e} <b>${V[k].t}</b>: ${esc(V[k].d)}`).join('<br>')
+            +`<br><br>${V.block.e} <b>${V.block.t}</b> (حالة جنب الحكم، مو حكم): ${esc(V.block.d)}`;
         const tdefs=Object.keys(TAGS).map(k=>`${TAGS[k].e} <b>${TAGS[k].t}</b>: ${esc(TAGS[k].d)}`).join('<br>');
         box.innerHTML=`<div style="border:1px solid ${c ? c.fg+'44' : '#e5e7eb'};background:${c ? c.bg+'66' : '#f9fafb'};border-radius:12px;padding:8px 10px">
-            <div class="flex flex-wrap items-center gap-2 text-sm"><b>⚖️ الحكم:</b> ${c ? chip(r.v)+` <span class="text-xs">${esc(c.d)}</span>` : '<span class="text-xs text-gray-500">ماكو حكم — ماكو طلبية ولا وصولات محسوبة لهذا المكتب</span>'}</div>
+            <div class="flex flex-wrap items-center gap-2 text-sm"><b>⚖️ الحكم:</b> ${r.blockNow ? chip('block')+' ' : ''}${c ? chip(r.v)+` <span class="text-xs">${esc(c.d)}</span>` : '<span class="text-xs text-gray-500">ماكو حكم — ماكو طلبية ولا وصولات محسوبة لهذا المكتب</span>'}</div>
             ${tags ? `<div class="flex flex-wrap gap-1 text-xs mt-1"><b>إشارات:</b> ${tags}</div>` : ''}
+            ${r.blocks ? `<div class="text-xs mt-1">⛔ كان عليه بلوك بـ${r.blocks} دورة (آخرها: ${esc(r.blockLast)})${r.nOut ? ` · ${r.nOut} دورة بلوك ما جاب بيها شي ما تنحسب بالأداء` : ''}${r.blockTag || r.blockNow ? '' : ' · مرّت بعدها دورتين نظيفات'}</div>` : ''}
             ${r.stance ? `<div class="text-xs mt-1">📌 الموقف: <b>${esc(stanceLabel(r.stance))}</b>${(appState.officeStance||{})[okey(name)] && !(appState.officeStance[okey(name)]||{}).stance ? ' (قديم — انمسح لما وصل شي)' : ''}</div>` : ''}
             ${r.req || r.extra ? `<div class="overflow-auto mt-2"><table class="text-xs" style="border-collapse:collapse;min-width:100%"><tr>
                 ${cell('طلبت', r.req, '#111827')}${cell('جاب منه', r.arr, '#15803d')}${cell('زايد', r.over, '#1d4ed8')}${cell('ناقص الكمية', r.partial, '#a16207')}
                 ${cell('ما جاب — موجود بالسوق', r.others, '#7c2d12')}${cell('ما جاب — نفاذ مؤكد', r.nobody, '#6b7280')}${cell('ما جاب — بلا دليل نفاذ', r.unknown, '#9a3412')}
                 ${cell('بلا طلب', r.extra, '#6b21a8')}${cell('بلا طلب واكف', r.extraStill, '#b91c1c')}</tr></table></div>
+                ${r.req ? `<div class="text-xs mt-1">📊 جاب <b>${Math.round(100*(r.bench && r.fillNow!=null ? r.fillNow : r.arr/r.req))}%</b> من طلبي${r.bench && r.nCycles>1 ? ' بهالدورة' : ''} · ${r.bench ? `المكاتب اللي جابت شي بهالدورة (${r.bench.n}): النص الوسط بين ${Math.round(100*r.bench.lo)}% و${Math.round(100*r.bench.hi)}%، والوسط ${Math.round(100*r.bench.med)}%` : 'البيانات قليلة للمقارنة — الحد 70%'}</div>` : ''}
                 <div class="text-[10px] text-gray-500 mt-0.5">مجموع ${r.nCycles} دورة${r.nCycles>r.nFull ? ` (${r.nCycles-r.nFull} منها قديمة: بيها طلبت/جاب بس)` : ''}</div>` : ''}
+            ${cur && Object.keys(cur.by).length>1 ? `<details class="mt-1" open><summary class="cursor-pointer text-xs font-bold">🏢 مكاتب المجموعة — الحكم للمجموعة كلها (نفس الشركة/المخزن) (${Object.keys(cur.by).length})</summary><div class="overflow-auto mt-1"><table class="text-xs" style="border-collapse:collapse;min-width:100%">
+                <tr>${th('المكتب')}${th('طلبت')}${th('جاب')}${th('نسبة')}${th('موجود بالسوق')}${th('نفاذ مؤكد')}${th('بلا دليل')}${th('بلا طلب')}</tr>${Object.entries(cur.by).sort((a,b)=>b[1].req-a[1].req).map(([o,b])=>`<tr>${td(esc(o))}${td(b.req)}${td(b.arr)}${td(b.req ? Math.round(100*b.arr/b.req)+'%' : '—')}${td(b.others)}${td(b.nobody)}${td(b.unknown)}${td(b.extra)}</tr>`).join('')}</table></div></details>` : ''}
             ${r.cycles.length>1 ? `<details class="mt-1"><summary class="cursor-pointer text-xs font-bold">📚 كل دورة لحالها (${r.cycles.length})</summary><div class="overflow-auto mt-1"><table class="text-xs" style="border-collapse:collapse;min-width:100%">
                 <tr>${th('الدورة')}${th('طلبت')}${th('جاب')}${th('غيره جاب')}${th('محد جاب')}${th('بلا طلب')}${th('الموقف')}</tr>${cyc}</table></div></details>` : ''}
             ${cur ? `<div class="text-xs font-bold mt-2">🧾 مواد الدورة الحالية (شيت الديلفري):</div>
+            ${sec('🔴 كال «غير متوفرة» ونفس المكتب باعها خلال '+LIAR_DAYS+' أيام بعدها (سجل الشراء)', cur.L.liar, e=>`${esc(e.item)} <span style="color:#6b7280">(انشرت منه ${esc(e.d)})</span>`)}
             ${sec('🟤 ما جابها وهي موجودة بالسوق', cur.L.others, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)} — ${esc(e.who.join('، '))})</span>`)}
             ${sec('🌫️ نفاذ مؤكد (انطلبت من أكثر من مكتب أو كال «غير متوفرة»، ومحد باعها بآخر '+MARKET_DAYS+' يوم)', cur.L.nobody, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
             ${sec('❔ ما جابها وماكو دليل نفاذ (تنحسب تقصير)', cur.L.unknown, e=>`${esc(e.item)} <span style="color:#6b7280">(طلبت ${esc(e.req)})</span>`)}
@@ -22775,7 +23092,8 @@ function oloPickParts(own, same, isActive, linked, nActive){
             «موجود بالسوق» = نفس المادة وصلت من مكتب ثاني بنفس شيت الديلفري، أو انشرت من مكتب ثاني بآخر ${MARKET_DAYS} يوم (سجل الشراء) ·
             «جاب» = وصلت بشيت الديلفري، أو انشرت من نفس المكتب بآخر ${ARR_DAYS} يوم (سجل الشراء) ·
             «نفاذ مؤكد» = دليل صريح بس: انطلبت من أكثر من مكتب أو المكتب كال «غير متوفرة»، ومحد باعها بآخر ${MARKET_DAYS} يوم — التطبيق يوزّع كل مادة على مكتب واحد، فـ«محد ثاني جابها» وحدها ما تثبت نفاذ ·
-            «واكف» = صرف شهري أقل من ${STILL} ·
+            «المعتاد» = نسبة اللي جابه من طلبي مقارنة بالمكاتب اللي طلبت منها 20+ مادة وجابت شي بنفس الدورة: أحسن ربع = فوق، أسوأ ربع = دون، والباقي ضمن (أقل من 20 مكتب → الحد 70%). مكتب طلبت منه أقل من ${MIN_REQ} مواد = عيّنة صغيرة ·
+            «واكف» = صرف شهري أقل من ${STILL} · «كذاب» و«وعد ما وفى» يحسبون من وقت الموقف — المواقف المسجّلة قبل 8 تشرين الثاني 2026 بلا وقت، فما ينحكم عليها «كذاب» ·
             الدورات = الدورة الحالية + كل أرشفة (التطبيق يحتفظ بآخر 5). الأرشفات القديمة قبل هذا التحديث بيها «طلبت / جاب» بس.</div></details>
         </div>`;
     }
@@ -22846,7 +23164,27 @@ function oloPickParts(own, same, isActive, linked, nActive){
     const shortOff=s=>String(s||'').replace(/[@&#]+/g,' ').split(/[\/\\]| - |\.\.|ــ/)[0].trim() || String(s||'').trim();
     const coll=new Intl.Collator('ar');
     const loadJson=(k,d)=>{ try{ const v=JSON.parse(localStorage.getItem(k)||'null'); return (v && typeof v==='object') ? v : d; }catch(_){ return d; } };
-    const saveJson=(k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){} };
+    // (ج) 2026-11-10: بيانات الحصص ما تنكتب من تبويب قديم (بعد restore أو حفظ تبويب ثاني) — نفس حماية saveToStorage
+    // كتابة مرفوضة ← الذاكرة ترجع للمخزّن، حتى الشاشة ما تعرض إعداد ما انحفظ (مراجعة Codex #4)
+    const QT_DATA_PROP={[EDIT_KEY]:'edits', [DAYS_KEY]:'days', [QTY_KEY]:'qty', [DISC_KEY]:'disc', [CFG_KEY]:'cfg'};
+    const qtReload=k=>{ st[QT_DATA_PROP[k]]= k===CFG_KEY ? Object.assign({}, CFG_DEFAULT, loadJson(k, {})) : loadJson(k, {}); };
+    const saveJson=(k,v)=>{
+        const data=k in QT_DATA_PROP;
+        if(data && typeof dataEpochStale==='function' && dataEpochStale()){ showStaleTabBanner(); qtReload(k); return false; }
+        try{ localStorage.setItem(k, JSON.stringify(v)); return true; }
+        catch(_){ if(data){ showToast('⚠️ ما انحفظ — مساحة المتصفح'); qtReload(k); } return false; }
+    };
+    // مادة وحدة فوق المخزّن الطازج: تبويبان يعدّلان مادتين مختلفتين ← الاثنين يبقون. undefined = حذف المادة. null = ما انكتب
+    function qtPatchMap(key, name, val){
+        if(typeof dataEpochStale==='function' && dataEpochStale()){ showStaleTabBanner(); return null; }
+        let m=null; try{ m=JSON.parse(localStorage.getItem(key)||'null'); }catch(_){}
+        if(!m || typeof m!=='object' || Array.isArray(m)) m={};
+        if(val===undefined) delete m[name]; else m[name]=val;
+        try{ localStorage.setItem(key, JSON.stringify(m)); }catch(_){ showToast('⚠️ ما انحفظ — مساحة المتصفح'); return null; }
+        return m;
+    }
+    // يحدّث الذاكرة بالمدموج؛ لو ما انكتب ترجع الذاكرة للمخزّن حتى الشاشة ما تعرض قيمة ما انحفظت
+    const qtPatch=(key, prop, name, val)=>{ const m=qtPatchMap(key, name, val); st[prop]=m || loadJson(key, {}); return !!m; };
 
     // shared data layer (one sync, one set of rows / settings / monthly edits for both tabs)
     const st={rows:null, loaded:false, ver:-1, gen:0, err:'', importedAt:'', vendorsOk:false,
@@ -23753,43 +24091,38 @@ function oloPickParts(own, same, isActive, linked, nActive){
     function qtEdit(V, i, v){
         const r=vrows(V)[i]; if(!r) return;
         const x=parseFloat(v);
-        if(v==='' || !isFinite(x) || x<0 || Math.round(x)===r.base) delete st.edits[r.name];
-        else st.edits[r.name]=Math.round(x);
-        saveJson(EDIT_KEY, st.edits);
+        qtPatch(EDIT_KEY, 'edits', r.name, (v==='' || !isFinite(x) || x<0 || Math.round(x)===r.base) ? undefined : Math.round(x));
         redrawKeepFocus(V);
     }
     // per-item quantity / target days (2026-10-20) — empty or negative clears it
     function qtNeedEdit(V, i, v){
         const r=vrows(V)[i]; if(!r) return;
         const x=parseFloat(v);
-        if(v==='' || !isFinite(x) || x<0 || x>1e7) delete st.qty[r.name]; else st.qty[r.name]=Math.round(x);
-        saveJson(QTY_KEY, st.qty);
+        qtPatch(QTY_KEY, 'qty', r.name, (v==='' || !isFinite(x) || x<0 || x>1e7) ? undefined : Math.round(x));
         redrawKeepFocus(V);
     }
-    function qtNeedReset(V, i){ const r=vrows(V)[i]; if(!r) return; delete st.qty[r.name]; saveJson(QTY_KEY, st.qty); invalAll(); draw(V); }
+    function qtNeedReset(V, i){ const r=vrows(V)[i]; if(!r) return; qtPatch(QTY_KEY, 'qty', r.name, undefined); invalAll(); draw(V); }
     function qtDaysEdit(V, i, v){
         const r=vrows(V)[i]; if(!r) return;
         // a typed value stays even when it equals today's global target (the global one can change later) — only empty / ↺ clears it
         const x=parseFloat(v);
-        if(v==='' || !isFinite(x) || x<0 || x>36500) delete st.days[r.name]; else st.days[r.name]=Math.round(x);
-        // a new target takes over again from a typed quantity
-        delete st.qty[r.name];
-        saveJson(DAYS_KEY, st.days); saveJson(QTY_KEY, st.qty);
+        // a new target takes over again from a typed quantity — only if the target really saved (Codex #3)
+        if(qtPatch(DAYS_KEY, 'days', r.name, (v==='' || !isFinite(x) || x<0 || x>36500) ? undefined : Math.round(x)))
+            qtPatch(QTY_KEY, 'qty', r.name, undefined);
         redrawKeepFocus(V);
     }
     function qtDiscEdit(V, i, v){
         const r=vrows(V)[i]; if(!r) return;
         const x=parseFloat(v);
         // 0 is a real discount of its own; empty / outside 0–100 goes back to the general one
-        if(v==='' || !isFinite(x) || x<0 || x>100) delete st.disc[r.name]; else st.disc[r.name]=Math.round(x*100)/100;
-        saveJson(DISC_KEY, st.disc);
+        qtPatch(DISC_KEY, 'disc', r.name, (v==='' || !isFinite(x) || x<0 || x>100) ? undefined : Math.round(x*100)/100);
         redrawKeepFocus(V);
     }
-    function qtDiscReset(V, i){ const r=vrows(V)[i]; if(!r) return; delete st.disc[r.name]; saveJson(DISC_KEY, st.disc); invalAll(); draw(V); }
-    function qtDaysReset(V, i){ const r=vrows(V)[i]; if(!r) return; delete st.days[r.name]; saveJson(DAYS_KEY, st.days); invalAll(); draw(V); }
+    function qtDiscReset(V, i){ const r=vrows(V)[i]; if(!r) return; qtPatch(DISC_KEY, 'disc', r.name, undefined); invalAll(); draw(V); }
+    function qtDaysReset(V, i){ const r=vrows(V)[i]; if(!r) return; qtPatch(DAYS_KEY, 'days', r.name, undefined); invalAll(); draw(V); }
     function qtEditReset(V, i){
         const r=vrows(V)[i]; if(!r) return;
-        delete st.edits[r.name]; saveJson(EDIT_KEY, st.edits);
+        qtPatch(EDIT_KEY, 'edits', r.name, undefined);
         invalAll(); draw(V);
     }
     function qtSetCfg(V, k, v){
@@ -23814,20 +24147,23 @@ function oloPickParts(own, same, isActive, linked, nActive){
     // each tab restores its own settings and filters; the monthly edits belong to both tabs, so only the cuts restore clears them (and says so)
     function qtRestore(V){
         const n=Object.keys(st.edits).length, nd=Object.keys(st.days).length, nq=Object.keys(st.qty).length, nc=Object.keys(st.disc).length, D=CFG_DEFAULT;
+        // تبويب قديم: لا نبدي أصلاً — بدل reset نص-نص ورسالة ✅ (مراجعة Codex الثانية 2026-11-10)
+        if(typeof dataEpochStale==='function' && dataEpochStale()){ showStaleTabBanner(); return; }
+        let ok=true;
         if(V===VS){
             if(!confirm('↺ استعادة الأصل بتبويب الحصص؟\n• يرجّع عتبات دراسة الحصص: تنفتح فوق '+D.opBal+' قطعة و'+D.opCov+' يوم · تتحصص فوق '+D.raBal+' قطعة وتحت '+D.raCov+' يوم\n• يمسح فلاتر وفرز تبويب الحصص\n(تعديلات الصرف الشهري وFAKE ما تنلمس — تنرجع من تبويب القطع)')) return;
             ['opBal','opCov','raBal','raCov'].forEach(k=>{ st.cfg[k]=D[k]; });
         }else{
             if(!confirm('↺ استعادة الأصل؟\n• يمسح تعديلات الصرف الشهري ('+n+' مادة) — هي نفسها بتبويب الحصص\n• يمسح الهدف الخاص ('+nd+' مادة) والكمية اليدوية ('+nq+' مادة) والخصم الخاص ('+nc+' مادة)، والخصم العام يرجع '+D.disc+'%\n• يرجّع مدة الكوتة '+D.tgtAt+' يوم وFAKE مطفي (FAKE مشترك ويه تبويب الحصص)\n• يمسح عتبتي الأوفر ستوك\n• يمسح فلاتر وفرز هذا التبويب\n(الاستثناءات وعتبات الحصص ما تنلمس)')) return;
-            st.edits={}; saveJson(EDIT_KEY, st.edits);
-            st.days={}; saveJson(DAYS_KEY, st.days); st.qty={}; saveJson(QTY_KEY, st.qty); st.disc={}; saveJson(DISC_KEY, st.disc);
+            st.edits={}; ok=saveJson(EDIT_KEY, st.edits) && ok;
+            st.days={}; ok=saveJson(DAYS_KEY, st.days) && ok; st.qty={}; ok=saveJson(QTY_KEY, st.qty) && ok; st.disc={}; ok=saveJson(DISC_KEY, st.disc) && ok;
             ['tgtAt','tgtNo','disc','fake','ovNow','ovAfter'].forEach(k=>{ st.cfg[k]=D[k]; });
         }
-        saveJson(CFG_KEY, st.cfg);
+        ok=saveJson(CFG_KEY, st.cfg) && ok;
         V.sort={col:'', dir:1};
         invalAll();
         qtClearFilters(V);
-        showToast('✅ رجع كل شي للأصل');
+        showToast(ok ? '✅ رجع كل شي للأصل' : '⚠️ الرجوع للأصل ناقص — بعض الإعدادات ما انحفظت، الشاشة تعرض المحفوظ فعلاً');
     }
     function qtExclude(V, i){
         const r=vrows(V)[i]; if(!r || r.rel.length!==1) return;
