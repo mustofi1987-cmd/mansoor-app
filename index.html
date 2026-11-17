@@ -445,6 +445,22 @@
         .ofs-splitter:hover .ofs-grip, .ofs-splitter.dragging .ofs-grip, .ofs-splitter:focus-visible .ofs-grip { border-color:var(--accent); }
         @media (max-width:1023.98px){ #officesSidebar { width:auto !important; } #officesSplitter { display:none; } }
         @media (max-width:480px){ dialog.ofd { width:100vw; } }
+        /* ===== صف البحث + قسم مواد الطلبية (الموبايل: طيّ) ===== */
+        .off-srch-row { display:flex; align-items:stretch; gap:8px; margin-bottom:8px; }
+        .off-srch-row > * { margin:0; }
+        .off-srch-row > #vendorSearch { flex:1; min-width:0; width:auto; }
+        .mob-disc-tog { display:none; }
+        @media (max-width:1099.98px){
+            #ofdOpenBtn { min-height:44px; flex-shrink:0; }
+            .mob-disc-tog { display:flex; align-items:center; gap:6px; width:100%; min-height:44px; padding:8px 10px; margin-bottom:8px; border:1px solid var(--separator); border-radius:12px; background:var(--surface); color:inherit; font-size:13px; font-weight:700; text-align:start; }
+            .mob-disc-tog[aria-expanded="false"] + .mob-disc-body { display:none; }
+            .mob-disc-hint { display:none; margin-inline-start:auto; color:#b45309; font-size:11px; }
+            .mob-disc:has(#sendModeHint:not(.hidden)) .mob-disc-tog[aria-expanded="false"] .mob-disc-hint,
+            .mob-disc:has(.cov-policy-bar input[data-cov-chk="covOn"]:checked) .mob-disc-tog[aria-expanded="false"] .mob-disc-hint,
+            .mob-disc:has(.cov-policy-bar input[data-cov-chk="tgtOn"]:checked) .mob-disc-tog[aria-expanded="false"] .mob-disc-hint,
+            .mob-disc:has(.cov-policy-bar [data-cov-set="keepShare"][data-cov-val="false"].on) .mob-disc-tog[aria-expanded="false"] .mob-disc-hint { display:inline; }
+            .mob-disc-tog[aria-expanded="true"] .mob-disc-chev { transform:rotate(180deg); }
+        }
         /* ===== Vendor row: ترقيم + بيانات المندوب ===== */
         .vendor-num { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; background:#e5e7eb; color:#475569; border-radius:6px; font-size:10px; font-weight:800; margin-left:4px; flex-shrink:0; }
         .vendor-item.selected .vendor-num { background:#007AFF; color:#fff; }
@@ -1511,7 +1527,11 @@
                     <div class="stat-card card-pending" data-filter="pending"><div class="text-xl font-black" id="statPending">0</div><div class="text-xs font-semibold">متبقي</div></div>
                 </div>
                 <div id="officesNoDtWarn" class="text-[10px] text-amber-600 font-bold mb-2 hidden"></div>
-                <input type="text" id="vendorSearch" placeholder="🔍 بحث مكتب" class="ios-input w-full mb-2 text-sm">
+                <div class="off-srch-row">
+                    <input type="text" id="vendorSearch" placeholder="🔍 بحث مكتب" class="ios-input w-full text-sm">
+                    <button type="button" id="ofdOpenBtn" class="ofd-open" aria-haspopup="dialog"><i class="fas fa-sliders-h"></i> فلاتر <span class="ofd-n"></span></button>
+                </div>
+<div id="ofdActive" class="ofd-active hidden" aria-label="الفلاتر الفعّالة"></div>
                 <!-- ======== فلتر سريع: حالة الرقم ======== -->
                 <div class="flex gap-1 mb-2" id="phoneFilterChips">
                     <button class="phone-chip on" data-pf="all" title="كل المكاتب"><i class="fas fa-list"></i> الكل <span class="cnt" id="pfAllCnt">0</span></button>
@@ -1543,8 +1563,6 @@
                 </div>
                 <!-- ======== درج الفلاتر (2026-10-19): مشاركة/الفحص @/التكرار/الموقف منقولة لـ<dialog> بنفس الـids — المستمعين والعدّادات ما تغيّرت.
                      «حالة الرقم» تبقى برّه لأنها تغيّر مقارنة الأرخص (gvNetSync) مو العرض بس ======== -->
-                <button type="button" id="ofdOpenBtn" class="ofd-open mb-2" aria-haspopup="dialog"><i class="fas fa-sliders-h"></i> فلاتر <span class="ofd-n"></span></button>
-                <div id="ofdActive" class="ofd-active hidden" aria-label="الفلاتر الفعّالة"></div>
                 <dialog id="officesFilterDrawer" class="ofd" aria-label="فلاتر المكاتب">
                     <div class="ofd-h"><b>الفلاتر</b><button type="button" class="ofd-x" data-ofd-close aria-label="سكّر">✕</button></div>
                     <div class="ofd-body">
@@ -1578,6 +1596,9 @@
                     </div>
                     <div class="ofd-f"><button type="button" id="ofdClearBtn" class="ofd-btn">مسح كل الفلاتر</button><button type="button" class="ofd-btn primary" data-ofd-close>عرض <span id="ofdShowN">0</span> مكتب</button></div>
                 </dialog>
+                <div class="mob-disc" id="offMatDisc">
+                <button type="button" class="mob-disc-tog" aria-expanded="false" aria-controls="offMatBody" onclick="this.setAttribute('aria-expanded',this.getAttribute('aria-expanded')==='true'?'false':'true')"><span>📦 مواد الطلبية والإرسال</span><span class="mob-disc-hint">● إعدادات فعّالة</span><span class="mob-disc-chev" aria-hidden="true">▾</span></button>
+                <div class="mob-disc-body" id="offMatBody">
                 <!-- ======== Toggle: إرسال المفحوصة @ فقط ======== -->
                 <div id="sendModeBar" class="mb-2 w-full rounded-xl px-2 py-1.5 text-xs font-bold" style="border:2px solid #16a34a;background:#fff" title="وضع الإرسال: يحدد شنو يدخل بالرسائل والصور والـPDF والطابور — يبقى شغّال بعد استيراد جديد، ويرجع «الكل» بعد إعادة تحميل الصفحة">
                     <div class="flex items-center gap-1.5 flex-wrap justify-center">
@@ -1602,6 +1623,8 @@
                 </div>
                 <!-- ======== سياسة التغطية والهدف (covRenderBars) — تغيّر الطلبية نفسها، مو العرض بس ======== -->
                 <div class="cov-policy-bar mb-2"></div>
+                </div>
+                </div>
                 <!-- ======== زر إزالة الفلاتر ======== -->
                 <button onclick="clearOfficesFilters()" class="ios-btn w-full mb-3 text-xs px-3 py-1.5 font-bold" style="background:rgba(255,59,48,0.08);border:1px solid rgba(255,59,48,0.3);color:#dc2626" title="إعادة ضبط كل فلاتر المكاتب"><i class="fas fa-eraser ml-1"></i> ↺ إزالة كل الفلاتر</button>
                 <!-- ======== QUEUE ACTIONS BAR (الأتمتة) ======== -->
